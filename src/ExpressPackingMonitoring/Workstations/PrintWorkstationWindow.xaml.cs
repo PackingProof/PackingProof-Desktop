@@ -67,7 +67,6 @@ public partial class PrintWorkstationWindow : Window
     private readonly CancellationTokenSource _lifetimeCts = new();
     private readonly WindowCloseBehaviorController _closeBehaviorController;
     private readonly DispatcherTimer _deviceRefreshTimer;
-    private readonly DispatcherTimer _archiveRefreshTimer;
     private readonly DispatcherTimer _toastTimer;
     private readonly CoalescingBackgroundRefresh _deviceSummaryRefresh = new();
     private readonly CoalescingBackgroundRefresh _archiveSummaryRefresh = new();
@@ -78,7 +77,6 @@ public partial class PrintWorkstationWindow : Window
     private bool _deploymentSetupPersisted;
     private bool _testOrderSending;
     private bool _purposeSwitchPending;
-    private int _archiveBackupSummaryDirty;
     public ObservableCollection<MobileBackupStatusItem> MobileBackupDeviceStatuses { get; } = [];
     public MobileBackupToastState ToastState { get; } = new();
 
@@ -103,17 +101,14 @@ public partial class PrintWorkstationWindow : Window
             this,
             RequestExitFromTray,
             enableCloseBehaviorPrompt);
-        _deviceRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        // 设备在线/离开、备份完成、归档状态都有事件直达，这里只做低频兜底，
+        // 避免漏事件后卡片长期停在旧值。
+        _deviceRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _deviceRefreshTimer.Tick += (_, _) =>
         {
             RefreshDeviceSummary();
+            RefreshArchiveBackupSummary();
             UpdateHeaderIdentity();
-        };
-        _archiveRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _archiveRefreshTimer.Tick += (_, _) =>
-        {
-            if (Interlocked.Exchange(ref _archiveBackupSummaryDirty, 0) != 0)
-                RefreshArchiveBackupSummary();
         };
         _toastTimer = new DispatcherTimer();
         _toastTimer.Tick += (_, _) =>
@@ -127,7 +122,6 @@ public partial class PrintWorkstationWindow : Window
         {
             _closeBehaviorController.Dispose();
             _deviceRefreshTimer.Stop();
-            _archiveRefreshTimer.Stop();
             _toastTimer.Stop();
             _deviceSummaryRefresh.Dispose();
             _archiveSummaryRefresh.Dispose();
@@ -188,7 +182,6 @@ public partial class PrintWorkstationWindow : Window
                 cancellationToken: _lifetimeCts.Token);
             RefreshServiceDisplay();
             _deviceRefreshTimer.Start();
-            _archiveRefreshTimer.Start();
             if (_host.IsLanAvailable)
                 CompleteDeploymentSetup();
             if (_openPlaybackOnStartup)
@@ -542,7 +535,7 @@ public partial class PrintWorkstationWindow : Window
     }
 
     private void OnArchiveBackupStatusChanged() =>
-        Interlocked.Exchange(ref _archiveBackupSummaryDirty, 1);
+        RefreshArchiveBackupSummary();
 
     private sealed record DeviceSummarySnapshot(
         UserscriptTargetStatus UserscriptStatus,

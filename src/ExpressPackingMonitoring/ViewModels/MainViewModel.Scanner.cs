@@ -782,8 +782,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (DateTime.Now - _lastUserscriptStatusRefreshAt >= TimeSpan.FromSeconds(15))
                     RefreshUserscriptStatus();
                 QueueRecordingWorkstationHeartbeat();
-                if (Interlocked.Exchange(ref _archiveBackupSummaryDirty, 0) != 0)
-                    RefreshArchiveBackupSummary();
             };
             _uiHeartbeatTimer.Start();
         }

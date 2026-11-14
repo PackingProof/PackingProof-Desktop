@@ -47,28 +47,26 @@ public sealed class NoCameraWorkstationTests : IDisposable
     }
 
     [Fact]
-    public void ArchiveProgressRefresh_IsEventDrivenAndCoalescedToOneSecond()
+    public void ArchiveProgressRefresh_IsEventDrivenWithoutPeriodicDirtyPolling()
     {
         string windowSource = ReadRepositoryFile(
             "src", "ExpressPackingMonitoring",
             "Workstations",
-            "PrintWorkstationWindow.xaml.cs");
-        string viewModelSource = RepositorySource.ReadMainViewModel();
+            "PrintWorkstationWindow.xaml.cs").ReplaceLineEndings("\n");
+        string viewModelSource = RepositorySource.ReadMainViewModel().ReplaceLineEndings("\n");
 
         Assert.Contains(
             "_host.ArchiveBackupStatusChanged += OnArchiveBackupStatusChanged",
             windowSource,
             StringComparison.Ordinal);
         Assert.Contains(
-            "_archiveRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }",
+            "private void OnArchiveBackupStatusChanged() =>\n        RefreshArchiveBackupSummary();",
             windowSource,
             StringComparison.Ordinal);
+        Assert.DoesNotContain("_archiveRefreshTimer", windowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_archiveBackupSummaryDirty", viewModelSource, StringComparison.Ordinal);
         Assert.Contains(
-            "Interlocked.Exchange(ref _archiveBackupSummaryDirty, 0)",
-            windowSource,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "Interlocked.Exchange(ref _archiveBackupSummaryDirty, 0)",
+            "private void OnArchiveQueueChanged() =>\n        RefreshArchiveBackupSummary();",
             viewModelSource,
             StringComparison.Ordinal);
     }

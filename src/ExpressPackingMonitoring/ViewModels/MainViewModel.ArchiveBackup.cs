@@ -12,7 +12,6 @@ public partial class MainViewModel
     private int _remainingArchiveBackupCount;
     private bool _archiveTargetUnavailable;
     private string _archiveUnavailableRoot = "";
-    private int _archiveBackupSummaryDirty;
 
     public bool IsArchiveBackupCardVisible
     {
@@ -55,10 +54,10 @@ public partial class MainViewModel
     }
 
     private void OnArchiveWorkerStateChanged(ArchiveWorkerSnapshot _) =>
-        Interlocked.Exchange(ref _archiveBackupSummaryDirty, 1);
+        RefreshArchiveBackupSummary();
 
     private void OnArchiveQueueChanged() =>
-        Interlocked.Exchange(ref _archiveBackupSummaryDirty, 1);
+        RefreshArchiveBackupSummary();
 
     private void OnArchiveTargetAvailabilityChanged(bool available, string root)
     {
