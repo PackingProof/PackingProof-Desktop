@@ -3,6 +3,7 @@ using ExpressPackingMonitoring.Vision;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using OpenCvSharp;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 
@@ -70,6 +71,7 @@ internal sealed class VisionObbDetector : IVisionObbDetector
     }
 
     public string ExecutionProvider => _executionProvider;
+    public VisionObbDetectorTiming LastTiming { get; private set; }
     internal int LastRawCandidateCount { get; private set; }
     internal int LastFilteredDetectionCount { get; private set; }
 
@@ -297,11 +299,13 @@ internal sealed class VisionObbDetector : IVisionObbDetector
     {
         lock (_detectLock)
         {
+            LastTiming = default;
             LastRawCandidateCount = 0;
             LastFilteredDetectionCount = 0;
             if (_disposed || frame == null || frame.IsDisposed || frame.Empty())
                 return [];
 
+            long preprocessStarted = Stopwatch.GetTimestamp();
             if (!PrepareLetterbox(
                     frame,
                     _canvas,
@@ -328,8 +332,15 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                 return [];
             }
 
+            double preprocessMs =
+                Stopwatch.GetElapsedTime(preprocessStarted).TotalMilliseconds;
+            long inferenceStarted = Stopwatch.GetTimestamp();
             using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results =
                 _session.Run([NamedOnnxValue.CreateFromTensor(_inputName, _input)]);
+            double inferenceMs =
+                Stopwatch.GetElapsedTime(inferenceStarted).TotalMilliseconds;
+
+            long postprocessStarted = Stopwatch.GetTimestamp();
             Tensor<float> output = results.First().AsTensor<float>();
             List<VisionObbDetection> candidates = ParseOutput(
                 output.ToDenseTensor().Buffer.Span,
@@ -352,6 +363,10 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                     Height = detection.Height / scale
                 });
             }
+            LastTiming = new VisionObbDetectorTiming(
+                preprocessMs,
+                inferenceMs,
+                Stopwatch.GetElapsedTime(postprocessStarted).TotalMilliseconds);
             return restored;
         }
     }

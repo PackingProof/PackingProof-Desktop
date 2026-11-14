@@ -48,6 +48,9 @@ namespace ExpressPackingMonitoring.Config
         public static readonly string VisionObbDiagnosticLogPath = Path.Combine(
             LogDir,
             "vision_obb_diagnostics.log");
+        public static readonly string VisionObbTimingLogPath = Path.Combine(
+            LogDir,
+            "vision_obb_timing.log");
         public static readonly string VisionObbTriggerDiagnosticLogPath = Path.Combine(
             LogDir,
             "vision_obb_trigger_events.log");

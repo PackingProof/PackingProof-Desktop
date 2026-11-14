@@ -148,6 +148,7 @@
     <Compile Include="Services\VisionObbRuntimePolicy.cs" />
     <Compile Include="Services\VisionObbHost.cs" />
     <Compile Include="Services\VisionObbDiagnosticLog.cs" />
+    <Compile Include="Services\VisionObbTimingDiagnosticLog.cs" />
     <Compile Include="Services\VisionObbTriggerEventLog.cs" />
     <Compile Include="Services\RecordingSampleSelectionPolicy.cs" />
     <Compile Include="Services\RecordingSamplePackageService.cs" />
@@ -160,6 +161,7 @@
     <Compile Include="Services\CameraBarcodeMotionGate.cs" />
     <Compile Include="Services\CameraVisionAutoEnablePolicy.cs" />
     <Compile Include="Services\CameraBarcodeFastDecoder.cs" />
+    <Compile Include="Services\CameraBarcodeDecodeAngleTelemetry.cs" />
     <Compile Include="Services\CameraBarcodeDecodeSizePolicy.cs" />
     <Compile Include="Services\CameraBarcodeVisionProcessor.cs" />
     <Compile Include="Services\CoalescingBackgroundRefresh.cs" />

@@ -1,12 +1,19 @@
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Vision;
 using OpenCvSharp;
+using System.Diagnostics;
 
 namespace ExpressPackingMonitoring.Services;
 
 internal sealed record DecodedObbBarcodeCandidate(
     string Code,
     VisionObbDetection Detection);
+
+internal readonly record struct ObbPatchDecodeAttempt(
+    string? Code,
+    string PatchMode,
+    double PatchMs,
+    double DecodeMs);
 
 /// <summary>
 /// 共享 OBB 检测器：倾斜识别或智能跟随任一开启都会提供检测结果；
@@ -20,6 +27,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     internal const double DirectCropMaxResidualAngleDegrees = 10;
     internal const double CropPaddingRatio = 0.04;
     private const long ObbDiagnosticsMinIntervalMs = 1500;
+    private const double SlowGuideLogThresholdMs = 50;
 
     private readonly CameraBarcodeFrameDecoder _standardDecoder;
     private readonly Func<(bool Enabled, string Path)> _settingsProvider;
@@ -32,6 +40,9 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     private bool _disposed;
     private long _lastObbDiagnosticsAtMs;
     private string _lastObbDiagnosticsSignature = "";
+    private double _lastDetectionMs;
+    private int _lastDetectionCount;
+    private VisionObbDetectorTiming _lastDetectorTiming;
 
     internal CameraBarcodeObbDecoder(
         CameraBarcodeFrameDecoder standardDecoder,
@@ -120,7 +131,15 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         if (LastObbDetections.Count == 0)
         {
             LastSelectedObbDetection = null;
-            return _standardDecoder.DecodeGuideRegion(frame, isValid, geometry);
+            long started = Stopwatch.GetTimestamp();
+            string? guideDecoded = _standardDecoder.DecodeGuideRegion(frame, isValid, geometry);
+            double elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            LogStandaloneGuideDiagnostic(
+                frame,
+                "guide_no_detection",
+                elapsedMs,
+                guideDecoded != null);
+            return guideDecoded;
         }
 
         string? decoded = DecodeDetectedRegions(
@@ -135,7 +154,36 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         // 检测框只代表候选区域，不能作为“画面里一定有码”的证据。
         // 所有 OBB 裁图都失败后必须回到原始取景区域，避免假框阻断正常 ZXing。
         LastSelectedObbDetection = null;
-        return _standardDecoder.DecodeGuideRegion(frame, isValid, geometry);
+        long fallbackStarted = Stopwatch.GetTimestamp();
+        string? fallbackDecoded = _standardDecoder.DecodeGuideRegion(frame, isValid, geometry);
+        double fallbackMs =
+            Stopwatch.GetElapsedTime(fallbackStarted).TotalMilliseconds;
+        LogStandaloneGuideDiagnostic(
+            frame,
+            "guide_after_obb",
+            fallbackMs,
+            fallbackDecoded != null);
+        return fallbackDecoded;
+    }
+
+    private void LogStandaloneGuideDiagnostic(
+        Mat frame,
+        string stage,
+        double elapsedMs,
+        bool decoded)
+    {
+        if (!decoded && elapsedMs < SlowGuideLogThresholdMs)
+            return;
+
+        VisionObbTimingDiagnosticLog.Append(
+        [
+            CreateGuideTimingDiagnostic(
+                frame,
+                stage,
+                elapsedMs,
+                decoded,
+                elapsedMs)
+        ]);
     }
 
     private (IReadOnlyList<VisionObbDetection> Detections, bool DetectorAvailable)
@@ -150,7 +198,13 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         {
             try
             {
-                LastObbDetections = detector.Detect(frame)
+                long started = Stopwatch.GetTimestamp();
+                IReadOnlyList<VisionObbDetection> detected = detector.Detect(frame);
+                _lastDetectionMs =
+                    Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                _lastDetectorTiming = detector.LastTiming;
+                _lastDetectionCount = detected.Count;
+                LastObbDetections = detected
                     .Take(VisionObbModelPolicy.MaxDetections)
                     .Select(detection => TranslateDetection(
                         detection,
@@ -163,6 +217,12 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
                 DisableDetectorAfterRuntimeFailure(detector, path, ex);
                 detector = null;
             }
+        }
+        else
+        {
+            _lastDetectionMs = 0;
+            _lastDetectionCount = 0;
+            _lastDetectorTiming = default;
         }
         return (LastObbDetections, detector != null);
     }
@@ -203,9 +263,12 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         CameraBarcodeGuideGeometry geometry,
         bool useGuideRegionFallback)
     {
+        long decodeStarted = Stopwatch.GetTimestamp();
         var orientedCandidates = new List<DecodedObbBarcodeCandidate>();
         var diagnostics = new List<VisionObbCandidateDiagnostic>();
+        var timingDiagnostics = new List<VisionObbTimingDiagnostic>();
         var fullFrame = new Rect(0, 0, frame.Width, frame.Height);
+        int candidateIndex = 0;
         foreach (VisionObbDetection detection in LastObbDetections)
         {
             int width = Math.Max(1, (int)Math.Round(detection.Width));
@@ -223,22 +286,55 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
                     detection,
                     decodeAllowed: false,
                     decoded: false));
+                timingDiagnostics.Add(CreateTimingDiagnostic(
+                    frame,
+                    detection,
+                    candidateIndex,
+                    patchMode: "threshold_blocked",
+                    patchMs: 0,
+                    decodeMs: 0,
+                    decoded: false,
+                    totalDecodeMs: Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds,
+                    stage: "candidate"));
+                candidateIndex++;
                 continue;
             }
 
             bool useDirectCrop = ShouldUseDirectCrop(detection);
-            string? oriented = DecodeDetectionPatch(
+            ObbPatchDecodeAttempt attempt = DecodeDetectionPatch(
                 frame,
                 detection,
                 useDirectCrop,
                 isValid);
+            timingDiagnostics.Add(CreateTimingDiagnostic(
+                frame,
+                detection,
+                candidateIndex,
+                attempt.PatchMode,
+                attempt.PatchMs,
+                attempt.DecodeMs,
+                attempt.Code != null,
+                Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds,
+                stage: "candidate"));
+            string? oriented = attempt.Code;
             if (string.IsNullOrWhiteSpace(oriented))
             {
-                oriented = DecodeDetectionPatch(
+                attempt = DecodeDetectionPatch(
                     frame,
                     detection,
                     !useDirectCrop,
                     isValid);
+                timingDiagnostics.Add(CreateTimingDiagnostic(
+                    frame,
+                    detection,
+                    candidateIndex,
+                    attempt.PatchMode,
+                    attempt.PatchMs,
+                    attempt.DecodeMs,
+                    attempt.Code != null,
+                    Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds,
+                    stage: "candidate"));
+                oriented = attempt.Code;
             }
             if (string.IsNullOrWhiteSpace(oriented))
             {
@@ -247,6 +343,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
                     detection,
                     decodeAllowed: true,
                     decoded: false));
+                candidateIndex++;
                 continue;
             }
             diagnostics.Add(DescribeCandidate(
@@ -255,8 +352,8 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
                 decodeAllowed: true,
                 decoded: true));
             orientedCandidates.Add(new DecodedObbBarcodeCandidate(oriented, detection));
+            candidateIndex++;
         }
-        LogCandidateDiagnostics(frame, diagnostics);
 
         ObbBarcodeSelection selection = SelectCandidate(
             orientedCandidates,
@@ -264,22 +361,40 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         if (selection.Code != null)
         {
             LastSelectedObbDetection = selection.Detection;
+            LogCandidateDiagnostics(
+                diagnostics,
+                timingDiagnostics);
             return selection.Code;
         }
 
         if (!useGuideRegionFallback)
+        {
+            LogCandidateDiagnostics(
+                diagnostics,
+                timingDiagnostics);
             return null;
+        }
 
+        long fallbackStarted = Stopwatch.GetTimestamp();
         string? decoded = _standardDecoder.DecodeGuideRegion(frame, isValid, geometry);
+        timingDiagnostics.Add(CreateGuideTimingDiagnostic(
+            frame,
+            stage: "guide_fallback",
+            Stopwatch.GetElapsedTime(fallbackStarted).TotalMilliseconds,
+            decoded != null,
+            Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds));
         LastSelectedObbDetection = FindDetectionForDecodedGeometry();
+        LogCandidateDiagnostics(
+            diagnostics,
+            timingDiagnostics);
         return decoded;
     }
 
     private void LogCandidateDiagnostics(
-        Mat frame,
-        IReadOnlyList<VisionObbCandidateDiagnostic> diagnostics)
+        IReadOnlyList<VisionObbCandidateDiagnostic> diagnostics,
+        IReadOnlyList<VisionObbTimingDiagnostic> timingDiagnostics)
     {
-        if (diagnostics.Count == 0)
+        if (diagnostics.Count == 0 && timingDiagnostics.Count == 0)
             return;
 
         long nowMs = Environment.TickCount64;
@@ -302,6 +417,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         _lastObbDiagnosticsSignature = signature;
         _lastObbDiagnosticsAtMs = nowMs;
         VisionObbDiagnosticLog.Append(diagnostics);
+        VisionObbTimingDiagnosticLog.Append(timingDiagnostics);
     }
 
     private VisionObbCandidateDiagnostic DescribeCandidate(
@@ -337,27 +453,109 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             decoded);
     }
 
-    private string? DecodeDetectionPatch(
+    private VisionObbTimingDiagnostic CreateTimingDiagnostic(
+        Mat frame,
+        in VisionObbDetection detection,
+        int candidateIndex,
+        string patchMode,
+        double patchMs,
+        double decodeMs,
+        bool decoded,
+        double totalDecodeMs,
+        string stage) =>
+        new(
+            Stage: stage,
+            FrameWidth: frame.Width,
+            FrameHeight: frame.Height,
+            DetectionMs: _lastDetectionMs,
+            DetectionCount: _lastDetectionCount,
+            DetectorTiming: _lastDetectorTiming,
+            CandidateIndex: candidateIndex,
+            CandidateWidth: detection.Width,
+            CandidateHeight: detection.Height,
+            CandidateAngleDegrees: detection.AngleDegrees,
+            CandidateDiagonalPercent:
+                CameraBarcodeDecodeSizePolicy.FrameDiagonalRatio(
+                    Math.Max(1, (int)Math.Round(detection.Width)),
+                    Math.Max(1, (int)Math.Round(detection.Height)),
+                    frame.Width,
+                    frame.Height) * 100,
+            PatchMode: patchMode,
+            PatchMs: patchMs,
+            DecodeMs: decodeMs,
+            ZxingOrientation: -1,
+            ZxingMode: "",
+            ZxingAttempts: 0,
+            Decoded: decoded,
+            TotalDecodeMs: totalDecodeMs);
+
+    private VisionObbTimingDiagnostic CreateGuideTimingDiagnostic(
+        Mat frame,
+        string stage,
+        double decodeMs,
+        bool decoded,
+        double totalDecodeMs) =>
+        new(
+            Stage: stage,
+            FrameWidth: frame.Width,
+            FrameHeight: frame.Height,
+            DetectionMs: _lastDetectionMs,
+            DetectionCount: _lastDetectionCount,
+            DetectorTiming: _lastDetectorTiming,
+            CandidateIndex: -1,
+            CandidateWidth: frame.Width,
+            CandidateHeight: frame.Height,
+            CandidateAngleDegrees: 0,
+            CandidateDiagonalPercent: 100,
+            PatchMode: "guide_region",
+            PatchMs: 0,
+            DecodeMs: decodeMs,
+            ZxingOrientation: -1,
+            ZxingMode: "",
+            ZxingAttempts: 0,
+            Decoded: decoded,
+            TotalDecodeMs: totalDecodeMs);
+
+    private ObbPatchDecodeAttempt DecodeDetectionPatch(
         Mat frame,
         in VisionObbDetection detection,
         bool useDirectCrop,
         Func<string, bool>? isValid)
     {
+        long patchStarted = Stopwatch.GetTimestamp();
         using Mat patch = useDirectCrop
             ? CreateAxisAlignedPatch(frame, detection)
             : CreateUprightPatch(frame, detection);
+        double patchMs = Stopwatch.GetElapsedTime(patchStarted).TotalMilliseconds;
+        string patchMode = useDirectCrop ? "direct_crop" : "perspective";
         if (patch.Empty())
-            return null;
+            return new ObbPatchDecodeAttempt(null, patchMode, patchMs, 0);
+
+        long decodeStarted = Stopwatch.GetTimestamp();
         if (!useDirectCrop)
-            return _standardDecoder.DecodeDetached(patch, isValid);
+        {
+            return new ObbPatchDecodeAttempt(
+                _standardDecoder.DecodeDetached(patch, isValid),
+                patchMode,
+                patchMs,
+                Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds);
+        }
 
         string? decoded = _standardDecoder.DecodeDetachedFast(patch);
         if (!string.IsNullOrWhiteSpace(decoded)
             && (isValid == null || TryValidate(isValid, decoded)))
         {
-            return decoded;
+            return new ObbPatchDecodeAttempt(
+                decoded,
+                patchMode,
+                patchMs,
+                Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds);
         }
-        return _standardDecoder.DecodeDetached(patch, isValid);
+        return new ObbPatchDecodeAttempt(
+            _standardDecoder.DecodeDetached(patch, isValid),
+            patchMode,
+            patchMs,
+            Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds);
     }
 
     internal static ObbBarcodeSelection SelectCandidate(

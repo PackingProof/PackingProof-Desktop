@@ -51,9 +51,15 @@ public sealed record VisionModelMetadata(
     IReadOnlyDictionary<string, string> CustomMetadata,
     string RuntimeVersion);
 
+public readonly record struct VisionObbDetectorTiming(
+    double PreprocessMs,
+    double InferenceMs,
+    double PostprocessMs);
+
 public interface IVisionObbDetector : IDisposable
 {
     string ExecutionProvider { get; }
+    VisionObbDetectorTiming LastTiming => default;
     IReadOnlyList<VisionObbDetection> Detect(Mat frame);
 }
 

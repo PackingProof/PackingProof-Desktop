@@ -78,6 +78,54 @@ public sealed class VisionObbPerformanceBenchmarkTests
     }
 
     [Fact]
+    public void TimingDiagnosticsCoverDetectionDecodeAndZxingOrientationStages()
+    {
+        string decoder = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "Services",
+            "CameraBarcodeObbDecoder.cs"));
+        string timingLog = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "Services",
+            "VisionObbTimingDiagnosticLog.cs"));
+        string detector = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring.Vision.Obb",
+            "Services",
+            "VisionObbDetector.cs"));
+        string recognition = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "Services",
+            "CameraBarcodeRecognitionService.cs"));
+        string fastDecoder = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "Services",
+            "CameraBarcodeFastDecoder.cs"));
+        string appPaths = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "Config",
+            "AppPaths.cs"));
+
+        Assert.Contains("vision_obb_timing.log", appPaths, StringComparison.Ordinal);
+        Assert.Contains("preprocess_ms", timingLog, StringComparison.Ordinal);
+        Assert.Contains("inference_ms", timingLog, StringComparison.Ordinal);
+        Assert.Contains("postprocess_ms", timingLog, StringComparison.Ordinal);
+        Assert.Contains("patch_ms", timingLog, StringComparison.Ordinal);
+        Assert.Contains("decode_ms", timingLog, StringComparison.Ordinal);
+        Assert.Contains("zxing_orientation_deg", timingLog, StringComparison.Ordinal);
+        Assert.Contains("LastTiming = new VisionObbDetectorTiming", detector);
+        Assert.Contains("VisionObbTimingDiagnosticLog.Append", decoder);
+        Assert.Contains("CameraBarcodeDecodeAngleTelemetry.Decode", recognition);
+        Assert.Contains("CameraBarcodeDecodeAngleTelemetry.Record", recognition);
+        Assert.Contains("CameraBarcodeDecodeAngleTelemetry.Decode", fastDecoder);
+    }
+
+    [Fact]
     public void CiRunsProductionBenchmarkWithoutRequiringASamplePath()
     {
         string testSource = File.ReadAllText(FindRepositoryFile(

@@ -137,6 +137,16 @@ OBB 候选进入 ZXing 前同时检查绝对像素和画幅占比：
   不混入 `runtime.log`；每行记录候选对角线像素、占完整画面对角线百分比、置信度、
   是否通过阈值以及是否解码成功；相同候选在 1.5 秒内不重复记录
 
+分阶段耗时单独写入
+`%LOCALAPPDATA%\ExpressPackingMonitoring\log\vision_obb_timing.log`：
+
+- OBB 检测拆成图像预处理、DirectML/CPU 推理和后处理耗时
+- 每个 OBB 候选拆成直接裁图或透视校正耗时、ZXing 解码耗时与整帧总耗时
+- 记录候选数量、尺寸、角度、对角线比例、阈值是否放行以及最终是否解码
+- 记录 ZXing 成功方向（`0/90/180/270`）和快速/慢速阅读器，便于后续按工位调整尝试顺序
+- 没有 OBB 候选时的取景框 ZXing 也会在成功或单次超过 `50ms` 时记录
+- 日志超过 `5MB` 后轮转为 `vision_obb_timing.old.log`，诊断写入失败不影响正常识别
+
 识别触发录像后的结果单独写入
 `%LOCALAPPDATA%\ExpressPackingMonitoring\log\vision_obb_trigger_events.log`：
 

@@ -850,7 +850,12 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
                 source.Width,
                 source.Height,
                 orientation);
-            result = _fastReader.Decode(luminance) ?? slowReader.Decode(luminance);
+            result = CameraBarcodeDecodeAngleTelemetry.Decode(
+                _fastReader,
+                slowReader,
+                luminance,
+                orientation,
+                source.Size());
         }
         if (result == null || !IsAcceptedFormat(result.BarcodeFormat))
             return null;
@@ -1003,6 +1008,10 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
             string normalized = NormalizeResult(result.Text);
             if (normalized.Length == 0)
                 continue;
+            CameraBarcodeDecodeAngleTelemetry.Record(
+                new Size(sourceWidth, sourceHeight),
+                orientation,
+                ReferenceEquals(reader, SelectSlowReader()));
 
             double distanceSquared = double.MaxValue;
             double area = 0;

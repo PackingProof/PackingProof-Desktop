@@ -104,7 +104,12 @@ internal sealed class CameraBarcodeFastDecoder : IDisposable
                 source.Width,
                 source.Height,
                 orientation);
-            result = reader.Decode(luminance);
+            result = CameraBarcodeDecodeAngleTelemetry.Decode(
+                reader,
+                slowReader: null,
+                luminance,
+                orientation,
+                source.Size());
         }
         if (result == null
             || !IsAcceptedFormat(result.BarcodeFormat, qrCodeEnabled))

@@ -491,6 +491,10 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
             MatType.CV_8UC3,
             Scalar.White);
         IReadOnlyList<VisionObbDetection> detections = detector.Detect(frame);
+        output.WriteLine(
+            $"OBB detector timing: preprocess={detector.LastTiming.PreprocessMs:F1}ms, "
+            + $"inference={detector.LastTiming.InferenceMs:F1}ms, "
+            + $"postprocess={detector.LastTiming.PostprocessMs:F1}ms");
 
         Assert.NotNull(detections);
 
@@ -561,6 +565,10 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
         Assert.False(sample.Empty());
         IReadOnlyList<VisionObbDetection> sampleDetections = detector.Detect(sample);
         output.WriteLine(
+            $"OBB sample timing: preprocess={detector.LastTiming.PreprocessMs:F1}ms, "
+            + $"inference={detector.LastTiming.InferenceMs:F1}ms, "
+            + $"postprocess={detector.LastTiming.PostprocessMs:F1}ms");
+        output.WriteLine(
             $"OBB sample candidates={detector.LastRawCandidateCount}, "
             + $"filtered={detector.LastFilteredDetectionCount}: "
             + string.Join(
@@ -571,5 +579,17 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
                     + $"size={detection.Width:F1}x{detection.Height:F1},"
                     + $"angle={detection.AngleDegrees:F1}")));
         Assert.NotEmpty(sampleDetections);
+
+        using var barcodeDecoder = new CameraBarcodeFrameDecoder();
+        using var obbDecoder = new CameraBarcodeObbDecoder(barcodeDecoder);
+        long decodeStarted = Stopwatch.GetTimestamp();
+        string? sampleDecoded = obbDecoder.DecodeDetectedRegions(
+            sample,
+            sampleDetections,
+            _ => true,
+            useGuideRegionFallback: false);
+        output.WriteLine(
+            $"OBB sample decode: total={Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds:F1}ms, "
+            + $"decoded={sampleDecoded != null}");
     }
 }
