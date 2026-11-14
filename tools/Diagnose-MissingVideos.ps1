@@ -24,25 +24,66 @@ function Resolve-ExistingPath {
 function Find-AppDirectory {
     param([string]$ExplicitPath)
 
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
+        $candidates.Add($ExplicitPath)
+    }
+
     # 目标框架会升（0.0.82 起是 net10.0-windows），这里按当前 bin 下的实际输出找，不写死版本。
     $buildOutputs = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot "..\src\ExpressPackingMonitoring\bin") `
             -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -like 'net*-windows*' } |
         Sort-Object -Property @{ Expression = { [version]([regex]::Match($_.Name, '\d+\.\d+').Value) } } -Descending |
         ForEach-Object { $_.FullName; (Join-Path $_.FullName 'win-x64') })
-    $candidates = @(
-        $ExplicitPath,
+    $candidates.AddRange([string[]]@(
         (Join-Path $PSScriptRoot "app"),
-        (Join-Path $PSScriptRoot "..\app")
-    ) + $buildOutputs | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        (Join-Path $PSScriptRoot "..\app"),
+        (Join-Path $PSScriptRoot "..\..\app"),
+        (Join-Path $env:LOCALAPPDATA "Programs\ExpressPackingMonitoring\app"),
+        (Join-Path $env:LOCALAPPDATA "Programs\PackingProof\app")
+    ))
+    $candidates.AddRange([string[]]$buildOutputs)
+
+    foreach ($programFiles in @(
+        [Environment]::GetFolderPath("ProgramFiles"),
+        [Environment]::GetFolderPath("ProgramFilesX86")
+    )) {
+        if (-not [string]::IsNullOrWhiteSpace($programFiles)) {
+            $candidates.Add((Join-Path $programFiles "ExpressPackingMonitoring\app"))
+            $candidates.Add((Join-Path $programFiles "PackingProof\app"))
+        }
+    }
+
+    $uninstallRoots = @(
+        "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+    )
+    foreach ($root in $uninstallRoots) {
+        Get-ItemProperty -Path $root -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.DisplayName -like "*PackingProof*" -or
+                $_.DisplayName -like "*ExpressPackingMonitoring*"
+            } |
+            ForEach-Object {
+                if (-not [string]::IsNullOrWhiteSpace($_.InstallLocation)) {
+                    $candidates.Add([string]$_.InstallLocation)
+                    $candidates.Add((Join-Path ([string]$_.InstallLocation) "app"))
+                }
+            }
+    }
 
     foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate) -or -not (Test-Path -LiteralPath $candidate)) {
+            continue
+        }
+
         if (Test-Path -LiteralPath (Join-Path $candidate "Microsoft.Data.Sqlite.dll")) {
             return (Resolve-Path -LiteralPath $candidate).Path
         }
     }
 
-    throw "找不到 Microsoft.Data.Sqlite.dll。请用 -AppDir 指向正式包的 app 目录。"
+    throw "找不到 PackingProof 的 app 目录。请确认程序已安装，或用 -AppDir 指向正式包的 app 目录。"
 }
 
 function Import-SqliteRuntime {

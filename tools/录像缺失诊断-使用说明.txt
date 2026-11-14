@@ -1,0 +1,29 @@
+PackingProof 录像缺失诊断
+
+用途
+- 检查本机录像数据库里“有记录但文件找不到”的录像。
+- 只读数据库和日志，不修改录像、数据库或设置。
+
+运行前
+- 电脑上需要 PowerShell 7，也就是 pwsh.exe。
+- 诊断包会自动检查 PowerShell 7；找不到时会通过 Windows 自带的 winget 自动安装。
+- 自动安装需要联网。如果系统没有 winget 或安装失败，窗口会提示改为发送 videos.db 和 log 文件夹。
+
+运行
+1. 解压整个诊断包。
+2. 双击“运行录像缺失诊断.cmd”。
+3. 等待窗口显示 Diagnostic completed。
+4. 把生成的 diagnostic-report 文件夹压缩后发回。
+
+生成的文件
+- missing-videos-时间.csv：数据库中文件已经找不到的录像明细。
+- summary-时间.txt：诊断摘要和数据库、日志路径。
+
+隐私
+- 诊断包不包含录像、数据库、完整日志、账号、密码或令牌。
+- 请只回传 diagnostic-report 文件夹，不要回传整台电脑的录像目录。
+
+运行失败
+- 如果提示找不到 app 目录，请确认 PackingProof 已经安装在本机。
+- 也可以手工运行：
+  pwsh -NoProfile -ExecutionPolicy Bypass -File .\Diagnose-MissingVideos.ps1 -AppDir "PackingProof安装目录\app" -OutputDir ".\diagnostic-report"
