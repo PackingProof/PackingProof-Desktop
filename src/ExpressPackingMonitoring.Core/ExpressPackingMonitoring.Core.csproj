@@ -145,6 +145,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\LocalMissingRepair.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ManualCleanupService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\MobileAppUpdatePolicyProvider.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\MobileAppUpdateRefreshScheduler.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\MobileBackupService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\StorageFolderAliases.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\MobileBackupSharedFileMigrator.cs" />

@@ -206,7 +206,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly ConnectedClientRegistry _connectedClients;
         private readonly MobileAppUpdatePolicyProvider _mobileAppUpdatePolicy =
             MobileAppUpdatePolicyProvider.Shared;
-        private Timer _mobileAppUpdateRefreshTimer;
+        private readonly MobileAppUpdateRefreshScheduler _mobileAppUpdateRefreshScheduler;
         private readonly ConcurrentDictionary<string, byte> _notifiedMobileAppUpdates = new();
         private readonly ConcurrentDictionary<string, DeviceVideoTicket> _deviceVideoTickets = new();
         private readonly ConcurrentDictionary<string, DeviceClipTaskGrant> _deviceClipTasks = new();
@@ -327,6 +327,8 @@ namespace ExpressPackingMonitoring.Services
             string userscriptDirectory = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
+            _mobileAppUpdateRefreshScheduler =
+                new MobileAppUpdateRefreshScheduler(_mobileAppUpdatePolicy);
             _isRecordingProvider = isRecordingProvider ?? (() => false);
             _currentRecordingFileProvider = currentRecordingFileProvider ?? (() => null);
             _mkvConverter = mkvConverter;
@@ -527,12 +529,7 @@ namespace ExpressPackingMonitoring.Services
                     throw;
                 }
             }
-            _mobileAppUpdatePolicy.RefreshInBackground();
-            _mobileAppUpdateRefreshTimer = new Timer(
-                _ => _mobileAppUpdatePolicy.RefreshInBackground(),
-                null,
-                TimeSpan.FromSeconds(ConnectedClientRegistry.HeartbeatIntervalSeconds),
-                TimeSpan.FromSeconds(ConnectedClientRegistry.HeartbeatIntervalSeconds));
+            _mobileAppUpdateRefreshScheduler.Start();
             _listenTask = Task.Run(() => ListenLoop(_cts.Token));
             _videoCodecBackfillTask = Task.Run(() => BackfillVideoCodecsAsync(_cts.Token));
             StartUdpDiscoveryResponder();
@@ -1921,7 +1918,7 @@ namespace ExpressPackingMonitoring.Services
                 }
                 _connectedClients.Heartbeat(heartbeat, remoteAddress);
                 OfficialUserscriptMigrationService.Shared.ObserveHeartbeat(heartbeat);
-                _mobileAppUpdatePolicy.RefreshInBackground();
+                _ = _mobileAppUpdatePolicy.RefreshInBackground();
                 NotifyMobileAppUpdateIfNeeded(heartbeat);
                 MobileAppUpdatePolicy updatePolicy = MobileAppUpdatePolicyProvider.MinimumPolicy;
                 MobileAppReleaseInfo latestRelease = _mobileAppUpdatePolicy.LatestRelease;
@@ -2763,7 +2760,7 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleMobileAppDownload(HttpListenerContext ctx)
         {
-            _mobileAppUpdatePolicy.RefreshInBackground();
+            _ = _mobileAppUpdatePolicy.RefreshInBackground();
             MobileAppDownloadInfo info = CreateMobileAppDownloadInfo(
                 _mobileAppUpdatePolicy.LatestRelease);
             SendJson(ctx, 200, info);
@@ -5863,7 +5860,7 @@ namespace ExpressPackingMonitoring.Services
             _disposed = true;
             _cts.Cancel();
             try { _udpDiscoveryResponder?.Dispose(); } catch { }
-            try { _mobileAppUpdateRefreshTimer?.Dispose(); } catch { }
+            _mobileAppUpdateRefreshScheduler.Dispose();
             foreach (var pending in _pendingOrderLookups.Values)
                 pending.Completion.TrySetResult(new OrderLookupResult { Responded = false });
             _pendingOrderLookups.Clear();

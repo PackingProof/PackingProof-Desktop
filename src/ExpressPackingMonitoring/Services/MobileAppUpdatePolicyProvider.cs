@@ -12,6 +12,8 @@ internal sealed class MobileAppUpdatePolicyProvider
 {
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromHours(6);
     private static readonly TimeSpan FailureRetryInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan InFlightRecheckInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan MinimumScheduleDelay = TimeSpan.FromSeconds(5);
     private static readonly Regex VersionPattern = new(
         @"^v?(?<version>\d+\.\d+\.\d+)(?:\+(?<build>\d+))?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -29,6 +31,7 @@ internal sealed class MobileAppUpdatePolicyProvider
 
     private readonly object _gate = new();
     private DateTimeOffset _lastAttemptUtc = DateTimeOffset.MinValue;
+    private bool _lastAttemptFailed;
     private Task? _refreshTask;
     private MobileAppReleaseInfo? _latestRelease;
 
@@ -54,29 +57,64 @@ internal sealed class MobileAppUpdatePolicyProvider
         }
     }
 
-    internal void RefreshInBackground()
+    internal Task? RefreshInBackground()
     {
         lock (_gate)
         {
-            TimeSpan minimumInterval = _latestRelease == null
-                ? FailureRetryInterval
-                : RefreshInterval;
             if (_refreshTask is { IsCompleted: false }
-                || DateTimeOffset.UtcNow - _lastAttemptUtc < minimumInterval)
+                || DateTimeOffset.UtcNow - _lastAttemptUtc < ResolveRefreshIntervalLocked())
             {
-                return;
+                return null;
             }
 
             _lastAttemptUtc = DateTimeOffset.UtcNow;
             _refreshTask = RefreshAsync();
+            return _refreshTask;
         }
+    }
+
+    private TimeSpan ResolveRefreshIntervalLocked() =>
+        _lastAttemptFailed || _latestRelease == null
+            ? FailureRetryInterval
+            : RefreshInterval;
+
+    /// <summary>
+    /// 距离下一次允许检查的等待时间。调用方据此安排单次计时，不再用固定 15 秒轮询空转。
+    /// </summary>
+    internal TimeSpan GetTimeUntilNextRefresh()
+    {
+        lock (_gate)
+        {
+            if (_refreshTask is { IsCompleted: false })
+                return InFlightRecheckInterval;
+            return ComputeRefreshDelay(
+                DateTimeOffset.UtcNow,
+                _lastAttemptUtc,
+                _latestRelease != null,
+                _lastAttemptFailed);
+        }
+    }
+
+    internal static TimeSpan ComputeRefreshDelay(
+        DateTimeOffset now,
+        DateTimeOffset lastAttemptUtc,
+        bool hasCachedRelease,
+        bool lastAttemptFailed)
+    {
+        TimeSpan interval = lastAttemptFailed || !hasCachedRelease
+            ? FailureRetryInterval
+            : RefreshInterval;
+        TimeSpan delay = lastAttemptUtc + interval - now;
+        return delay > MinimumScheduleDelay ? delay : MinimumScheduleDelay;
     }
 
     private async Task RefreshAsync()
     {
+        bool succeeded = false;
         try
         {
             await CheckLatestAsync();
+            succeeded = true;
         }
         catch (Exception ex) when (ex is HttpRequestException
             or TaskCanceledException
@@ -84,6 +122,11 @@ internal sealed class MobileAppUpdatePolicyProvider
             or InvalidDataException)
         {
             RuntimeLog.Warn("MobileUpdate", $"手机版本检查失败：{ex.Message}");
+        }
+        finally
+        {
+            lock (_gate)
+                _lastAttemptFailed = !succeeded;
         }
     }
 

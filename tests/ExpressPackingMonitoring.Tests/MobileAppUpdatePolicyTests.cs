@@ -183,6 +183,41 @@ public sealed class MobileAppUpdatePolicyTests
     }
 
     [Fact]
+    public void MobileUpdateRefreshSchedulesByNextDueTimeAndRetriesFailures()
+    {
+        DateTimeOffset now = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+
+        Assert.Equal(
+            TimeSpan.FromHours(5),
+            MobileAppUpdatePolicyProvider.ComputeRefreshDelay(
+                now,
+                now.AddHours(-1),
+                hasCachedRelease: true,
+                lastAttemptFailed: false));
+        Assert.Equal(
+            TimeSpan.FromMinutes(4),
+            MobileAppUpdatePolicyProvider.ComputeRefreshDelay(
+                now,
+                now.AddMinutes(-1),
+                hasCachedRelease: true,
+                lastAttemptFailed: true));
+        Assert.Equal(
+            TimeSpan.FromMinutes(4),
+            MobileAppUpdatePolicyProvider.ComputeRefreshDelay(
+                now,
+                now.AddMinutes(-1),
+                hasCachedRelease: false,
+                lastAttemptFailed: false));
+        Assert.Equal(
+            TimeSpan.FromSeconds(5),
+            MobileAppUpdatePolicyProvider.ComputeRefreshDelay(
+                now,
+                now.AddMinutes(-10),
+                hasCachedRelease: true,
+                lastAttemptFailed: true));
+    }
+
+    [Fact]
     public void ConnectedPhoneIsPromptedOnlyWhenItIsOlderThanLatestRelease()
     {
         var latest = new MobileAppReleaseInfo("v0.6.1+12001", "0.6.1", 12001, "download");
