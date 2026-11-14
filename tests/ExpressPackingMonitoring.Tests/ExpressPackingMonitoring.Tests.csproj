@@ -36,6 +36,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Content 不会沿 ProjectReference 传递到测试输出；CI 必须在测试进程里能找到同一份基线。 -->
+    <Content Include="$(FFmpegBaselineExecutable)" Condition="Exists('$(FFmpegBaselineExecutable)')">
+      <TargetPath>tools\ffmpeg.exe</TargetPath>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\ffmpeg.exe" Condition="!Exists('$(FFmpegBaselineExecutable)') And Exists('..\..\ffmpeg.exe')">
+      <TargetPath>tools\ffmpeg.exe</TargetPath>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj" />
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring.Vision.Contracts\ExpressPackingMonitoring.Vision.Contracts.csproj" />
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring.Vision.Obb\ExpressPackingMonitoring.Vision.Obb.csproj"

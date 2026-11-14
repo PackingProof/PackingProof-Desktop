@@ -8,6 +8,9 @@
   -->
   <PropertyGroup>
     <Version>0.0.99</Version>
+    <!-- 主程序和测试都必须使用同一份钉死的 FFmpeg 基线。 -->
+    <FFmpegBaselineVersion>4.4.1-minimal</FFmpegBaselineVersion>
+    <FFmpegBaselineExecutable>$(MSBuildThisFileDirectory)package\dependency-cache\ffmpeg\$(FFmpegBaselineVersion)\ffmpeg.exe</FFmpegBaselineExecutable>
     <!--
       本地无网或 nuget.org 审计接口不可达时，NuGet 会把“漏洞数据源连接失败”重复报成
       NU1900。漏洞审计保持开启；CI 中仍显示该告警，本地只隐藏这条网络连接噪声。

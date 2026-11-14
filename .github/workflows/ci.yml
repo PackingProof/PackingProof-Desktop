@@ -134,6 +134,12 @@ jobs:
           path: package/dependency-cache/vision-models
           key: vision-model-${{ hashFiles('tools/vision-model-baseline.json') }}
 
+      - name: 缓存钉死的 FFmpeg 依赖
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: package/dependency-cache/ffmpeg
+          key: ffmpeg-${{ hashFiles('tools/ffmpeg-baseline.json') }}
+
       - name: 缓存 NuGet 包
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -151,6 +157,10 @@ jobs:
           "PACKINGPROOF_BENCHMARK_OBB=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "PACKINGPROOF_BENCHMARK_OBB_WIDTH=1280" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "PACKINGPROOF_BENCHMARK_OBB_HEIGHT=720" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: 准备钉死的 FFmpeg 依赖
+        shell: pwsh
+        run: pwsh -NoProfile -File tools\Prepare-PinnedFFmpeg.ps1
 
       - name: 还原、构建并测试显式视觉功能包
         shell: pwsh

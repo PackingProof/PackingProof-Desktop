@@ -198,8 +198,17 @@ public sealed class ReleasePackagingPolicyTests
         string releaseWorkflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "release-package.yml"),
             Encoding.UTF8);
+        string ciWorkflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"),
+            Encoding.UTF8);
         string prepareScript = File.ReadAllText(
             Path.Combine(repositoryRoot, "tools", "Prepare-PinnedFFmpeg.ps1"),
+            Encoding.UTF8);
+        string directoryBuildProps = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Directory.Build.props"),
+            Encoding.UTF8);
+        string testsProject = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tests", "ExpressPackingMonitoring.Tests", "ExpressPackingMonitoring.Tests.csproj"),
             Encoding.UTF8);
         XDocument project = XDocument.Load(
             Path.Combine(repositoryRoot, "src", "ExpressPackingMonitoring", "ExpressPackingMonitoring.csproj"));
@@ -233,6 +242,13 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("[switch]$RequireLocalBuild", prepareScript);
         Assert.DoesNotContain("FFMPEG_MINIMAL_URL", releaseWorkflow);
         Assert.Contains("Prepare-PinnedFFmpeg.ps1", releaseWorkflow);
+        Assert.Equal(2, Regex.Matches(ciWorkflow, "Prepare-PinnedFFmpeg\\.ps1").Count);
+        Assert.Contains("<FFmpegBaselineVersion>4.4.1-minimal</FFmpegBaselineVersion>", directoryBuildProps);
+        Assert.Contains("<FFmpegBaselineExecutable>$(MSBuildThisFileDirectory)package\\dependency-cache\\ffmpeg\\$(FFmpegBaselineVersion)\\ffmpeg.exe</FFmpegBaselineExecutable>", directoryBuildProps);
+        Assert.Contains("<Content Include=\"$(FFmpegBaselineExecutable)\"", testsProject);
+        Assert.Contains("<TargetPath>tools\\ffmpeg.exe</TargetPath>", testsProject);
+        Assert.Contains("<CopyToOutputDirectory>Always</CopyToOutputDirectory>", testsProject);
+        Assert.Contains("<Content Include=\"..\\..\\ffmpeg.exe\"", testsProject);
         Assert.Contains("GyanD/codexffmpeg/releases/download/4.4.1", manifest);
         Assert.Equal(@"ffmpeg-4.4.1-essentials_build\bin\ffmpeg.exe", packageEntry);
         Assert.DoesNotContain(packageEntry, char.IsControl);
