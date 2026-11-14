@@ -40,6 +40,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
+. (Join-Path $PSScriptRoot "ReleaseAuth.Common.ps1")
+$null = Import-GitHubReleaseTokenFromEnvFile -RepoRoot $repoRoot
 
 $defaultTarget = "both"
 

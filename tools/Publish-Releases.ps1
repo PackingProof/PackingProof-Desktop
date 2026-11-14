@@ -41,6 +41,7 @@ Set-Location $repoRoot
 $repoSlug = "PackingProof/PackingProof-Desktop"
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
+. (Join-Path $PSScriptRoot "ReleaseAuth.Common.ps1")
 . (Join-Path $PSScriptRoot "ReleaseVersion.Common.ps1")
 . (Join-Path $PSScriptRoot "ReleaseNotes.Common.ps1")
 
@@ -437,10 +438,20 @@ if (-not $ConfirmCommitCoverage) {
 Assert-Command -Name "gh" -Hint "GitHub Release 无法创建；安装后执行 gh auth login"
 Assert-Command -Name "gitee" -Hint "Gitee Release 无法创建；安装后执行 gitee auth login --token <token>"
 
+$githubTokenSource = Import-GitHubReleaseTokenFromEnvFile -RepoRoot $repoRoot
 if ($ValidateOnly) {
     Write-Host ""
     Write-Host "仅校验模式：产物、发布笔记与更新清单均通过，未创建、未上传"
     exit 0
+}
+
+if (-not (Test-GitHubReleaseAuthentication -Repository $repoSlug -RepoRoot $repoRoot)) {
+    $githubHint = if ($githubTokenSource) {
+        "当前令牌来源：$githubTokenSource"
+    } else {
+        "请先在 .env 配置 GITHUB_RELEASE_TOKEN"
+    }
+    throw "GitHub 发布机器人认证失败，$githubHint"
 }
 
 # Gitee 令牌固定来自 .env；CLI 的登录态可能停在失效的旧身份上，先做一次真实调用确认可用。
@@ -457,6 +468,7 @@ if (-not (Test-GiteeAuthentication -Repository $repoSlug -RepoRoot $repoRoot)) {
 Write-Host "发布 $tag"
 Write-Host "  标题   $releaseTitle"
 Write-Host "  笔记   $notesFullPath"
+Write-Host "  GitHub 令牌来源：$(if ($githubTokenSource) { $githubTokenSource } else { '未配置' })"
 Write-Host "  Gitee 令牌来源：$(if ($giteeTokenSource) { $giteeTokenSource } else { 'gitee CLI 登录态' })"
 Write-Host "  GitHub 资产："
 $githubAssets | ForEach-Object { Write-Host "    $(Split-Path -Leaf $_)" }

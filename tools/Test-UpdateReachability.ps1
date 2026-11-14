@@ -51,9 +51,9 @@ function Get-ConfiguredToken([string]$Names) {
 }
 
 # Gitee 匿名 API 很容易限流（现场校验时就是 403 Rate Limit Exceeded），有令牌就带上
-$GiteeToken = Get-ConfiguredToken 'GITEE_TOKEN'
+$GiteeToken = Get-ConfiguredToken 'GITEE_RELEASE_TOKEN,GITEE_TOKEN'
 if ($GiteeToken) { $GiteeHeaders['Authorization'] = "token $GiteeToken" }
-$GithubToken = Get-ConfiguredToken 'GITHUB_TOKEN,GH_TOKEN'
+$GithubToken = Get-ConfiguredToken 'GITHUB_RELEASE_TOKEN,GH_TOKEN,GITHUB_TOKEN'
 if ($GithubToken) { $GithubHeaders['Authorization'] = "Bearer $GithubToken" }
 
 function Write-Pass([string]$Message) {

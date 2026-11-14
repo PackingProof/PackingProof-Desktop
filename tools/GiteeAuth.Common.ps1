@@ -1,4 +1,5 @@
-# Gitee 发布认证的令牌来源：仓库根目录 .env 的 GITEE_TOKEN（AGENTS.md 规定）。
+# Gitee 发布认证的令牌来源：优先使用仓库根目录 .env 的 GITEE_RELEASE_TOKEN，
+# 未配置时回退 GITEE_TOKEN（兼容既有发布环境）。
 #
 # 只把它注入当前进程环境供 gitee CLI 使用，不打印、不写盘、不提交。
 # gitee CLI 优先使用 GITEE_TOKEN，其次才用它自己保存的登录态；登录态按身份字符串
@@ -8,8 +9,12 @@
 function Import-GiteeTokenFromEnvFile {
     param([Parameter(Mandatory = $true)] [string]$RepoRoot)
 
-    if (-not [string]::IsNullOrWhiteSpace($env:GITEE_TOKEN)) {
-        return "环境变量"
+    foreach ($name in @("GITEE_RELEASE_TOKEN", "GITEE_TOKEN")) {
+        $value = [Environment]::GetEnvironmentVariable($name)
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            $env:GITEE_TOKEN = $value.Trim()
+            return "环境变量 $name"
+        }
     }
 
     $envPath = Join-Path $RepoRoot ".env"
@@ -17,12 +22,14 @@ function Import-GiteeTokenFromEnvFile {
         return ""
     }
 
-    foreach ($line in Get-Content -LiteralPath $envPath) {
-        if ($line -match "^\s*GITEE_TOKEN\s*=\s*(.*)$") {
-            $token = $Matches[1].Trim().Trim('"').Trim("'")
-            if (-not [string]::IsNullOrWhiteSpace($token)) {
-                $env:GITEE_TOKEN = $token
-                return ".env"
+    foreach ($name in @("GITEE_RELEASE_TOKEN", "GITEE_TOKEN")) {
+        foreach ($line in Get-Content -LiteralPath $envPath) {
+            if ($line -match "^\s*$([regex]::Escape($name))\s*=\s*(.*)$") {
+                $token = $Matches[1].Trim().Trim('"').Trim("'")
+                if (-not [string]::IsNullOrWhiteSpace($token)) {
+                    $env:GITEE_TOKEN = $token
+                    return ".env $name"
+                }
             }
         }
     }

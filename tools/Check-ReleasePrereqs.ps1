@@ -11,6 +11,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
+. (Join-Path $PSScriptRoot "ReleaseAuth.Common.ps1")
 . (Join-Path $PSScriptRoot "ReleaseNotes.Common.ps1")
 . (Join-Path $PSScriptRoot "LauncherBaseline.Common.ps1")
 
@@ -164,9 +165,16 @@ else {
 Write-Host ""
 Write-Host "== 发布渠道登录态 =="
 if (Get-Command gh -ErrorAction SilentlyContinue) {
-    gh auth status *> $null
-    if ($LASTEXITCODE -eq 0) { Write-Ok "gh 已登录" }
-    else { Write-Fail "gh 未登录，执行 gh auth login" }
+    $githubTokenSource = Import-GitHubReleaseTokenFromEnvFile -RepoRoot $repoRoot
+    if (-not $githubTokenSource) {
+        Write-Fail "缺少 GitHub 发布机器人令牌：请在 .env 配置 GITHUB_RELEASE_TOKEN"
+    }
+    elseif (Test-GitHubReleaseAuthentication -Repository "PackingProof/PackingProof-Desktop" -RepoRoot $repoRoot) {
+        Write-Ok "GitHub 发布机器人令牌可用（来源：$githubTokenSource）"
+    }
+    else {
+        Write-Fail "GitHub 发布机器人令牌不可用或没有仓库写入权限（来源：$githubTokenSource）"
+    }
 }
 else {
     Write-Fail "未安装 gh，GitHub Release 无法创建"
@@ -184,7 +192,7 @@ if (Get-Command gitee -ErrorAction SilentlyContinue) {
         Write-Fail "gitee 令牌不可用（来源：$giteeTokenLabel），请核对 .env 的 GITEE_TOKEN"
     }
     else {
-        Write-Fail "gitee 不可用：.env 里没有 GITEE_TOKEN，gitee CLI 登录态也不可用"
+    Write-Fail "gitee 不可用：.env 里没有 GITEE_RELEASE_TOKEN / GITEE_TOKEN，gitee CLI 登录态也不可用"
     }
 }
 else {

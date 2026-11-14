@@ -981,6 +981,32 @@ public sealed class ReleasePackagingPolicyTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ReleaseAuthentication_UsesGitHubBotAndSeparateGiteeToken()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string releaseAuth = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "ReleaseAuth.Common.ps1"),
+            Encoding.UTF8);
+        string giteeAuth = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "GiteeAuth.Common.ps1"),
+            Encoding.UTF8);
+        string prereqs = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Check-ReleasePrereqs.ps1"),
+            Encoding.UTF8);
+        string publish = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Publish-Releases.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains("\"GITHUB_RELEASE_TOKEN\"", releaseAuth, StringComparison.Ordinal);
+        Assert.Contains("Test-GitHubReleaseAuthentication", releaseAuth, StringComparison.Ordinal);
+        Assert.Contains("\"GITEE_RELEASE_TOKEN\", \"GITEE_TOKEN\"", giteeAuth, StringComparison.Ordinal);
+        Assert.Contains("Import-GitHubReleaseTokenFromEnvFile", prereqs, StringComparison.Ordinal);
+        Assert.DoesNotContain("gh auth status", prereqs, StringComparison.Ordinal);
+        Assert.Contains("Import-GitHubReleaseTokenFromEnvFile", publish, StringComparison.Ordinal);
+        Assert.Contains("Test-GitHubReleaseAuthentication", publish, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
