@@ -80,6 +80,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Data\OrderNumberExportFilter.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\RecordingModeFilter.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\RecordingTransferQueueStore.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\ScanEventStore.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\SharedFileMigrationRecords.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.Deletion.cs" />
@@ -200,6 +201,8 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\OrderPushDiagnostics.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RuntimeLogThrottle.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ScanAuditRecorder.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ScanInputSource.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.VideoSources.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WebTranscodeEncoderPolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WindowsLanAccessSetup.cs" />

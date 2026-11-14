@@ -63,7 +63,7 @@ public sealed class RecordingOrderStartHandlingTests
         Assert.True(stopCommandIndex > commandIndex);
         string branch = scanner[commandIndex..stopCommandIndex];
         Assert.Contains("if (!IsRecording)", branch, StringComparison.Ordinal);
-        Assert.Contains("await ToggleRecordingAsync();", branch, StringComparison.Ordinal);
+        Assert.Contains("await ToggleRecordingAsync(auditEventId);", branch, StringComparison.Ordinal);
     }
 
     private static int CountOccurrences(string source, string value)

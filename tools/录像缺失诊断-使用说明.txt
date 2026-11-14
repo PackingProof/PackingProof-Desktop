@@ -17,6 +17,7 @@ PackingProof 录像缺失诊断
 
 生成的文件
 - missing-videos-时间.csv：数据库中文件已经找不到的录像明细。
+- scan-events-时间.csv：最近 30 天的扫码、摄像头识别、人工输入及处理结果；没有审计数据时不生成。
 - summary-时间.txt：诊断摘要和数据库、日志路径。
 
 隐私

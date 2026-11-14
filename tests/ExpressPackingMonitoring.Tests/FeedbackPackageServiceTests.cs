@@ -54,6 +54,26 @@ public sealed class FeedbackPackageServiceTests
                     Path.Combine(directory, "video.mp4"),
                     DateTime.Now.AddHours(-1));
             }
+            using (var scanEvents = new ScanEventStore(Path.Combine(directory, "scan-events.db")))
+            {
+                string now = DateTimeOffset.UtcNow.ToString("O");
+                scanEvents.UpsertBatch(
+                [
+                    new ScanEventRecord
+                    {
+                        EventId = "feedback-scan-event",
+                        OccurredAtUtc = now,
+                        LastOccurredAtUtc = now,
+                        UpdatedAtUtc = now,
+                        Source = "scanner_global",
+                        RawCode = "FEEDBACK-SCAN",
+                        NormalizedOrder = "FEEDBACK-SCAN",
+                        Action = "Start",
+                        Reason = "Ready",
+                        Outcome = "started"
+                    }
+                ]);
+            }
 
             var service = new FeedbackPackageService(
                 directory,
@@ -81,6 +101,7 @@ public sealed class FeedbackPackageServiceTests
                 Assert.Contains("config.json", names);
                 Assert.Contains("log/runtime.log", names);
                 Assert.Contains("videos.db", names);
+                Assert.Contains("scan-events.db", names);
                 Assert.Contains("feedback-info.txt", names);
 
                 string configText = ReadEntry(zip, "config.json");

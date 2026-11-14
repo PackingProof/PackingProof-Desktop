@@ -96,7 +96,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             if (!IsRecording || _isDisposed) return;
 
-            _visionObbTriggerEvents.RecordStopRequested(_stopReason);
+            _scanAudit?.RecordStopRequested(_stopReason);
             IsBusy = true;
             BusyText = _shutdownRequested ? "正在关闭程序..." : "正在停止";
             IsRecording = false; // 1. 立即改变 UI 状态
@@ -210,13 +210,6 @@ namespace ExpressPackingMonitoring.ViewModels
                     double recordDuration = (stoppedAt - recordStart).TotalSeconds;
                     int durSec = Math.Max(1, (int)recordDuration);
                     _db?.SaveWallClockDuration(recordId, recordDuration);
-                    _visionObbTriggerEvents.RecordRecordingFinished(
-                        recordId,
-                        recordStart,
-                        stoppedAt,
-                        stopReason,
-                        Config.MinRecordingSeconds);
-
                     // 文件过小和录制过短是两条独立规则，原因要分别写入数据库。
                     long minFileSizeBytes = GetMinVideoFileSizeBytes();
                     bool tooSmall = minFileSizeBytes > 0 && fileSize < minFileSizeBytes;
@@ -233,6 +226,14 @@ namespace ExpressPackingMonitoring.ViewModels
                         DeleteEmbeddedAudioMarker(filePath);
                         if (videoDeleted && !string.IsNullOrWhiteSpace(filePath))
                             _db?.MarkVideoDeleted(filePath, deleteReason);
+                        _scanAudit?.RecordRecordingFinished(
+                            recordId,
+                            stopOrigin: stopReason,
+                            outcome: "discarded",
+                            durationSeconds: recordDuration,
+                            manualStop: IsManualStopReason(stopReason),
+                            shortRecording: true,
+                            detail: deleteReason);
 
                         _ = Application.Current.Dispatcher.InvokeAsync(() => {
                             if (!_isDisposed) {
@@ -259,6 +260,13 @@ namespace ExpressPackingMonitoring.ViewModels
                         string durStr = durSec < 60 ? $"{durSec}s" : $"{(int)durSec / 60}m {durSec % 60}s";
 
                         _db?.UpdateVideoRecordOnStop(recordId, DateTime.Now, durSec, fileSize, stopReason, videoCodec, videoEncoder);
+                        _scanAudit?.RecordRecordingFinished(
+                            recordId,
+                            stopOrigin: stopReason,
+                            outcome: "completed",
+                            durationSeconds: recordDuration,
+                            manualStop: IsManualStopReason(stopReason),
+                            shortRecording: false);
                         if (!string.IsNullOrWhiteSpace(filePath))
                         {
                             _pendingRecordingSpecificationChecks[filePath] =
@@ -991,9 +999,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     _currentScanRecord.IsActive = false;
                     _currentScanRecord.Duration = "失败";
                 }
-                _visionObbTriggerEvents.RecordRecordingStarted(
+                _scanAudit?.RecordRecordingStarted(
                     _currentRecordId,
-                    _activePreRecordSeconds);
+                    _recordingSessionId ?? "",
+                    filePath);
                 int initialDisplayedSeconds = Math.Max(0, (int)Math.Floor(_activePreRecordSeconds));
                 _currentScanRecord = new ScanRecord(_recordingOrderId, $"{initialDisplayedSeconds}s", DateTime.Now.ToString("HH:mm:ss"), _recordingMode, true);
                 AddRecord(_currentScanRecord);
@@ -1009,7 +1018,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 启动失败或首帧检查回滚时，不能把已复制的预录帧留在待注入列表中
                 if (!IsRecording)
                 {
-                    _visionObbTriggerEvents.RecordPendingStartFailed(
+                    _scanAudit?.RecordPendingStartFailed(
                         "recording_start_failed");
                     ClearPendingEventRecordingFrames();
                 }
@@ -1206,6 +1215,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     : Math.Max(0, (DateTime.Now - _recordStartTime).TotalSeconds);
 
                 _db?.UpdateVideoRecordOnStop(recordId, DateTime.Now, duration, fileSize, stopReason, videoCodec, videoEncoder);
+                _scanAudit?.RecordRecordingFailed(recordId, stopReason, errorDetail);
                 RuntimeLog.Warn("Recording", $"Marked record failed id={recordId}, reason={stopReason}, size={fileSize}, duration={duration:F1}, error={errorDetail}");
             }
             catch (Exception ex)
@@ -1213,6 +1223,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 RuntimeLog.Error("Recording", "Failed to mark recording failure in database", ex);
             }
         }
+
+        private static bool IsManualStopReason(string? reason) =>
+            reason?.Contains("手动", StringComparison.Ordinal) == true;
 
         private void UpdatePreRecordBuffer(Mat frame)
         {

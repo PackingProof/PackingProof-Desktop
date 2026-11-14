@@ -268,7 +268,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private static readonly TimeSpan NetworkCameraReadyProbeTimeout = TimeSpan.FromSeconds(8);
 
         private readonly SemaphoreSlim _recorderLock = new SemaphoreSlim(1, 1);
-        private readonly VisionObbTriggerEventLog _visionObbTriggerEvents = new();
+        private ScanAuditRecorder _scanAudit;
         private CameraBarcodeConfirmedEvent _pendingCameraBarcodeConfirmation;
         private readonly PrintedRefundLookupCoordinator _printedRefundLookupCoordinator;
         // 一段录像里同一张面单只报一次退款警告：扫码开始、打包过程中、同码停录后拿到的都归到一起。
@@ -281,7 +281,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private volatile bool _shutdownPrepared;
         private bool _isInputOnCooldown = false;
         private string _pendingScanDuringCooldown = "";
-        private bool _pendingScanDuringCooldownFromCamera;
+        private string _pendingScanDuringCooldownAuditEventId = "";
+        private ScanInputSource _pendingScanDuringCooldownSource;
         private bool _pendingScanDuringCooldownFromVisionObb;
         private double? _pendingScanDuringCooldownVisionObbDiagonalPixels;
         private double? _pendingScanDuringCooldownVisionObbDiagonalPercent;
@@ -823,6 +824,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (isManual)
                 {
+                    _scanAudit?.RecordStopRequested(ScanStopOrigin.ManualButton);
                     await StopWithManualAnnouncementAsync();
                 }
                 else
@@ -1014,6 +1016,7 @@ namespace ExpressPackingMonitoring.ViewModels
             try { _globalKeyboardRuntime?.Dispose(); } catch { }
             try { _webServer?.Dispose(); } catch { }
             try { _extensionRuntime?.Dispose(); } catch { }
+            try { _scanAudit?.Dispose(); } catch { }
             _extensionRuntime = null;
             DisposeRecordingTransfers();
             if (_archiveService != null)

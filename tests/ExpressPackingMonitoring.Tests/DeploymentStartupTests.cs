@@ -497,13 +497,13 @@ public sealed class DeploymentStartupTests
             "ViewModels",
             "MainViewModel.Scanner.cs");
 
-        Assert.Contains("private async Task ToggleRecordingAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("private async Task ToggleRecordingAsync(string auditEventId = null)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("async void ToggleRecording", source, StringComparison.Ordinal);
         Assert.Contains(
-            "ToggleRecordingCommand = new AsyncRelayCommand(ToggleRecordingAsync);",
+            "ToggleRecordingCommand = new AsyncRelayCommand(() => ToggleRecordingAsync());",
             source,
             StringComparison.Ordinal);
-        Assert.Contains("await ToggleRecordingAsync();", source, StringComparison.Ordinal);
+        Assert.Contains("await ToggleRecordingAsync(auditEventId);", source, StringComparison.Ordinal);
         Assert.Contains(
             "RuntimeLog.Error(\"Recording\", \"Manual recording toggle failed\", ex);",
             source,

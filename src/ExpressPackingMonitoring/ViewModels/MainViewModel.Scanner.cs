@@ -254,12 +254,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 _speechService.PreGenerateCache(prompt.Text, prompt.VoiceStyle == AlertVoiceStyle.Warning);
             LogStartupStage("speech");
             ScanCommand = new AsyncRelayCommand<string>(
-                scanResult => HandleScanAsync(scanResult),
+                scanResult => HandleScanAsync(scanResult, ScanInputSource.ManualInput),
                 AsyncRelayCommandOptions.AllowConcurrentExecutions);
             OpenSettingsCommand = new RelayCommand(OpenSettings);
             OpenPlaybackCommand = new RelayCommand(OpenPlaybackWindow);
             ToggleModeCommand = new RelayCommand(ToggleMode);
-            ToggleRecordingCommand = new AsyncRelayCommand(ToggleRecordingAsync);
+            ToggleRecordingCommand = new AsyncRelayCommand(() => ToggleRecordingAsync());
             OpenStatsCommand = new RelayCommand(OpenStatsWindow);
             ResetEncoderDetectCommand = new AsyncRelayCommand(ResetEncoderDetectAsync);
             CopyMonitorAddressCommand = new AsyncRelayCommand(CopyMonitorAddressAsync);
@@ -321,8 +321,15 @@ namespace ExpressPackingMonitoring.ViewModels
         private void OnGlobalBarcodeScanned(string barcode)
         {
             if (_isDisposed || _shutdownRequested) return;
-            _ = HandleScanAsync(barcode);
+            _ = HandleScanAsync(barcode, ScanInputSource.ScannerGlobal);
         }
+
+        internal Task SubmitScanFromUiAsync(string scanResult, bool scannerLike) =>
+            HandleScanAsync(
+                scanResult,
+                scannerLike
+                    ? ScanInputSource.ScannerTextBox
+                    : ScanInputSource.ManualInput);
 
         private void InitializeCameraBarcodeRecognition()
         {
@@ -564,9 +571,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 bool decodedByVisionObb = confirmed?.DecodedByVisionObb == true;
                 if (CanSubmitCameraBarcode())
                 {
+                    ScanInputSource source = decodedByVisionObb
+                        ? ScanInputSource.CameraObb
+                        : ScanInputSource.CameraZxing;
                     _ = HandleScanAsync(
                         code,
-                        fromCamera: true,
+                        source,
                         decodedByVisionObb,
                         confirmed?.VisionObbDiagonalPixels,
                         confirmed?.VisionObbDiagonalPercent);
@@ -870,6 +880,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 _db = new VideoDatabase(_dbFilePath);
                 _db.VideoRecordFinalized += OnVideoRecordFinalized;
+                _scanAudit?.Dispose();
+                _scanAudit = new ScanAuditRecorder(AppPaths.ScanEventDatabasePath);
                 RecoverInterruptedRecordingDeletes();
                 _archiveTargetUnavailable = false;
                 _archiveUnavailableRoot = "";
@@ -923,7 +935,7 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         // ========================== 核心逻辑：手动开始录像 ==========================
-        private async Task ToggleRecordingAsync()
+        private async Task ToggleRecordingAsync(string auditEventId = null)
         {
             await NotifyUserActivityAsync();
             if (IsBusy || _isDisposed || _shutdownRequested) return;
@@ -933,8 +945,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (IsRecording)
                 {
-                    _visionObbTriggerEvents.RecordStopRequested(
-                        VisionObbStopOrigin.ManualButton);
+                    _scanAudit?.RecordStopRequested(ScanStopOrigin.ManualButton);
                     await StopWithManualAnnouncementAsync();
                     QueuePostStopMux("手动停止");
                     CurrentOrderId = "";
@@ -946,6 +957,21 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     // 如果扫码框为空，用开始时间生成内部占位名；文件名只保留日期和时间。
                     string input = ScanInputText?.Trim().ToUpper() ?? "";
+                    if (string.IsNullOrWhiteSpace(auditEventId) && !string.IsNullOrWhiteSpace(input))
+                    {
+                        auditEventId = _scanAudit?.Begin(
+                            ScanInputSource.ManualInput,
+                            input,
+                            JdBarcodePolicy.Normalize(input),
+                            IsRecording,
+                            _currentRecordId) ?? "";
+                        _scanAudit?.RecordDecision(
+                            auditEventId,
+                            BarcodeRecordingDecisionAction.StartRecording.ToString(),
+                            "ManualStart",
+                            "start_requested",
+                            _currentRecordId);
+                    }
                     if (string.IsNullOrWhiteSpace(input))
                     {
                         CurrentOrderId = ManualRecordingNamePolicy.CreatePlaceholder(DateTime.Now);
@@ -966,6 +992,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             out _pendingPreRecordStartTime,
                             out _pendingPreRecordTimestamps);
                     }
+                    _scanAudit?.PrepareStart(auditEventId ?? "");
                     await InternalStartRecordingAsync();
                     ScanInputText = ""; // 启动录制后清空
 
@@ -988,6 +1015,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 Debug.WriteLine($"[ToggleRecording] 严重异常: {ex.Message}");
                 RuntimeLog.Error("Recording", "Manual recording toggle failed", ex);
+                _scanAudit?.RecordEventFailed(auditEventId ?? "", "manual_start_exception", ex.Message);
             }
             finally
             {
@@ -999,45 +1027,67 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private async Task HandleScanAsync(
             string scanResult,
-            bool fromCamera = false,
+            ScanInputSource source = ScanInputSource.ManualInput,
             bool decodedByVisionObb = false,
             double? visionObbDiagonalPixels = null,
-            double? visionObbDiagonalPercent = null)
+            double? visionObbDiagonalPercent = null,
+            string auditEventId = null)
         {
+            string effectiveAuditEventId = auditEventId ?? "";
+            if (string.IsNullOrWhiteSpace(effectiveAuditEventId))
+            {
+                string normalized = JdBarcodePolicy.Normalize(scanResult);
+                if (!string.IsNullOrWhiteSpace(normalized))
+                {
+                    effectiveAuditEventId = _scanAudit?.Begin(
+                        source,
+                        scanResult,
+                        normalized,
+                        IsRecording,
+                        _currentRecordId) ?? "";
+                }
+            }
             try
             {
                 await HandleScanCoreAsync(
                     scanResult,
-                    fromCamera,
+                    source,
                     decodedByVisionObb,
                     visionObbDiagonalPixels,
-                    visionObbDiagonalPercent);
+                    visionObbDiagonalPercent,
+                    effectiveAuditEventId);
             }
             catch (Exception exception)
             {
                 RuntimeLog.Error(
                     "Scan",
-                    $"Unhandled scan failure source={(fromCamera ? "camera" : "scanner/manual")}",
+                    $"Unhandled scan failure source={source.ToStorageValue()}",
                     exception);
+                _scanAudit?.RecordEventFailed(
+                    effectiveAuditEventId,
+                    "scan_unhandled_exception",
+                    exception.Message);
             }
         }
 
         private async Task HandleScanCoreAsync(
             string scanResult,
-            bool fromCamera,
+            ScanInputSource source,
             bool decodedByVisionObb,
             double? visionObbDiagonalPixels,
-            double? visionObbDiagonalPercent)
+            double? visionObbDiagonalPercent,
+            string existingAuditEventId)
         {
             await NotifyUserActivityAsync();
+            bool fromCamera = source.IsCamera();
             BarcodeRecordingDecision decision = EvaluateBarcodeRecordingDecision(scanResult, fromCamera);
-            _visionObbTriggerEvents.RecordRecognition(
-                decodedByVisionObb,
+            string auditEventId = existingAuditEventId ?? "";
+            _scanAudit?.RecordDecision(
+                auditEventId,
                 decision.Action.ToString(),
                 decision.Reason.ToString(),
-                IsRecording,
-                visionObbDiagonalPixels,
-                visionObbDiagonalPercent);
+                GetScanOutcome(decision),
+                _currentRecordId);
             if (CameraBarcodeRuntimeOptions.ShadowMode)
                 LogBarcodeRecordingComparison(decision, fromCamera, dryRun: false);
 
@@ -1045,11 +1095,12 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (TryQueueScanForRetry(
                         decision.NormalizedValue,
-                        fromCamera,
+                        source,
                         decodedByVisionObb,
                         visionObbDiagonalPixels,
                         visionObbDiagonalPercent,
-                        "程序忙碌"))
+                        "程序忙碌",
+                        auditEventId))
                 {
                     return;
                 }
@@ -1067,6 +1118,12 @@ namespace ExpressPackingMonitoring.ViewModels
                     DateTimeOffset.UtcNow,
                     Config?.CameraBarcodeRearmSeconds ?? 3))
             {
+                _scanAudit?.RecordDecision(
+                    auditEventId,
+                    decision.Action.ToString(),
+                    "CameraFailedStartRearm",
+                    "ignored",
+                    _currentRecordId);
                 RuntimeLog.Info("CameraBarcode", $"Ignored {upperResult} within failed-start rearm window");
                 return;
             }
@@ -1092,7 +1149,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 case BarcodeRecordingDecisionReason.CooldownOrderQueued:
                     _pendingScanDuringCooldown = upperResult;
-                    _pendingScanDuringCooldownFromCamera = fromCamera;
+                    _pendingScanDuringCooldownAuditEventId = auditEventId;
+                    _pendingScanDuringCooldownSource = source;
                     _pendingScanDuringCooldownFromVisionObb = decodedByVisionObb;
                     RuntimeLog.Info("Scan", $"Scan queued during cooldown: {upperResult}");
                     ShowToast("扫码过快，已保留最后一个单号", ToastSeverity.Warning);
@@ -1119,13 +1177,16 @@ namespace ExpressPackingMonitoring.ViewModels
                     StartInputCooldown();
                     if (!IsRecording)
                     {
-                        await ToggleRecordingAsync();
+                        await ToggleRecordingAsync(auditEventId);
                     }
                     return;
                 case BarcodeRecordingDecisionReason.StopCommand:
                     StartInputCooldown();
-                    _visionObbTriggerEvents.RecordStopRequested(
-                        VisionObbStopOrigin.StopCommand);
+                    _scanAudit?.RecordStopFromInput(
+                        auditEventId,
+                        _currentRecordId,
+                        ScanStopOrigin.StopCommand);
+                    _scanAudit?.RecordStopRequested(ScanStopOrigin.StopCommand);
                     _ = SafeStopRecordingAsync(true, mergeAfterStop: true);
                     return;
                 case BarcodeRecordingDecisionReason.RecordingOrderMissing:
@@ -1177,8 +1238,11 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (_currentScanRecord != null) _currentScanRecord.OrderId = upperResult;
                     }
                     _stopReason = "同码停录";
-                    _visionObbTriggerEvents.RecordStopRequested(
-                        VisionObbStopOrigin.SameCode);
+                    _scanAudit?.RecordStopFromInput(
+                        auditEventId,
+                        recordId,
+                        BarcodeRecordingDecisionReason.SameCodeMatched.ToString());
+                    _scanAudit?.RecordStopRequested(ScanStopOrigin.SameCode);
                     if (HasPendingPostRollWindow())
                     {
                         // 同码重复识别只允许首次触发收尾，避免反复重置定时器导致无限录制。
@@ -1227,11 +1291,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 RuntimeLog.Warn("Scan", $"Recording switch skipped because recorder lock is busy, order={upperResult}");
                 TryQueueScanForRetry(
                     upperResult,
-                    fromCamera,
+                    source,
                     decodedByVisionObb,
                     visionObbDiagonalPixels,
                     visionObbDiagonalPercent,
-                    "录制切换锁忙");
+                    "录制切换锁忙",
+                    auditEventId);
                 return;
             }
             try
@@ -1241,8 +1306,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (IsRecording)
                 {
                     _stopReason = "扫码切换";
-                    _visionObbTriggerEvents.RecordStopRequested(
-                        VisionObbStopOrigin.Switch);
+                    _scanAudit?.RecordStopRequested(ScanStopOrigin.Switch);
                 }
                 // 预录快照必须在录制串行锁内获取，避免并发扫码分别消费同一环形缓冲。
                 List<Mat> pendingPreRecordFrames = null;
@@ -1262,6 +1326,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _pendingPreRecordFrames = pendingPreRecordFrames;
                 _pendingPreRecordTimestamps = pendingPreRecordTimestamps;
                 _pendingPreRecordStartTime = pendingPreRecordStartTime;
+                _scanAudit?.PrepareStart(auditEventId);
                 await InternalStartRecordingAsync();
 
                 // 摄像头或扫码枪确认条码后，都以当前智能目标启动放大，
@@ -1276,6 +1341,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 Debug.WriteLine($"[HandleScan] 严重异常: {ex.Message}");
                 RuntimeLog.Error("Scan", $"Recording switch failed order={upperResult}", ex);
+                _scanAudit?.RecordEventFailed(auditEventId, "scan_start_exception", ex.Message);
             }
             finally
             {
@@ -1401,6 +1467,24 @@ namespace ExpressPackingMonitoring.ViewModels
             _ => "忽略"
         };
 
+        private static string GetScanOutcome(BarcodeRecordingDecision decision) =>
+            decision.Reason switch
+            {
+                BarcodeRecordingDecisionReason.CannotProcess => "blocked",
+                BarcodeRecordingDecisionReason.CooldownOrderQueued => "queued",
+                BarcodeRecordingDecisionReason.ClearCommand => "command",
+                BarcodeRecordingDecisionReason.ShippingCommand => "command",
+                BarcodeRecordingDecisionReason.ReturnCommand => "command",
+                BarcodeRecordingDecisionReason.StartCommand => "command",
+                BarcodeRecordingDecisionReason.StopCommand => "command",
+                BarcodeRecordingDecisionReason.SameCodeMatched => "stop_requested",
+                BarcodeRecordingDecisionReason.Ready
+                    when decision.Action is BarcodeRecordingDecisionAction.Start
+                        or BarcodeRecordingDecisionAction.Switch
+                        or BarcodeRecordingDecisionAction.StartRecording => "start_requested",
+                _ => "ignored"
+            };
+
         private async void StartInputCooldown()
         {
             if (_isInputOnCooldown) return;
@@ -1411,14 +1495,16 @@ namespace ExpressPackingMonitoring.ViewModels
             await Task.Delay((int)cooldownMs);
             _isInputOnCooldown = false;
             string pending = _pendingScanDuringCooldown;
-            bool pendingFromCamera = _pendingScanDuringCooldownFromCamera;
+            ScanInputSource pendingSource = _pendingScanDuringCooldownSource;
             bool pendingFromVisionObb = _pendingScanDuringCooldownFromVisionObb;
+            string pendingAuditEventId = _pendingScanDuringCooldownAuditEventId;
             double? pendingVisionObbDiagonalPixels =
                 _pendingScanDuringCooldownVisionObbDiagonalPixels;
             double? pendingVisionObbDiagonalPercent =
                 _pendingScanDuringCooldownVisionObbDiagonalPercent;
             _pendingScanDuringCooldown = "";
-            _pendingScanDuringCooldownFromCamera = false;
+            _pendingScanDuringCooldownAuditEventId = "";
+            _pendingScanDuringCooldownSource = default;
             _pendingScanDuringCooldownFromVisionObb = false;
             _pendingScanDuringCooldownVisionObbDiagonalPixels = null;
             _pendingScanDuringCooldownVisionObbDiagonalPercent = null;
@@ -1427,20 +1513,22 @@ namespace ExpressPackingMonitoring.ViewModels
                 RuntimeLog.Info("Scan", $"Processing queued scan after cooldown: {pending}");
                 _ = HandleScanAsync(
                     pending,
-                    pendingFromCamera,
+                    pendingSource,
                     pendingFromVisionObb,
                     pendingVisionObbDiagonalPixels,
-                    pendingVisionObbDiagonalPercent);
+                    pendingVisionObbDiagonalPercent,
+                    pendingAuditEventId);
             }
         }
 
         private bool TryQueueScanForRetry(
             string scanValue,
-            bool fromCamera,
+            ScanInputSource source,
             bool decodedByVisionObb,
             double? visionObbDiagonalPixels,
             double? visionObbDiagonalPercent,
-            string reason)
+            string reason,
+            string auditEventId)
         {
             string normalized = JdBarcodePolicy.Normalize(scanValue);
             if (!BarcodeScanRetryPolicy.ShouldQueue(
@@ -1452,7 +1540,8 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             _pendingScanDuringCooldown = normalized;
-            _pendingScanDuringCooldownFromCamera = fromCamera;
+            _pendingScanDuringCooldownAuditEventId = auditEventId;
+            _pendingScanDuringCooldownSource = source;
             _pendingScanDuringCooldownFromVisionObb = decodedByVisionObb;
             _pendingScanDuringCooldownVisionObbDiagonalPixels =
                 visionObbDiagonalPixels;

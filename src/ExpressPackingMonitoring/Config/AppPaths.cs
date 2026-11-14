@@ -42,6 +42,7 @@ namespace ExpressPackingMonitoring.Config
 
         public static readonly string ConfigPath = Path.Combine(UserDataDir, "config.json");
         public static readonly string VideoDatabasePath = Path.Combine(UserDataDir, "videos.db");
+        public static readonly string ScanEventDatabasePath = Path.Combine(UserDataDir, "scan-events.db");
         public static readonly string WebDebugLogPath = Path.Combine(LogDir, "web_debug.log");
         public static readonly string EncoderDetectLogPath = Path.Combine(LogDir, "encoder_detect.log");
         public static readonly string RuntimeLogPath = Path.Combine(LogDir, "runtime.log");
@@ -51,9 +52,6 @@ namespace ExpressPackingMonitoring.Config
         public static readonly string VisionObbTimingLogPath = Path.Combine(
             LogDir,
             "vision_obb_timing.log");
-        public static readonly string VisionObbTriggerDiagnosticLogPath = Path.Combine(
-            LogDir,
-            "vision_obb_trigger_events.log");
         public static readonly string UserCameraVisionModelPath = Path.Combine(
             ModelsDir,
             CameraVisionModelFileName);

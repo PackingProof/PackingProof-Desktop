@@ -54,6 +54,7 @@ internal sealed class FeedbackPackageService
             CopyLogs(stagingDir, warningList);
             CopyConfig(stagingDir, warningList);
             CopyDatabaseSnapshot(stagingDir, warningList);
+            CopyScanEventSnapshot(stagingDir, warningList);
             WriteInfoFile(stagingDir, warningList);
 
             string zipPath = GetUniqueZipPath();
@@ -188,6 +189,24 @@ internal sealed class FeedbackPackageService
         catch (Exception ex)
         {
             warnings.Add($"数据库快照失败：{ex.Message}");
+        }
+    }
+
+    private void CopyScanEventSnapshot(string stagingDir, List<string> warnings)
+    {
+        string dbPath = Path.Combine(_userDataDir, "scan-events.db");
+        if (!File.Exists(dbPath))
+            return;
+
+        try
+        {
+            ScanEventStore.CreateFeedbackSnapshot(
+                dbPath,
+                Path.Combine(stagingDir, "scan-events.db"));
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"扫码审计快照失败：{ex.Message}");
         }
     }
 

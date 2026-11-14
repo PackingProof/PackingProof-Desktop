@@ -970,7 +970,9 @@ namespace ExpressPackingMonitoring.UI
                 string scanResult = ScanInputTextBox.Text.Trim();
                 if (DataContext is MainViewModel viewModel)
                 {
-                    if (viewModel.ScanCommand.CanExecute(scanResult)) viewModel.ScanCommand.Execute(scanResult);
+                    _ = viewModel.SubmitScanFromUiAsync(
+                        scanResult,
+                        IsLikelyScannerInput(viewModel, scanResult));
                 }
                 // 彻底交由 ViewModel 接管清空逻辑
                 e.Handled = true;
@@ -1059,9 +1061,15 @@ namespace ExpressPackingMonitoring.UI
                 return;
 
             ResetScanAutoSubmitState();
-            if (viewModel.ScanCommand.CanExecute(scanResult))
-                viewModel.ScanCommand.Execute(scanResult);
+            _ = viewModel.SubmitScanFromUiAsync(scanResult, scannerLike: true);
         }
+
+        private bool IsLikelyScannerInput(MainViewModel viewModel, string scanResult) =>
+            ScannerAutoSubmitPolicy.IsFastSequence(
+                _scanInputIntervalsMs,
+                scanResult.Length,
+                viewModel.Config.ScannerAutoSubmitMaxAverageIntervalMs,
+                viewModel.Config.ScannerAutoSubmitMaxKeyIntervalMs);
 
         private void ResetScanAutoSubmitState()
         {

@@ -51,6 +51,7 @@ pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 | 发布、打包、更新、启动器、FFmpeg、LibVLC、TTS | `docs/development/RELEASE_AND_RUNTIME.md` |
 | 存储、缓存、NAS、归档、备份、删除、文件替换、跨端备份协议 | `docs/development/STORAGE_AND_DATA_SAFETY.md` |
 | 第三方扩展、ERP、脚本、称重设备、聊天机器人 | `docs/EXTENSION_API_V1.md` |
+| 扫码审计、输入来源、OBB 诊断日志、后台批量写库 | `docs/development/SCAN_AUDIT.md` |
 
 禁止把草稿路线图当成已实现规范；代码、协议、测试变化时同步维护相关专题。
 
