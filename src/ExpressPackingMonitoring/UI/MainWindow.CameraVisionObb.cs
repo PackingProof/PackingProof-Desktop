@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
 using ExpressPackingMonitoring.Vision;
@@ -14,6 +15,8 @@ public partial class MainWindow
     private const double DefaultObbAnimationDurationMs = 220;
     private const double MinObbAnimationDurationMs = 80;
     private const double MaxObbAnimationDurationMs = 240;
+    private const double MinRealtimeObbAnimationDurationMs = 40;
+    private const double MaxRealtimeObbAnimationDurationMs = 160;
     private const double VisionObbCornerRadius = 6;
     private const double VisionGuideStrokeThickness = 3;
     private const double VisionBarcodeLineStrokeThickness = 2;
@@ -128,8 +131,15 @@ public partial class MainWindow
         {
             if (_lastVisionObbTargetUpdateMs > 0)
             {
-                _visionObbAnimationDurationMs = ResolveObbAnimationDurationMs(
-                    nowMs - _lastVisionObbTargetUpdateMs);
+                double intervalMs =
+                    nowMs - _lastVisionObbTargetUpdateMs;
+                _visionObbAnimationDurationMs =
+                    string.Equals(
+                        vm.Config.CameraBarcodeRecognitionSpeed,
+                        CameraBarcodeSpeed.Realtime,
+                        StringComparison.Ordinal)
+                        ? ResolveRealtimeObbAnimationDurationMs(intervalMs)
+                        : ResolveObbAnimationDurationMs(intervalMs);
             }
             _lastVisionObbTargetUpdateMs = nowMs;
         }
@@ -233,18 +243,22 @@ public partial class MainWindow
                 ? targetTracks[selectedTargetIndex]
                 : null;
 
+        foreach (AnimatedVisionObbBox created in targetTracks
+                     .Where(track => track != null)
+                     .Cast<AnimatedVisionObbBox>())
+        {
+            matchedTracks.Add(created);
+        }
+
         foreach (AnimatedVisionObbBox track in _animatedVisionObbBoxes
                      .Where(track => !matchedTracks.Contains(track)))
         {
-            double elapsedMs = Math.Max(0, nowMs - track.LastSeenMs);
-            Point[] coasted = ShiftPoints(
-                track.CurrentPoints,
-                track.Velocity.X * elapsedMs,
-                track.Velocity.Y * elapsedMs);
-            track.TargetPoints = coasted;
+            if (track.RemoveWhenFinished)
+                continue;
+            track.TargetPoints = track.CurrentPoints;
             track.StartPoints = track.CurrentPoints;
             track.StartedAtMs = nowMs;
-            track.DurationMs = Math.Max(animationDurationMs, DefaultObbAnimationDurationMs);
+            track.DurationMs = 500;
             track.StartOpacity = track.Shape.Opacity;
             track.TargetOpacity = 0;
             track.RemoveWhenFinished = true;
@@ -779,6 +793,13 @@ public partial class MainWindow
             targetIntervalMs,
             MinObbAnimationDurationMs,
             MaxObbAnimationDurationMs);
+
+    internal static double ResolveRealtimeObbAnimationDurationMs(
+        double targetIntervalMs)
+        => Math.Clamp(
+            targetIntervalMs,
+            MinRealtimeObbAnimationDurationMs,
+            MaxRealtimeObbAnimationDurationMs);
 
     internal static Point[] InterpolatePoints(
         IReadOnlyList<Point> start,

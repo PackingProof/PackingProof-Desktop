@@ -358,35 +358,47 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void ObbAnimationUsesCubicEaseInOutAndInterpolatesCorners()
+    public void ObbBoxesInterpolateBetweenDetectionsAndFadeWhenLost()
     {
-        Assert.Equal(0, MainWindow.EaseInOutCubic(0), 3);
-        Assert.Equal(0.0625, MainWindow.EaseInOutCubic(0.25), 3);
-        Assert.Equal(0.5, MainWindow.EaseInOutCubic(0.5), 3);
-        Assert.Equal(0.9375, MainWindow.EaseInOutCubic(0.75), 3);
-        Assert.Equal(1, MainWindow.EaseInOutCubic(1), 3);
+        string code = File.ReadAllText(
+            Path.Combine(
+                FindRepositoryRoot(),
+                "src",
+                "ExpressPackingMonitoring",
+                "UI",
+                "MainWindow.CameraVisionObb.cs"));
 
-        WpfPoint[] points = MainWindow.InterpolatePoints(
-            [new WpfPoint(0, 0), new WpfPoint(10, 0)],
-            [new WpfPoint(10, 20), new WpfPoint(30, 20)],
-            0.5);
-
-        Assert.Equal(new WpfPoint(5, 10), points[0]);
-        Assert.Equal(new WpfPoint(20, 10), points[1]);
+        Assert.Contains("CompositionTarget.Rendering", code, StringComparison.Ordinal);
+        Assert.Contains("StartBoxAnimation", code, StringComparison.Ordinal);
+        Assert.Contains("track.DurationMs = 500", code, StringComparison.Ordinal);
+        Assert.Contains("matchedTracks.Add(created)", code, StringComparison.Ordinal);
     }
 
     [Theory]
-    [InlineData(16, 80)]
     [InlineData(100, 100)]
     [InlineData(250, 240)]
-    [InlineData(800, 240)]
-    public void ObbAnimationDurationFollowsDetectionCadence(
-        double targetIntervalMs,
-        double expectedDurationMs)
+    [InlineData(500, 240)]
+    public void StandardObbAnimationKeepsOriginalBounds(
+        double intervalMs,
+        double expectedMs)
     {
         Assert.Equal(
-            expectedDurationMs,
-            MainWindow.ResolveObbAnimationDurationMs(targetIntervalMs),
+            expectedMs,
+            MainWindow.ResolveObbAnimationDurationMs(intervalMs),
+            1);
+    }
+
+    [Theory]
+    [InlineData(16, 40)]
+    [InlineData(100, 100)]
+    [InlineData(250, 160)]
+    public void RealtimeObbAnimationUsesItsOwnFasterBounds(
+        double intervalMs,
+        double expectedMs)
+    {
+        Assert.Equal(
+            expectedMs,
+            MainWindow.ResolveRealtimeObbAnimationDurationMs(intervalMs),
             1);
     }
 
