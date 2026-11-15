@@ -66,6 +66,19 @@ public sealed class RootLauncherStartupTests
         Assert.Contains("File.SetAttributes(backup.TargetPath, backup.OriginalAttributes);", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RootLauncherConfiguresManagedCrashDumpsForTheApplication()
+    {
+        string source = File.ReadAllText(
+            Path.Combine(FindRepositoryRoot(), "src", "ExpressPackingMonitoring.Launcher", "Program.cs"));
+
+        Assert.Contains("ConfigureCrashDumps(startInfo);", source, StringComparison.Ordinal);
+        Assert.Contains("DOTNET_DbgEnableMiniDump", source, StringComparison.Ordinal);
+        Assert.Contains("DOTNET_DbgMiniDumpType", source, StringComparison.Ordinal);
+        Assert.Contains("crash_%p.dmp", source, StringComparison.Ordinal);
+        Assert.Contains("PruneCrashDumps", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

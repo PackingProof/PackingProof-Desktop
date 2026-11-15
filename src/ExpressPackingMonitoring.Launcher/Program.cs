@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.ComponentModel;
 using System.IO.Compression;
 using System.IO.Pipes;
 using System.Net.Http;
@@ -40,7 +41,28 @@ internal static class Program
     private const int MetadataRequestAttempts = 2;
     private const uint InfoIcon = 0x00000040;
     private const uint ErrorIcon = 0x00000010;
+    private const uint YesNoButtons = 0x00000004;
     private const uint DialogTimeoutMs = 60000;
+    private const int StartupWindowTimeoutMs = 12000;
+    private const int StartupPollIntervalMs = 200;
+    private const string VcRuntimeDownloadUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe";
+    private const string CrashDumpDirectoryName = "dumps";
+    private static readonly string[] VcRuntimeFileNames =
+    [
+        "vcruntime140.dll",
+        "vcruntime140_1.dll",
+        "msvcp140.dll",
+        "concrt140.dll",
+        "ucrtbase.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll"
+    ];
+    private static readonly string[] NativeLibraryRelativePaths =
+    [
+        "app\\OpenCvSharpExtern.dll",
+        "app\\onnxruntime.dll",
+        "app\\DirectML.dll",
+        "app\\libvlc\\win-x64\\libvlc.dll"
+    ];
     private static bool _useChinese;
 
     private static readonly HttpClient HttpClient = new()
@@ -1135,12 +1157,26 @@ internal static class Program
         if (!File.Exists(appPath))
         {
             WriteLog("未找到主程序，无法启动：" + appPath);
-            ShowMessage(_useChinese ? "启动失败" : "Startup failed", _useChinese
-                ? $"未找到主程序：{AppRelativePath}\n\n请确认 app 文件夹与本启动程序放在同一目录"
-                : $"Application not found: {AppRelativePath}\n\nMake sure the app folder is next to this launcher.", ErrorIcon);
+            string missingReport = WriteStartupDiagnosticReport(
+                baseDir,
+                appPath,
+                dotNetRoot,
+                "未找到主程序",
+                exitCode: null,
+                TimeSpan.Zero);
+            ShowMessage(
+                _useChinese ? "启动失败" : "Startup failed",
+                AppendDiagnosticHint(
+                    _useChinese
+                        ? $"未找到主程序：{AppRelativePath}\n\n请确认 app 文件夹与本启动程序放在同一目录"
+                        : $"Application not found: {AppRelativePath}\n\nMake sure the app folder is next to this launcher.",
+                    missingReport),
+                ErrorIcon);
+            OpenDiagnosticFolder(missingReport);
             return 2;
         }
 
+        Process? process;
         try
         {
             var startInfo = new ProcessStartInfo
@@ -1154,23 +1190,532 @@ internal static class Program
                 // 让 apphost 从安装目录里的 runtime\ 解析框架，不依赖机器上另外安装的 .NET。
                 startInfo.Environment["DOTNET_ROOT"] = dotNetRoot;
             }
+            ConfigureCrashDumps(startInfo);
 
             startInfo.ArgumentList.Add(LaunchedByRootLauncherOption);
             foreach (string arg in args)
                 startInfo.ArgumentList.Add(arg);
 
-            Process.Start(startInfo);
-            WriteLog("已启动主程序");
-            return 0;
+            process = Process.Start(startInfo);
+            if (process is null)
+                throw new InvalidOperationException("Process.Start 没有返回进程");
+            WriteLog("已启动主程序，等待主窗口出现");
         }
         catch (Exception ex)
         {
             WriteLog("启动主程序失败：" + ex);
+            string startReport = WriteStartupDiagnosticReport(
+                baseDir,
+                appPath,
+                dotNetRoot,
+                "启动进程失败：" + ex.Message,
+                exitCode: null,
+                TimeSpan.Zero);
             ShowMessage(
                 _useChinese ? "启动失败" : "Startup failed",
-                _useChinese ? $"启动主程序失败：\n{ex.Message}" : $"Failed to start the application:\n{ex.Message}",
+                AppendDiagnosticHint(
+                    _useChinese
+                        ? $"启动主程序失败：\n{ex.Message}"
+                        : $"Failed to start the application:\n{ex.Message}",
+                    startReport),
                 ErrorIcon);
+            OpenDiagnosticFolder(startReport);
             return 1;
+        }
+
+        var elapsed = Stopwatch.StartNew();
+        StartupState state = WaitForStartupWindow(process, elapsed, out int? exitCode);
+        TimeSpan startupElapsed = elapsed.Elapsed;
+        try { process.Dispose(); } catch { }
+
+        if (state == StartupState.Started)
+        {
+            WriteLog($"主程序已显示窗口：elapsedMs={startupElapsed.TotalMilliseconds:F0}");
+            return 0;
+        }
+
+        if (state == StartupState.Exited && exitCode == 0)
+        {
+            // 正常退出通常是重复实例被激活或命令行走完；不要误报启动失败。
+            WriteLog($"主程序在显示窗口前正常退出：elapsedMs={startupElapsed.TotalMilliseconds:F0}");
+            return 0;
+        }
+
+        string reason = state == StartupState.Exited
+            ? $"主程序启动后立即退出，退出码={FormatExitCode(exitCode)}"
+            : $"主程序进程仍在运行，但 {StartupWindowTimeoutMs / 1000} 秒内没有出现主窗口";
+        string reportPath = WriteStartupDiagnosticReport(
+            baseDir,
+            appPath,
+            dotNetRoot,
+            reason,
+            exitCode,
+            startupElapsed);
+        WriteLog(reason + "；诊断文件=" + reportPath);
+        ShowStartupFailureMessage(baseDir, reason, exitCode, reportPath);
+        return 1;
+    }
+
+    private enum StartupState
+    {
+        Started,
+        Exited,
+        Timeout
+    }
+
+    private static StartupState WaitForStartupWindow(
+        Process process,
+        Stopwatch elapsed,
+        out int? exitCode)
+    {
+        exitCode = null;
+        while (elapsed.ElapsedMilliseconds < StartupWindowTimeoutMs)
+        {
+            try
+            {
+                if (process.HasExited)
+                {
+                    exitCode = process.ExitCode;
+                    return StartupState.Exited;
+                }
+
+                process.Refresh();
+                if (process.MainWindowHandle != IntPtr.Zero)
+                    return StartupState.Started;
+            }
+            catch (InvalidOperationException)
+            {
+                // 进程在查询期间退出，交给下面的最终状态判断。
+                break;
+            }
+
+            Thread.Sleep(StartupPollIntervalMs);
+        }
+
+        try
+        {
+            if (process.HasExited)
+            {
+                exitCode = process.ExitCode;
+                return StartupState.Exited;
+            }
+        }
+        catch
+        {
+        }
+
+        return StartupState.Timeout;
+    }
+
+    private static string FormatExitCode(int? exitCode) =>
+        exitCode.HasValue
+            ? $"0x{exitCode.Value:X8} ({exitCode.Value})"
+            : "unknown";
+
+    private static string DescribeExitCode(int? exitCode) => exitCode switch
+    {
+        unchecked((int)0xC0000135) => "缺少 DLL 依赖或依赖无法加载",
+        unchecked((int)0xC000007B) => "映像格式不正确（常见于 32/64 位不匹配或 DLL 损坏）",
+        unchecked((int)0xC0000142) => "DLL 初始化失败",
+        unchecked((int)0xE0434352) => ".NET 运行时异常（应用启动阶段抛出）",
+        _ => ""
+    };
+
+    private static string WriteStartupDiagnosticReport(
+        string baseDir,
+        string appPath,
+        string? dotNetRoot,
+        string reason,
+        int? exitCode,
+        TimeSpan elapsed)
+    {
+        try
+        {
+            string directory;
+            try
+            {
+                directory = Path.Combine(GetUserDataDir(), "log");
+                Directory.CreateDirectory(directory);
+            }
+            catch
+            {
+                directory = Path.Combine(
+                    Path.GetTempPath(),
+                    "ExpressPackingMonitoring-diagnostics");
+                Directory.CreateDirectory(directory);
+            }
+
+            var text = new StringBuilder();
+            text.AppendLine("PackingProof 启动诊断");
+            text.AppendLine("生成时间: " + DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"));
+            text.AppendLine("启动器版本: " + (typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown"));
+            text.AppendLine("主程序版本: " + ReadInstalledAppVersion(baseDir));
+            text.AppendLine("安装目录: " + baseDir);
+            text.AppendLine("主程序路径: " + appPath);
+            text.AppendLine("结果: " + reason);
+            text.AppendLine("退出码: " + FormatExitCode(exitCode));
+            string exitDescription = DescribeExitCode(exitCode);
+            if (exitDescription.Length > 0)
+                text.AppendLine("退出码说明: " + exitDescription);
+            text.AppendLine($"启动耗时: {elapsed.TotalMilliseconds:F0} ms");
+            text.AppendLine("系统: " + Environment.OSVersion.VersionString);
+            text.AppendLine("系统版本号: " + Environment.OSVersion.Version);
+            text.AppendLine("系统描述: " + RuntimeInformation.OSDescription);
+            text.AppendLine("系统架构: " + RuntimeInformation.OSArchitecture);
+            text.AppendLine("进程架构: " + RuntimeInformation.ProcessArchitecture);
+            text.AppendLine("64 位系统: " + Environment.Is64BitOperatingSystem);
+            text.AppendLine("64 位启动器进程: " + Environment.Is64BitProcess);
+            text.AppendLine("DOTNET_ROOT: " + (dotNetRoot ?? "(未使用共享运行时布局)"));
+            text.AppendLine("启动器运行时: " + Environment.Version);
+            text.AppendLine();
+
+            Version osVersion = Environment.OSVersion.Version;
+            if (!Environment.Is64BitOperatingSystem)
+            {
+                text.AppendLine("警告: 当前是 32 位 Windows，本程序只提供 x64 版本。");
+            }
+            if (osVersion.Major < 10 || osVersion.Build < 14393)
+            {
+                text.AppendLine("警告: 当前 Windows 低于 .NET 10 官方支持的 Windows 10 1607；这可能是启动失败的原因，但不是唯一可能。");
+            }
+            else if (osVersion.Build < 19041)
+            {
+                text.AppendLine("提示: 当前 Windows build 低于 19041（Windows 10 2004），与安装包/商店清单的最低版本不同，建议一并核对。");
+            }
+            text.AppendLine();
+
+            text.AppendLine("关键文件:");
+            foreach (string relativePath in new[]
+                     {
+                         AppRelativePath,
+                         AppDllRelativePath,
+                         "app\\ExpressPackingMonitoring.deps.json",
+                         "app\\ExpressPackingMonitoring.runtimeconfig.json",
+                         "app\\coreclr.dll",
+                         "app\\hostfxr.dll",
+                         "app\\hostpolicy.dll",
+                         "runtime\\dotnet.exe",
+                         "runtime\\layout.json",
+                         "app\\runtime-seed\\layout.json"
+                     })
+            {
+                text.AppendLine("  " + DescribeFile(Path.Combine(baseDir, relativePath)));
+            }
+            text.AppendLine();
+
+            text.AppendLine("VC++ / UCRT 运行库:");
+            string systemDirectory = Environment.SystemDirectory;
+            foreach (string name in VcRuntimeFileNames)
+            {
+                text.AppendLine("  " + DescribeFile(Path.Combine(systemDirectory, name)));
+            }
+            text.AppendLine("  VC++ 2015-2022 x64 下载: " + VcRuntimeDownloadUrl);
+            text.AppendLine();
+
+            text.AppendLine("原生依赖加载检查:");
+            foreach (string relativePath in NativeLibraryRelativePaths)
+            {
+                text.AppendLine("  " + DescribeNativeLibrary(Path.Combine(baseDir, relativePath)));
+            }
+            text.AppendLine();
+
+            text.AppendLine("运行日志尾部:");
+            AppendLogTail(text, Path.Combine(GetUserDataDir(), "log", "runtime.log"));
+            text.AppendLine();
+            text.AppendLine("崩溃转储:");
+            AppendCrashDumpList(text);
+            text.AppendLine();
+            text.AppendLine("启动器日志尾部:");
+            AppendLogTail(text, GetLogPath());
+
+            string path = Path.Combine(
+                directory,
+                $"startup-diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}-{Environment.ProcessId}.txt");
+            File.WriteAllText(path, text.ToString(), new UTF8Encoding(false));
+            return path;
+        }
+        catch (Exception ex)
+        {
+            WriteLog("写启动诊断文件失败：" + ex.Message);
+            return "";
+        }
+    }
+
+    private static void AppendCrashDumpList(StringBuilder text)
+    {
+        string dumpDirectory = Path.Combine(GetUserDataDir(), CrashDumpDirectoryName);
+        if (!Directory.Exists(dumpDirectory))
+        {
+            text.AppendLine("  (无)");
+            return;
+        }
+
+        FileInfo[] dumps = new DirectoryInfo(dumpDirectory)
+            .GetFiles("crash_*.dmp")
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .ToArray();
+        if (dumps.Length == 0)
+        {
+            text.AppendLine("  (无)");
+            return;
+        }
+
+        foreach (FileInfo dump in dumps)
+        {
+            text.AppendLine(
+                $"  {dump.FullName}（{dump.Length} bytes，{dump.LastWriteTime:yyyy-MM-dd HH:mm:ss}）");
+        }
+    }
+
+    private static string DescribeFile(string path)
+    {
+        try
+        {
+            var file = new FileInfo(path);
+            return file.Exists
+                ? $"{path}（{file.Length} bytes）"
+                : $"{path}（缺失）";
+        }
+        catch (Exception ex)
+        {
+            return $"{path}（读取失败：{ex.Message}）";
+        }
+    }
+
+    private static string DescribeNativeLibrary(string path)
+    {
+        if (!File.Exists(path))
+            return $"{path}（缺失）";
+
+        if (!TryLoadNativeLibrary(path, out int error))
+            return $"{path}（加载失败，Win32={error}: {new Win32Exception(error).Message}）";
+
+        return $"{path}（加载成功）";
+    }
+
+    private static bool TryLoadNativeLibrary(string path, out int error)
+    {
+        error = 0;
+        IntPtr module = LoadLibraryExW(path, IntPtr.Zero, 0x00000008);
+        if (module == IntPtr.Zero)
+        {
+            error = Marshal.GetLastWin32Error();
+            return false;
+        }
+
+        FreeLibrary(module);
+        return true;
+    }
+
+    private static void AppendLogTail(StringBuilder text, string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                text.AppendLine("  " + path + "（未生成）");
+                return;
+            }
+
+            text.AppendLine("  " + path);
+            foreach (string line in File.ReadLines(path).TakeLast(80))
+                text.AppendLine("    " + line);
+        }
+        catch (Exception ex)
+        {
+            text.AppendLine("  " + path + "（读取失败：" + ex.Message + "）");
+        }
+    }
+
+    private static void ShowStartupFailureMessage(
+        string baseDir,
+        string reason,
+        int? exitCode,
+        string reportPath)
+    {
+        var text = new StringBuilder();
+        text.AppendLine(_useChinese ? "主程序没有成功打开。" : "The application did not open successfully.");
+        text.AppendLine(reason);
+        if (exitCode.HasValue)
+        {
+            text.AppendLine((_useChinese ? "退出码：" : "Exit code: ") + FormatExitCode(exitCode));
+            string exitDescription = DescribeExitCode(exitCode);
+            if (exitDescription.Length > 0)
+                text.AppendLine((_useChinese ? "说明：" : "Meaning: ") + exitDescription);
+        }
+        text.AppendLine(
+            (_useChinese ? "系统：" : "System: ")
+            + Environment.OSVersion.VersionString
+            + " / "
+            + RuntimeInformation.OSArchitecture
+            + (_useChinese ? " / 64 位： " : " / 64-bit: ")
+            + Environment.Is64BitOperatingSystem);
+
+        if (!Environment.Is64BitOperatingSystem)
+        {
+            text.AppendLine(_useChinese
+                ? "当前是 32 位 Windows，本程序只提供 x64 版本。"
+                : "This is 32-bit Windows; this application is x64 only.");
+        }
+        else if (Environment.OSVersion.Version.Major < 10
+            || Environment.OSVersion.Version.Build < 14393)
+        {
+            text.AppendLine(_useChinese
+                ? "当前系统低于 .NET 10 官方支持的 Windows 10 1607，请升级系统或使用旧版本。"
+                : "This Windows version is below .NET 10's supported Windows 10 1607.");
+        }
+
+        text.AppendLine();
+        text.AppendLine(_useChinese
+            ? "如果诊断文件里的“VC++ / UCRT 运行库”有缺失，或“原生依赖加载检查”有失败，请先安装 Microsoft Visual C++ 2015-2022 x64 运行库后重试。"
+            : "If the diagnostic shows missing VC++/UCRT runtimes or failed native library loads, install Microsoft Visual C++ 2015-2022 x64 Runtime and try again.");
+        text.AppendLine(AppendDiagnosticHint("", reportPath).Trim());
+
+        string content = text.ToString().Trim();
+        if (ShouldOfferVcRuntimeDownload(baseDir, exitCode))
+        {
+            bool openDownload = ShowQuestion(
+                _useChinese ? "启动失败" : "Startup failed",
+                content
+                + Environment.NewLine
+                + Environment.NewLine
+                + (_useChinese
+                    ? "是否现在打开 Microsoft Visual C++ 2015-2022 x64 运行库下载页？"
+                    : "Open the Microsoft Visual C++ 2015-2022 x64 Runtime download page now?"),
+                ErrorIcon);
+            if (openDownload)
+                OpenUrl(VcRuntimeDownloadUrl);
+        }
+        else
+        {
+            ShowMessage(
+                _useChinese ? "启动失败" : "Startup failed",
+                content,
+                ErrorIcon);
+        }
+
+        OpenDiagnosticFolder(reportPath);
+    }
+
+    private static bool ShouldOfferVcRuntimeDownload(string baseDir, int? exitCode)
+    {
+        if (exitCode is int code
+            && (code == unchecked((int)0xC0000135)
+                || code == unchecked((int)0xC000007B)))
+        {
+            return true;
+        }
+
+        string systemDirectory = Environment.SystemDirectory;
+        foreach (string name in VcRuntimeFileNames)
+        {
+            if (!File.Exists(Path.Combine(systemDirectory, name)))
+                return true;
+        }
+
+        foreach (string relativePath in NativeLibraryRelativePaths)
+        {
+            string path = Path.Combine(baseDir, relativePath);
+            if (File.Exists(path) && !TryLoadNativeLibrary(path, out _))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool ShowQuestion(string title, string message, uint icon) =>
+        MessageBoxW(IntPtr.Zero, message, title, YesNoButtons | icon) == 6;
+
+    private static void OpenUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            WriteLog("打开下载链接失败：" + ex.Message);
+        }
+    }
+
+    private static void ConfigureCrashDumps(ProcessStartInfo startInfo)
+    {
+        try
+        {
+            string dumpDirectory = Path.Combine(GetUserDataDir(), CrashDumpDirectoryName);
+            Directory.CreateDirectory(dumpDirectory);
+            PruneCrashDumps(dumpDirectory);
+            startInfo.Environment["DOTNET_DbgEnableMiniDump"] = "1";
+            startInfo.Environment["DOTNET_DbgMiniDumpType"] = "2";
+            startInfo.Environment["DOTNET_DbgMiniDumpName"] =
+                Path.Combine(dumpDirectory, "crash_%p.dmp");
+            WriteLog("崩溃转储已启用：" + dumpDirectory);
+        }
+        catch (Exception ex)
+        {
+            WriteLog("配置崩溃转储失败：" + ex.Message);
+        }
+    }
+
+    private static void PruneCrashDumps(string dumpDirectory)
+    {
+        try
+        {
+            foreach (FileInfo dump in new DirectoryInfo(dumpDirectory)
+                         .GetFiles("crash_*.dmp")
+                         .OrderByDescending(file => file.LastWriteTimeUtc)
+                         .Skip(10))
+            {
+                dump.Delete();
+            }
+        }
+        catch (Exception ex)
+        {
+            WriteLog("清理旧崩溃转储失败：" + ex.Message);
+        }
+    }
+
+    private static string AppendDiagnosticHint(string message, string reportPath)
+    {
+        if (string.IsNullOrWhiteSpace(reportPath))
+            return message;
+
+        return message
+            + Environment.NewLine
+            + Environment.NewLine
+            + (_useChinese ? "诊断文件：" : "Diagnostic file:")
+            + Environment.NewLine
+            + reportPath
+            + Environment.NewLine
+            + (_useChinese
+                ? "请把诊断文件和 launcher_update.log 一起发给技术支持。关闭提示后会自动打开日志文件夹。"
+                : "Send the diagnostic file and launcher_update.log to support. The log folder will open after you close this message.");
+    }
+
+    private static void OpenDiagnosticFolder(string reportPath)
+    {
+        try
+        {
+            string directory = string.IsNullOrWhiteSpace(reportPath)
+                ? Path.Combine(GetUserDataDir(), "log")
+                : Path.GetDirectoryName(reportPath) ?? "";
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+                return;
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"\"{directory}\"",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            WriteLog("打开日志文件夹失败：" + ex.Message);
         }
     }
 
@@ -2042,6 +2587,15 @@ internal static class Program
 
     [DllImport("kernel32.dll")]
     private static extern ushort GetUserDefaultUILanguage();
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr LoadLibraryExW(
+        string fileName,
+        IntPtr file,
+        uint flags);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool FreeLibrary(IntPtr module);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int MessageBoxW(IntPtr hWnd, string lpText, string lpCaption, uint uType);

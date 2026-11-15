@@ -63,6 +63,51 @@ public sealed class LauncherSelfUpdateTests
     }
 
     [Fact]
+    public void LauncherDownload_HonorsManifestDownloadSource()
+    {
+        using var fixture = new Fixture();
+        byte[] launcher = Encoding.UTF8.GetBytes("launcher-download-source");
+        string packagePath = fixture.CreatePackage(launcher);
+        LauncherPackageInfo package = fixture.Describe(packagePath, launcher) with
+        {
+            Url = "https://gitee.com/example/launcher.zip",
+            GithubUrl = "https://github.com/example/launcher.zip",
+            GiteeUrl = "https://gitee.com/example/launcher-explicit.zip"
+        };
+        const string giteeManifest =
+            "https://gitee.com/PackingProof/PackingProof-Desktop/releases/download/v1.2.3/update_v1.2.3.json";
+
+        LauncherDownloadRoute github = LauncherUpdateService.GetDownloadRoute(
+            package,
+            0,
+            giteeManifest,
+            "github");
+        LauncherDownloadRoute gitee = LauncherUpdateService.GetDownloadRoute(
+            package,
+            0,
+            giteeManifest,
+            "gitee");
+
+        Assert.Equal(package.GithubUrl, github.SelectedUrl);
+        Assert.False(github.PreferFallback);
+        Assert.Equal(package.GiteeUrl, gitee.SelectedUrl);
+        Assert.True(gitee.PreferFallback);
+    }
+
+    [Theory]
+    [InlineData("github", "github")]
+    [InlineData("GITEE", "gitee")]
+    [InlineData("auto", "auto")]
+    [InlineData("invalid", "")]
+    public void LauncherDownload_ReadsValidDownloadSource(string raw, string expected)
+    {
+        using JsonDocument manifest = JsonDocument.Parse(
+            $$"""{"download_source":"{{raw}}"}""");
+
+        Assert.Equal(expected, LauncherUpdateService.ReadDownloadSource(manifest.RootElement));
+    }
+
+    [Fact]
     public void LauncherDownloadFailureState_IsScopedToImmutablePackageIdentity()
     {
         using var fixture = new Fixture();

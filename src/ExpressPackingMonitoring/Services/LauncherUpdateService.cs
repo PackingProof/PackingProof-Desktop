@@ -145,7 +145,7 @@ internal sealed class LauncherUpdateService
                 return LauncherUpdateOutcome.Unchanged;
             }
 
-            (LauncherPackageInfo? package, string packageManifestUrl) =
+            (LauncherPackageInfo? package, string packageManifestUrl, string downloadSource) =
                 await FetchPackageInfoAsync(cancellationToken);
             if (package == null)
             {
@@ -192,6 +192,7 @@ internal sealed class LauncherUpdateService
                 packagePath,
                 downloadFailureStatePath,
                 packageManifestUrl,
+                downloadSource,
                 cancellationToken);
             SavePendingDescriptor(
                 Path.Combine(pendingDirectory, PendingDescriptorFileName),
@@ -519,7 +520,7 @@ internal sealed class LauncherUpdateService
     /// 取启动器包信息，同时交回这份清单实际是从哪个地址下来的：下载启动器包时跟着它选源
     /// （国内机器 Gitee 附件比 GitHub 快得多，清单能下来就说明那条链路是通的）。
     /// </summary>
-    private static async Task<(LauncherPackageInfo? Package, string ManifestUrl)> FetchPackageInfoAsync(
+    private static async Task<(LauncherPackageInfo? Package, string ManifestUrl, string DownloadSource)> FetchPackageInfoAsync(
         CancellationToken cancellationToken)
     {
         var metadataClient = new UpdateMetadataClient(
@@ -530,7 +531,16 @@ internal sealed class LauncherUpdateService
             UpdateCheckOptions.GetUpdateCheckUrls(),
             cancellationToken);
         RuntimeLog.Info("LauncherUpdate", $"启动器更新清单来源：{resolved.ManifestUrl}");
-        return (ParsePackageInfo(resolved.Manifest.RootElement), resolved.ManifestUrl);
+        return (
+            ParsePackageInfo(resolved.Manifest.RootElement),
+            resolved.ManifestUrl,
+            ReadDownloadSource(resolved.Manifest.RootElement));
+    }
+
+    internal static string ReadDownloadSource(JsonElement manifest)
+    {
+        string value = ReadString(manifest, "download_source").Trim().ToLowerInvariant();
+        return value is "gitee" or "github" or "auto" ? value : "";
     }
 
     private static async Task DownloadAndVerifyAsync(
@@ -538,6 +548,7 @@ internal sealed class LauncherUpdateService
         string packagePath,
         string failureStatePath,
         string manifestSourceUrl,
+        string downloadSource,
         CancellationToken cancellationToken)
     {
         if (File.Exists(packagePath))
@@ -563,7 +574,8 @@ internal sealed class LauncherUpdateService
             LauncherDownloadRoute route = GetDownloadRoute(
                 package,
                 failureState.ConsecutiveGithubDownloadFailures,
-                manifestSourceUrl);
+                manifestSourceUrl,
+                downloadSource);
             try
             {
                 RuntimeLog.Info(
@@ -815,7 +827,8 @@ internal sealed class LauncherUpdateService
     internal static LauncherDownloadRoute GetDownloadRoute(
         LauncherPackageInfo package,
         int consecutiveGithubFailures,
-        string? manifestSourceUrl = null)
+        string? manifestSourceUrl = null,
+        string? preferredSource = null)
     {
         PackageDownloadRoute route = PackageDownloadRoutePolicy.Resolve(
             package.GithubUrl,
@@ -824,7 +837,8 @@ internal sealed class LauncherUpdateService
             ResolveDerivedGithubDownloadUrl(package),
             consecutiveGithubFailures,
             GithubDownloadFailureFallbackThreshold,
-            manifestSourceUrl);
+            manifestSourceUrl,
+            preferredSource);
         return new LauncherDownloadRoute(
             route.GithubUrl,
             route.GiteeUrl,
