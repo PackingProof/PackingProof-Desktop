@@ -19,6 +19,13 @@ if not exist "%BASELINE_APP_DIR%\ExpressPackingMonitoring.exe" (
 set "VERSION_ARG="
 if not "%~1"=="" set "VERSION_ARG=-Version %~1"
 
+rem 双击（无版本参数）是临时出包：只编译/打包，不跑全量测试；带版本参数按完整发布验证执行。
+set "TEST_ARGS="
+if "%~1"=="" (
+    set "TEST_ARGS=-SkipFullTest"
+    echo [WARN] 未传版本号：本地快速打包，跳过全量测试；正式发布请带版本号运行或先跑 tools\Test-Release.ps1。
+)
+
 rem 第三个参数控制本地 7z：默认不生成，Release 也不再上传该产物。
 rem 需要时传 7z，例如：打包脚本-增量.bat 0.0.67 0.0.66 7z
 set "ARCHIVE_ARGS="
@@ -55,7 +62,7 @@ echo [WARN] Review docs\development\RELEASE_CHECKLIST.md before publishing.
 echo [WARN] Unconfirmed real-device checks no longer block packaging.
 
 rem 参数展开后拼成单行，避免 %ARCHIVE_ARGS% 为空时行尾 ^ 续接到空行导致命令被截断。
-pwsh -NoProfile -ExecutionPolicy Bypass -File "tools\Publish-CleanPackage.ps1" %VERSION_ARG% -PatchBaselineVersion %BASELINE_VERSION% -BaselineAppDir "%BASELINE_APP_DIR%" %ARCHIVE_ARGS% %VISION_ARGS%
+pwsh -NoProfile -ExecutionPolicy Bypass -File "tools\Publish-CleanPackage.ps1" %VERSION_ARG% %TEST_ARGS% -PatchBaselineVersion %BASELINE_VERSION% -BaselineAppDir "%BASELINE_APP_DIR%" %ARCHIVE_ARGS% %VISION_ARGS%
 
 set "EXIT_CODE=%ERRORLEVEL%"
 echo.

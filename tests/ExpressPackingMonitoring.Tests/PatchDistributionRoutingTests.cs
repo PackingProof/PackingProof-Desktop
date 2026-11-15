@@ -62,7 +62,7 @@ public sealed class PatchDistributionRoutingTests
         Assert.True(installerCopyIndex >= 0);
         Assert.True(patchHashIndex > installerCopyIndex);
         Assert.Contains(
-            "$appPatchZipName = \"PackingProof_AppPatch_$releaseTag.zip\"",
+            "$appPatchZipName = \"PackingProof_AppPatch_$artifactTag.zip\"",
             publisher);
         Assert.DoesNotContain(
             "ExpressPackingMonitoring_AppPatch_",

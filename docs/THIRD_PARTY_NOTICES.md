@@ -19,6 +19,7 @@
 | `ONNX-Runtime-ThirdPartyNotices.txt` | ONNX Runtime 第三方组件 | — |
 | `DirectML-LICENSE.txt` | Microsoft DirectML | Microsoft 可再分发运行时条款 |
 | `DirectML-ThirdPartyNotices.txt` | DirectML 第三方组件 | — |
+| `VC-Runtime-Redistributable.txt` | Microsoft Visual C++ 运行库（`msvcp140*.dll`、`vcruntime140*.dll`） | Microsoft Visual Studio 可再分发文件条款 |
 | `THIRD_PARTY_NOTICES.md` | 本文件 | — |
 
 全文来源：Windows 的 `ffmpeg-build-notice.txt` 同时说明可随包使用的自建精简构建与 Gyan essentials 回退构建，具体实际使用哪一份可依据 `ffmpeg -version` 和基线哈希确认；`GPL-3.0.txt` 对应 FFmpeg 4.4.1 源码。`LGPL-2.1.txt` 与 `GPL-2.0.txt` 取自 VideoLAN 上游 `vlc` 仓库 `3.0.21` 标签的 `COPYING.LIB` 与 `COPYING`。仓库内的副本保存在 `docs/third-party-licenses/`，打包时原样复制进安装包。
@@ -61,3 +62,11 @@
 增强识别模型由独立的 `PackingProof-Vision` 仓库使用 Ultralytics 训练与导出，
 Ultralytics 工具链许可证为 AGPL-3.0。训练仓库负责模型代码、导出参数和权重 Release；
 Desktop 只保存下载清单和运行时契约。
+
+## Microsoft Visual C++ 运行库
+
+- 组件：Microsoft Visual C++ 2015-2022 Redistributable（x64）
+- 随包文件：`msvcp140.dll`、`msvcp140_1.dll`、`vcruntime140.dll`、`vcruntime140_1.dll`
+- 用途：ONNX Runtime 原生推理库的 C++ 运行时依赖；放在 `app\` 下由 Windows 优先从程序目录加载，用户不需要另外安装 VC++ Redistributable
+- 来源：构建机 Visual Studio 的 `VC\Redist\MSVC\<版本>\x64\Microsoft.VC*.CRT`
+- 许可证：Microsoft Visual Studio 可再分发文件条款，说明见 `docs/third-party-licenses/VC-Runtime-Redistributable.txt`

@@ -52,6 +52,53 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void Packaging_DoubleClickSkipsFullTestsAndVersionedRunsKeepThem()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string publishScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+        string incrementalScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "打包脚本-增量.bat"),
+            Encoding.UTF8);
+        string baselineScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "打包脚本-基线.bat"),
+            Encoding.UTF8);
+
+        Assert.Contains("[switch]$SkipFullTest", publishScript, StringComparison.Ordinal);
+        Assert.Contains("if ($SkipFullTest)", publishScript, StringComparison.Ordinal);
+        Assert.Contains("skipping full regression tests", publishScript, StringComparison.Ordinal);
+        Assert.Contains("if \"%~1\"==\"\"", incrementalScript, StringComparison.Ordinal);
+        Assert.Contains("set \"TEST_ARGS=-SkipFullTest\"", incrementalScript, StringComparison.Ordinal);
+        Assert.Contains("%TEST_ARGS%", incrementalScript, StringComparison.Ordinal);
+        Assert.Contains("if \"%~1\"==\"\"", baselineScript, StringComparison.Ordinal);
+        Assert.Contains("set \"TEST_ARGS=-SkipFullTest\"", baselineScript, StringComparison.Ordinal);
+        Assert.Contains("%TEST_ARGS%", baselineScript, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Packaging_BundlesVcRuntimeAndDropsDebugOnlyRuntimeFiles()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string publishScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains("$vcRuntimeFileNames = @(", publishScript, StringComparison.Ordinal);
+        Assert.Contains("\"msvcp140.dll\"", publishScript, StringComparison.Ordinal);
+        Assert.Contains("\"msvcp140_1.dll\"", publishScript, StringComparison.Ordinal);
+        Assert.Contains("\"vcruntime140.dll\"", publishScript, StringComparison.Ordinal);
+        Assert.Contains("\"vcruntime140_1.dll\"", publishScript, StringComparison.Ordinal);
+        Assert.Contains("Copy-VcRuntimeFiles -AppDir $appPublishDir", publishScript, StringComparison.Ordinal);
+        Assert.Contains("Remove-DebugOnlyRuntimeFiles -AppDir $appPublishDir", publishScript, StringComparison.Ordinal);
+        Assert.Contains("\"mscordaccore*.dll\"", publishScript, StringComparison.Ordinal);
+        Assert.Contains("\"mscordbi.dll\"", publishScript, StringComparison.Ordinal);
+        Assert.Contains("\"Microsoft.DiaSymReader.Native.*.dll\"", publishScript, StringComparison.Ordinal);
+        Assert.Contains("\"msquic.dll\"", publishScript, StringComparison.Ordinal);
+        Assert.Contains("VC++ 运行库没有打进包", publishScript, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Packaging_RequiresDestructiveOutputsToBeStrictRepositoryDescendants()
     {
         string repositoryRoot = FindRepositoryRoot();
@@ -705,7 +752,11 @@ public sealed class ReleasePackagingPolicyTests
 
         Assert.Contains("OutputBaseFilename=PackingProof_Setup_v{#MyAppVersion}", innoScript);
         Assert.Contains("PackingProof_Setup_v$artifactVersion.exe", publishScript);
-        Assert.Contains("PackingProof_AppPatch_$releaseTag.zip", publishScript);
+        Assert.Contains("PackingProof_AppPatch_$artifactTag.zip", publishScript);
+        Assert.Contains("update_$artifactTag.json", publishScript);
+        Assert.Contains("launcher_manifest_$artifactTag.json", publishScript);
+        Assert.Contains("package_integrity_$artifactTag.json", publishScript);
+        Assert.Contains("release_info_$artifactTag.txt", publishScript);
         Assert.Contains("-OutputFileName $setupFileName", publishScript);
         Assert.Contains("\"PackingProof+v$artifactVersion\"", publishScript);
         Assert.Contains("git -C $repoRoot describe --tags --match \"v[0-9]*\" --long --abbrev=8 HEAD", publishScript);
@@ -723,7 +774,7 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("$giteeAssetIndex", publishScript);
         Assert.Contains("完整 Setup 严格小于 100MB，已直接上传 Gitee", publishScript);
         Assert.Contains(
-            "完整 Setup 达到 100MB，Gitee 使用 no-runtime 安装向导或 Full download page",
+            "完整 Setup 达到 100MB，Gitee 使用商店桥接安装器或 Full download page",
             publishScript);
         Assert.Contains("[switch]$IncludeFullZip", publishScript);
         Assert.Contains("if ($IncludeFullZip)", publishScript);
@@ -815,7 +866,7 @@ public sealed class ReleasePackagingPolicyTests
             "$storeUploadPath = Join-Path $artifactNames.StorePackageRoot $artifactNames.StoreUploadFileName",
             publisher,
             StringComparison.Ordinal);
-        Assert.Contains("store_package_$releaseTag.json", publishScript, StringComparison.Ordinal);
+        Assert.Contains("store_package_$artifactTag.json", publishScript, StringComparison.Ordinal);
         Assert.DoesNotContain("$tag.TrimStart('v')", publisher, StringComparison.Ordinal);
         Assert.DoesNotContain("\"package\\PackingProof+$tag\"", publisher, StringComparison.Ordinal);
 
@@ -993,7 +1044,7 @@ public sealed class ReleasePackagingPolicyTests
             publishScript,
             StringComparison.Ordinal);
         Assert.Contains(
-            "`download_source` 控制增量包默认从哪个平台下载：`github`（出包缺省",
+            "`download_source` 控制增量包和启动器包默认从哪个平台下载：`github`（出包缺省",
             runtimeDocument,
             StringComparison.Ordinal);
         Assert.Contains(

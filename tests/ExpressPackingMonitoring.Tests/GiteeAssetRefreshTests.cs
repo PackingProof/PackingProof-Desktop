@@ -123,8 +123,22 @@ public sealed class GiteeAssetRefreshTests
 
         Assert.Contains("$giteeSetupIncluded = Test-GiteeAttachmentFits -Size $setupSize", publisher, StringComparison.Ordinal);
         Assert.Contains("$giteeAssets = @($setupPath) + $giteeAssets", publisher, StringComparison.Ordinal);
-        Assert.Contains("PackingProof_Setup_no-runtime_$releaseTag.exe", publisher, StringComparison.Ordinal);
+        Assert.Contains("PackingProof_StoreInstaller_$releaseTag.exe", publisher, StringComparison.Ordinal);
+        Assert.Contains("-StoreBridgeInstallerPath", publisher, StringComparison.Ordinal);
         Assert.Contains("Remove-GiteeReleaseAttachmentByName", publisher, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Republish_UsesStoreBridgeInsteadOfNoRuntimeWhenSetupIsLarge()
+    {
+        string republish = File.ReadAllText(
+            Path.Combine(FindRepositoryRoot(), "tools", "Republish-SameVersion.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains("$fullSetupFitsGitee", republish, StringComparison.Ordinal);
+        Assert.Contains("-StoreBridgeInstallerPath", republish, StringComparison.Ordinal);
+        Assert.Contains("不再生成 no-runtime", republish, StringComparison.Ordinal);
+        Assert.DoesNotContain("Publish-NoRuntimePackage.ps1", republish, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -146,17 +160,6 @@ public sealed class GiteeAssetRefreshTests
             "& gitee release upload --repo $GiteeRepository $releaseTag $standardSetupPath",
             noRuntime,
             StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Republish_SkipsNoRuntimeWhenSmallStandardSetupFitsGitee()
-    {
-        string republish = File.ReadAllText(
-            Path.Combine(FindRepositoryRoot(), "tools", "Republish-SameVersion.ps1"),
-            Encoding.UTF8);
-
-        Assert.Contains("$fullSetupFitsGitee", republish, StringComparison.Ordinal);
-        Assert.Contains("if (-not $SkipNoRuntime -and -not $fullSetupFitsGitee)", republish, StringComparison.Ordinal);
     }
 
     private static string Preamble()

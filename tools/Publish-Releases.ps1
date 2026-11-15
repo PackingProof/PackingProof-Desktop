@@ -7,7 +7,7 @@
 # 约定（与 docs/development/RELEASE_AND_RUNTIME.md 的资产表一致）：
 # - GitHub：Setup、update JSON、可选 AppPatch；仅新启动器基线时附 LauncherPatch
 # - Gitee：update JSON、可选 AppPatch；完整 Setup 小于 100MB 时直接上传 Setup，
-#   否则另行生成 no-runtime 安装包；仅新启动器基线时附 LauncherPatch
+#   否则上传商店桥接安装器（-StoreBridgeInstallerPath），不再生成 no-runtime；仅新启动器基线时附 LauncherPatch
 # - 完整 7z 与完整 ZIP 是本地产物，任何渠道都不上传
 # - 产物必须已由 tools\Publish-CleanPackage.ps1 生成并通过校验
 # - 标题固定 `v<X.Y.Z> <一句话内容>`，两个平台保持一致
@@ -30,7 +30,8 @@ param(
     [switch]$ConfirmCommitCoverage,
     [switch]$UpdateNotes,
     [switch]$ReplaceAssets,
-    [switch]$ValidateOnly
+    [switch]$ValidateOnly,
+    [string]$StoreBridgeInstallerPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -214,6 +215,20 @@ foreach ($required in @($setupPath, $updateJsonPath)) {
 }
 $setupSize = (Get-Item -LiteralPath $setupPath).Length
 $giteeSetupIncluded = Test-GiteeAttachmentFits -Size $setupSize
+$giteeBridgeInstallerPath = ""
+if (-not $giteeSetupIncluded) {
+    $bridgeSource = if (-not [string]::IsNullOrWhiteSpace($StoreBridgeInstallerPath)) {
+        [System.IO.Path]::GetFullPath($StoreBridgeInstallerPath)
+    } else {
+        throw "完整 Setup 达到 100MB，Gitee 需要商店桥接安装器。请传 -StoreBridgeInstallerPath <PackingProof Installer.exe>；不再生成 no-runtime 安装包"
+    }
+    if (-not (Test-Path -LiteralPath $bridgeSource -PathType Leaf)) {
+        throw "商店桥接安装器不存在：$bridgeSource"
+    }
+    $bridgeName = "PackingProof_StoreInstaller_$releaseTag.exe"
+    $giteeBridgeInstallerPath = Join-Path $packageRoot $bridgeName
+    Copy-Item -LiteralPath $bridgeSource -Destination $giteeBridgeInstallerPath -Force
+}
 $packageIntegrityPath = Join-Path $packageRoot ("package_integrity_" + $releaseTag + ".json")
 if (-not (Test-Path -LiteralPath $packageIntegrityPath -PathType Leaf)) {
     throw "缺少 Setup 完整性清单 $($packageIntegrityPath)；请用 tools\Publish-CleanPackage.ps1 重新出包"
@@ -402,6 +417,9 @@ $githubAssets = @($setupPath, $updateJsonPath)
 $giteeAssets = @($updateJsonPath)
 if ($giteeSetupIncluded) {
     $giteeAssets = @($setupPath) + $giteeAssets
+}
+elseif (-not [string]::IsNullOrWhiteSpace($giteeBridgeInstallerPath)) {
+    $giteeAssets = @($giteeBridgeInstallerPath) + $giteeAssets
 }
 if (Test-Path -LiteralPath $appPatchPath) {
     $githubAssets += $appPatchPath
@@ -606,19 +624,27 @@ else {
 # 只更新正文时不要重复上传附件，避免 Gitee 上出现同名重复文件。
 if ($ReplaceAssets -and $giteeReleaseExisted) {
     $giteeReleaseId = Get-GiteeReleaseId -Repository $repoSlug -Tag $tag
-    # 两种安装包只保留与本次尺寸策略一致的那一种，避免同一版本同时挂两个安装向导。
-    $alternateSetupName = if ($giteeSetupIncluded) {
-        "PackingProof_Setup_no-runtime_$releaseTag.exe"
+    # 只保留与本次尺寸策略一致的安装入口，避免同一版本同时挂多个安装向导。
+    $alternateSetupNames = if ($giteeSetupIncluded) {
+        @(
+            "PackingProof_Setup_no-runtime_$releaseTag.exe",
+            "PackingProof_StoreInstaller_$releaseTag.exe"
+        )
     }
     else {
-        Split-Path -Leaf $setupPath
+        @(
+            (Split-Path -Leaf $setupPath),
+            "PackingProof_Setup_no-runtime_$releaseTag.exe"
+        )
     }
-    $removedAlternate = Remove-GiteeReleaseAttachmentByName `
-        -Repository $repoSlug `
-        -ReleaseId $giteeReleaseId `
-        -FileName $alternateSetupName
-    if ($removedAlternate -gt 0) {
-        Write-Host "Gitee 旧安装包已删除 $removedAlternate 个：$alternateSetupName"
+    foreach ($alternateSetupName in $alternateSetupNames) {
+        $removedAlternate = Remove-GiteeReleaseAttachmentByName `
+            -Repository $repoSlug `
+            -ReleaseId $giteeReleaseId `
+            -FileName $alternateSetupName
+        if ($removedAlternate -gt 0) {
+            Write-Host "Gitee 旧安装包已删除 $removedAlternate 个：$alternateSetupName"
+        }
     }
     $staleGiteeAssets = @(Get-StaleGiteeAssets `
         -Repository $repoSlug `
@@ -661,21 +687,18 @@ Write-Host "GitHub 与 Gitee Release 均已就绪：$tag"
 $giteeAttachmentsKept = $giteeReleaseExisted -and -not $ReplaceAssets
 if ($giteeSetupIncluded) {
     if ($giteeAttachmentsKept) {
-        Write-Host ("Gitee 安装入口沿用现有附件（完整 Setup {0:N1} MB 小于 100MB，无需 no-runtime）" -f ($setupSize / 1MB))
+        Write-Host ("Gitee 安装入口沿用现有附件（完整 Setup {0:N1} MB 小于 100MB）" -f ($setupSize / 1MB))
     }
     else {
-        Write-Host ("Gitee 已直接上传完整 Setup（{0:N1} MB，小于 100MB），无需 no-runtime 安装包" -f ($setupSize / 1MB))
+        Write-Host ("Gitee 已直接上传完整 Setup（{0:N1} MB，小于 100MB）" -f ($setupSize / 1MB))
     }
 }
 else {
     if ($giteeAttachmentsKept) {
-        Write-Host ("Gitee 附件保持原样；完整 Setup {0:N1} MB 达到 100MB 限制，若尚未提供安装入口请生成 no-runtime" -f ($setupSize / 1MB))
+        Write-Host ("Gitee 附件保持原样；完整 Setup {0:N1} MB 达到 100MB 限制，安装入口应为商店桥接安装器" -f ($setupSize / 1MB))
     }
     else {
-        Write-Host ("Gitee 未上传完整 Setup（{0:N1} MB，达到 100MB 限制）" -f ($setupSize / 1MB))
-        Write-Host ""
-        Write-Host "还差一步（Gitee 专属，漏了 Gitee 就没有双击安装入口）："
-        Write-Host "  pwsh -NoProfile -File tools\Publish-NoRuntimePackage.ps1 -Tag $tag -UploadGitee"
+        Write-Host ("Gitee 未上传完整 Setup（{0:N1} MB，达到 100MB 限制），已上传商店桥接安装器：$(Split-Path -Leaf $giteeBridgeInstallerPath)" -f ($setupSize / 1MB))
     }
 }
 if ($storePackageIncluded) {

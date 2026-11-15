@@ -1,0 +1,19 @@
+Microsoft Visual C++ Redistributable Runtime
+
+Files included with this application:
+  msvcp140.dll
+  msvcp140_1.dll
+  vcruntime140.dll
+  vcruntime140_1.dll
+
+These files are Microsoft Visual C++ Redistributable runtime components.
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+They are redistributed with this application under the Microsoft Visual
+Studio license terms for redistributable files. The authoritative license
+and list of redistributable files are provided with the Visual Studio
+installation and at:
+
+https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist
+
+No modification has been made to these Microsoft-supplied binaries.

@@ -23,6 +23,7 @@ param(
     [switch]$IncludeFullZip,
     [switch]$IncludeSevenZip,
     [switch]$SkipTtsCacheGeneration,
+    [switch]$SkipFullTest,
     [switch]$ConfirmManualCoreChecks,
     [switch]$ReuseExistingLauncherBaseline,
     [switch]$DisablePatch,
@@ -66,6 +67,99 @@ $ffmpegBaselineManifestPath = Join-Path $PSScriptRoot "ffmpeg-baseline.json"
 $openCvBaselineManifestPath = Join-Path $PSScriptRoot "opencv-baseline.json"
 $visionModelBaselineManifestPath = Join-Path $PSScriptRoot "vision-model-baseline.json"
 $openCvBuilderPath = Join-Path $PSScriptRoot "Build-MinimalOpenCv.ps1"
+$vcRuntimeFileNames = @(
+    "msvcp140.dll",
+    "msvcp140_1.dll",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll"
+)
+$debugOnlyRuntimeFiles = @(
+    "mscordaccore*.dll",
+    "mscordbi.dll",
+    "Microsoft.DiaSymReader.Native.*.dll",
+    "msquic.dll"
+)
+
+function Resolve-VcRuntimeRedistDirectory {
+    $candidateRoots = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:VCToolsRedistDir)) {
+        $candidateRoots += $env:VCToolsRedistDir
+    }
+
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
+        $installations = @(& $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath 2>$null)
+        foreach ($installation in $installations) {
+            $installation = "$installation".Trim()
+            if ([string]::IsNullOrWhiteSpace($installation)) {
+                continue
+            }
+            $candidateRoots += (Join-Path $installation "VC\Redist\MSVC")
+        }
+    }
+
+    $candidateRoots += @(
+        "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC",
+        "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC",
+        "C:\Program Files\Microsoft Visual Studio\2026\Community\VC\Redist\MSVC",
+        "C:\Program Files\Microsoft Visual Studio\2026\BuildTools\VC\Redist\MSVC"
+    )
+
+    foreach ($root in ($candidateRoots | Select-Object -Unique)) {
+        if (Test-Path -LiteralPath (Join-Path $root "msvcp140.dll") -PathType Leaf) {
+            return $root
+        }
+        if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+            continue
+        }
+
+        foreach ($versionDir in @(Get-ChildItem -LiteralPath $root -Directory | Sort-Object Name -Descending)) {
+            $x64 = Join-Path $versionDir.FullName "x64"
+            if (-not (Test-Path -LiteralPath $x64 -PathType Container)) {
+                continue
+            }
+            foreach ($crtDir in @(Get-ChildItem -LiteralPath $x64 -Directory -Filter "Microsoft.VC*.CRT")) {
+                $complete = $true
+                foreach ($fileName in $vcRuntimeFileNames) {
+                    if (-not (Test-Path -LiteralPath (Join-Path $crtDir.FullName $fileName) -PathType Leaf)) {
+                        $complete = $false
+                        break
+                    }
+                }
+                if ($complete) {
+                    return $crtDir.FullName
+                }
+            }
+        }
+    }
+
+    throw "找不到 VC++ 2015-2022 x64 运行库文件（$($vcRuntimeFileNames -join ', ')）。请安装 Visual Studio C++ Build Tools 或设置 VCToolsRedistDir。"
+}
+
+function Copy-VcRuntimeFiles {
+    param([Parameter(Mandatory = $true)][string]$AppDir)
+
+    $sourceDir = Resolve-VcRuntimeRedistDirectory
+    foreach ($fileName in $vcRuntimeFileNames) {
+        Copy-Item -LiteralPath (Join-Path $sourceDir $fileName) `
+            -Destination (Join-Path $AppDir $fileName) -Force
+        Write-Host "Bundled VC++ runtime: app\$fileName"
+    }
+    Write-Host "VC++ runtime source: $sourceDir"
+}
+
+function Remove-DebugOnlyRuntimeFiles {
+    param([Parameter(Mandatory = $true)][string]$AppDir)
+
+    foreach ($pattern in $debugOnlyRuntimeFiles) {
+        foreach ($file in @(Get-ChildItem -LiteralPath $AppDir -File -Filter $pattern -ErrorAction SilentlyContinue)) {
+            Remove-Item -LiteralPath $file.FullName -Force
+            Write-Host "Removed debug-only runtime file: app\$($file.Name)"
+        }
+    }
+}
 
 function Invoke-CoreRegressionTests {
     if (-not (Test-Path $releaseValidationScript)) {
@@ -371,6 +465,7 @@ $releaseTag = "v$normalizedVersion"
 $gitCommitId = Get-GitCommitId
 $buildIdentitySuffix = Get-GitBuildSuffix -ReleaseTag $releaseTag -CommitId $gitCommitId
 $artifactVersion = "$normalizedVersion$buildIdentitySuffix"
+$artifactTag = "v$artifactVersion"
 $informationalVersion = $artifactVersion
 $packageName = ConvertTo-SafePathName "PackingProof+v$artifactVersion"
 $defaultPackageVersionRoot = Join-Path $repoRoot "package\$packageName"
@@ -401,7 +496,7 @@ if ([string]::Equals($packageArtifactRoot, $outputFullPath, [System.StringCompar
 
 # 同版本重打时，在构建 Setup 之前就让旧 Store 清单失效。否则构建中途失败、
 # 或跳过 Store 打包时，旧清单仍可能与旧 MSIX/旧 sibling 一起通过发布门禁。
-$storeManifestPath = Join-Path $packageArtifactRoot "store_package_$releaseTag.json"
+$storeManifestPath = Join-Path $packageArtifactRoot "store_package_$artifactTag.json"
 if (Test-Path -LiteralPath $storeManifestPath) {
     Remove-Item -LiteralPath $storeManifestPath -Force
 }
@@ -417,7 +512,12 @@ if ([version]$normalizedVersion -ge [version]'0.0.86' -and
     throw "0.0.86 及以后正式版的补丁基线不得低于 0.0.84；当前版本 $normalizedVersion 使用了 $normalizedPatchBaselineVersion。请使用 -PatchBaselineVersion 0.0.84 和对应的 v0.0.84 基线目录。"
 }
 
-Invoke-CoreRegressionTests
+if ($SkipFullTest) {
+    Write-Warning "Quick local package: skipping full regression tests. Release validation must run tools\Test-Release.ps1 separately."
+}
+else {
+    Invoke-CoreRegressionTests
+}
 if (-not $ConfirmManualCoreChecks) {
     Write-Warning "Manual core business and recovery checks are not confirmed. Packaging will continue; review docs/development/RELEASE_FIELD_CHECKS.md; packaging continues without them."
 }
@@ -425,7 +525,7 @@ if (-not $ConfirmManualCoreChecks) {
 # 重新打包会重建产物目录，发布笔记是人工写的，先留着别丢。
 # 产物目录名带提交后缀（-2-g<sha> / -dirty），重打一次就换一个目录名，所以不能只认本次目录：
 # 会在本次目录、版本稳定位置、同版本历史产物目录里找最新的一份人工笔记（模板骨架不算）。
-$releaseNotesFileName = Get-ReleaseNotesFileName -NormalizedVersion $normalizedVersion
+$releaseNotesFileName = Get-ReleaseNotesFileName -NormalizedVersion $artifactVersion
 # 人工笔记写在版本产物目录（package\PackingProof+vX.Y.Z\）：发布脚本 Publish-Releases.ps1
 # 就是从这个位置读取的；写进内层"干净包"目录它找不到，会误报"发布笔记不存在"。
 $releaseNotesDir = Split-Path -Parent $outputFullPath
@@ -1414,6 +1514,11 @@ foreach ($pdbFile in $publishedPdbFiles) {
     Remove-Item -LiteralPath $pdbFile.FullName -Force
 }
 
+# 这些是调试/诊断或可选网络组件，正常启动不会加载；删掉给 Gitee 的完整 Setup 腾出空间。
+Remove-DebugOnlyRuntimeFiles -AppDir $appPublishDir
+# ONNX Runtime 依赖 MSVCP/VCRUNTIME；带上 app-local 副本，用户不需要另外装 VC++。
+Copy-VcRuntimeFiles -AppDir $appPublishDir
+
 # Win10/11 标准包附带 Windows 系统语音（WinRT）辅助程序集；
 # Win7 兼容变体在下方产物生成后剔除这些文件。
 $winttsProject = Join-Path $repoRoot "src\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj"
@@ -1542,6 +1647,16 @@ foreach ($selfContainedMarker in @("coreclr.dll", "hostfxr.dll", "System.Private
         throw "Clean package validation failed: app\$selfContainedMarker 缺失，说明这次不是自包含发布"
     }
 }
+foreach ($vcRuntimeFile in $vcRuntimeFileNames) {
+    if (-not (Test-Path -LiteralPath (Join-Path $appPublishDir $vcRuntimeFile) -PathType Leaf)) {
+        throw "Clean package validation failed: app\$vcRuntimeFile 缺失，VC++ 运行库没有打进包"
+    }
+}
+foreach ($debugPattern in $debugOnlyRuntimeFiles) {
+    if (@(Get-ChildItem -LiteralPath $appPublishDir -File -Filter $debugPattern -ErrorAction SilentlyContinue).Count -gt 0) {
+        throw "Clean package validation failed: app\ 仍存在调试专用运行库 $debugPattern"
+    }
+}
 
 $runtimeSeedSourcePath = Join-Path $outputFullPath ".runtime-seed-source"
 if (Test-Path -LiteralPath $runtimeSeedSourcePath) {
@@ -1561,19 +1676,19 @@ Write-Host ("运行时种子：布局 {0} 个文件，app\ 里已有同名同哈
 $packageRoot = $packageArtifactRoot
 $appPayloadManifestFiles = @(Get-AppPayloadManifestFiles -AppDir $appPublishDir)
 $appPayloadFingerprint = Get-AppPayloadFingerprint -AppDir $appPublishDir
-$legacyAppFullZipPath = Join-Path $packageRoot "ExpressPackingMonitoring_AppFull_$releaseTag.zip"
-$appPatchZipName = "PackingProof_AppPatch_$releaseTag.zip"
+$legacyAppFullZipPath = Join-Path $packageRoot "ExpressPackingMonitoring_AppFull_$artifactTag.zip"
+$appPatchZipName = "PackingProof_AppPatch_$artifactTag.zip"
 $appPatchZipPath = Join-Path $packageRoot $appPatchZipName
-$legacyManualUpdateZipPath = Join-Path $packageRoot "PackingProof_ManualUpdate_$releaseTag.zip"
+$legacyManualUpdateZipPath = Join-Path $packageRoot "PackingProof_ManualUpdate_$artifactTag.zip"
 $launcherPackageName = [string]$launcherBaseline.package.file
 $launcherPackagePath = Join-Path $packageRoot $launcherPackageName
-$updateJsonName = "update_$releaseTag.json"
+$updateJsonName = "update_$artifactTag.json"
 $updateJsonPath = Join-Path $packageRoot $updateJsonName
-$launcherManifestName = "launcher_manifest_$releaseTag.json"
+$launcherManifestName = "launcher_manifest_$artifactTag.json"
 $launcherManifestPath = Join-Path $packageRoot $launcherManifestName
-$releaseInfoName = "release_info_$releaseTag.txt"
+$releaseInfoName = "release_info_$artifactTag.txt"
 $releaseInfoPath = Join-Path $packageRoot $releaseInfoName
-$packageIntegrityName = "package_integrity_$releaseTag.json"
+$packageIntegrityName = "package_integrity_$artifactTag.json"
 $packageIntegrityPath = Join-Path $packageRoot $packageIntegrityName
 $setupFileName = "PackingProof_Setup_v$artifactVersion.exe"
 $setupPath = Join-Path $packageRoot $setupFileName
@@ -2060,7 +2175,7 @@ $patchBaselineInfoLine = (ConvertFrom-Utf8Base64 "UGF0Y2gg5Z+657q/54mI5pys77ya")
 $releaseInfoLines = @()
 $releaseInfoLines += ConvertFrom-Utf8Base64 "UmVsZWFzZSDkuIrkvKDmuIXljZU="
 $releaseInfoLines += ""
-$releaseInfoLines += (ConvertFrom-Utf8Base64 "54mI5pys77ya") + $releaseTag
+$releaseInfoLines += (ConvertFrom-Utf8Base64 "54mI5pys77ya") + $artifactTag
 $releaseInfoLines += (ConvertFrom-Utf8Base64 "UmVsZWFzZSDpobXpnaLvvJo=") + $releasePage
 $releaseInfoLines += "Full download page: " + $fullDownloadPage
 $releaseInfoLines += "Full download fallback page: " + $fullDownloadFallbackPage
@@ -2111,7 +2226,7 @@ if ($giteeSetupIncluded) {
     $releaseInfoLines += "完整 Setup 严格小于 100MB，已直接上传 Gitee"
 }
 else {
-    $releaseInfoLines += "完整 Setup 达到 100MB，Gitee 使用 no-runtime 安装向导或 Full download page"
+    $releaseInfoLines += "完整 Setup 达到 100MB，Gitee 使用商店桥接安装器或 Full download page"
 }
 $releaseInfoLines += "完整 7z 与完整 ZIP 默认不生成、不上传；仅在本地确有需要时传入 -IncludeSevenZip 或 -IncludeFullZip"
 $releaseInfoLines += "Local verification only (do not upload by default): " + $launcherManifestName
@@ -2176,7 +2291,7 @@ $previousReleaseTag = Get-PreviousFormalReleaseTag -RepoRoot $repoRoot -ReleaseT
 $commitChecklist = Write-ReleaseCommitChecklist `
     -RepoRoot $repoRoot `
     -PackageRoot $outputFullPath `
-    -NormalizedVersion $normalizedVersion `
+    -NormalizedVersion $artifactVersion `
     -FromTag $previousReleaseTag
 if (-not [string]::IsNullOrWhiteSpace($preservedReleaseNotesText)) {
     [System.IO.File]::WriteAllText(

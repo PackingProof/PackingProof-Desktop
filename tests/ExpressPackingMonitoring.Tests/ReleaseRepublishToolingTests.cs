@@ -22,7 +22,7 @@ public sealed class ReleaseRepublishToolingTests
         Assert.Contains("重发同一版本：v9.9.9", output, StringComparison.Ordinal);
         Assert.Contains("Publish-CleanPackage.ps1", output, StringComparison.Ordinal);
         Assert.Contains("Publish-Releases.ps1", output, StringComparison.Ordinal);
-        Assert.Contains("Publish-NoRuntimePackage.ps1", output, StringComparison.Ordinal);
+        Assert.Contains("StoreBridgeInstallerPath", output, StringComparison.Ordinal);
         Assert.Contains("仅查看计划：未构建、未上传", output, StringComparison.Ordinal);
     }
 

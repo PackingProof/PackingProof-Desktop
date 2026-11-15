@@ -1,5 +1,8 @@
 # 生成「不带 .NET 运行时」的清爽包，仅在完整 Setup 达到 Gitee 的 100MB 附件上限时使用。
 #
+# 已停用：正式发布不再生成 no-runtime 安装包。
+# 完整 Setup 达到 100MB 时，Gitee 改传商店桥接安装器（Publish-Releases.ps1 -StoreBridgeInstallerPath）。
+# 本脚本仅保留用于历史版本排查/手工验证。
 #   pwsh -NoProfile -File tools\Publish-NoRuntimePackage.ps1 -Tag v0.0.70 [-UploadGitee] [-IncludeZip]
 #
 # 约定：

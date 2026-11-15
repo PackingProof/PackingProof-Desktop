@@ -12,7 +12,7 @@
 # - 重建交给 Publish-CleanPackage.ps1（它自己会清产物目录，并保留人工写好的发布笔记）
 # - 上传交给 Publish-Releases.ps1：-UpdateNotes -ReplaceAssets，GitHub 用 --clobber，
 #   Gitee 先删同名附件再上传（Gitee 不支持覆盖上传）
-# - 完整 Setup 严格小于 100MB 时直接上传它；达到 100MB 时才重做 no-runtime 安装包
+# - 完整 Setup 严格小于 100MB 时直接上传它；达到 100MB 时上传商店桥接安装器（-StoreBridgeInstallerPath），不再生成 no-runtime
 # - 重建会同时生成 Store MSIX 与 .msixupload；重发后必须把新 .msixupload 重新提交 Partner Center
 
 param(
@@ -20,7 +20,7 @@ param(
     [string]$Tag = "",
     [string]$Title = "",
     [switch]$ConfirmCommitCoverage,
-    [switch]$SkipNoRuntime,
+    [string]$StoreBridgeInstallerPath = "",
     [switch]$DryRun,
     [switch]$Confirmed
 )
@@ -110,11 +110,11 @@ $artifactNames = Get-ReleaseArtifactNames -Tag $releaseTag -RepoRoot $repoRoot
 $planSteps = @(
     "重建产物：pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -Version $normalizedVersion",
     "替换两边资产：pwsh -NoProfile -File tools\Publish-Releases.ps1 -Tag $releaseTag -Title <标题> -UpdateNotes -ReplaceAssets$(if ($ConfirmCommitCoverage) { ' -ConfirmCommitCoverage' })",
-    $(if ($SkipNoRuntime) {
-        "Gitee 安装包：（已按 -SkipNoRuntime 跳过）"
+    $(if ([string]::IsNullOrWhiteSpace($StoreBridgeInstallerPath)) {
+        "Gitee 安装入口：完整 Setup 小于 100MB 时直接上传；达到 100MB 时必须传 -StoreBridgeInstallerPath（商店桥接安装器）"
     }
     else {
-        "Gitee 安装包：重建后完整 Setup 小于 100MB 时直接上传；否则重做 no-runtime（tools\Publish-NoRuntimePackage.ps1 -Tag $releaseTag -UploadGitee）"
+        "Gitee 安装入口：完整 Setup 小于 100MB 时直接上传；否则上传商店桥接安装器 $StoreBridgeInstallerPath"
     }),
     "Microsoft Store：同一次重建出的 msixupload 重新提交 Partner Center（store_package_$releaseTag.json 会随产物生成）"
 )
@@ -144,6 +144,9 @@ Invoke-ReleaseStep -ScriptName "Publish-CleanPackage.ps1" -Arguments $cleanPacka
 $setupPath = Join-Path $artifactNames.PackageRoot $artifactNames.SetupFileName
 $fullSetupFitsGitee = (Test-Path -LiteralPath $setupPath -PathType Leaf) -and
     (Test-GiteeAttachmentFits -Size (Get-Item -LiteralPath $setupPath).Length)
+if (-not $fullSetupFitsGitee -and [string]::IsNullOrWhiteSpace($StoreBridgeInstallerPath)) {
+    throw "完整 Setup 达到 100MB，Gitee 需要商店桥接安装器；请传 -StoreBridgeInstallerPath <PackingProof Installer.exe>，不再生成 no-runtime"
+}
 
 Write-Step "替换 GitHub 与 Gitee 上的资产、更新正文"
 $releaseArgs = @(
@@ -152,26 +155,21 @@ $releaseArgs = @(
     "-UpdateNotes",
     "-ReplaceAssets"
 )
+if (-not $fullSetupFitsGitee) {
+    $releaseArgs += @("-StoreBridgeInstallerPath", $StoreBridgeInstallerPath)
+}
 if ($ConfirmCommitCoverage) {
     $releaseArgs += "-ConfirmCommitCoverage"
 }
 Invoke-ReleaseStep -ScriptName "Publish-Releases.ps1" -Arguments $releaseArgs
 
-if (-not $SkipNoRuntime -and -not $fullSetupFitsGitee) {
-    Write-Step "重做 Gitee 专属 no-runtime 安装包"
-    Invoke-ReleaseStep -ScriptName "Publish-NoRuntimePackage.ps1" -Arguments @("-Tag", $releaseTag, "-UploadGitee")
-}
-
 Write-Host ""
-$noRuntimeSummary = if ($SkipNoRuntime) {
-    ""
-}
-elseif ($fullSetupFitsGitee) {
+$giteeSummary = if ($fullSetupFitsGitee) {
     "，完整 Setup 已直接上传 Gitee"
 }
 else {
-    "，Gitee no-runtime 安装包已重做"
+    "，Gitee 已上传商店桥接安装器"
 }
-Write-Host "$releaseTag 重发完成：GitHub 与 Gitee 资产已替换$noRuntimeSummary"
+Write-Host "$releaseTag 重发完成：GitHub 与 Gitee 资产已替换$giteeSummary"
 Write-Host "还差两步（人工）：在 Mac 桌面会话里跑 tools/Publish-MacRelease.sh $normalizedVersion both，再确认两边 DMG 是否为本次构建"
 Write-Host "  Microsoft Store msixupload 也要用本次重建结果重新提交 Partner Center，不能沿用旧包"

@@ -106,7 +106,7 @@ public sealed class StoreEditionPackagingGuardTests
         Assert.Contains("-RequireStoreIdentity", publishScript, StringComparison.Ordinal);
         Assert.Contains("Publish-StorePackage.ps1", publishScript, StringComparison.Ordinal);
         Assert.Contains("SkipStorePackage", publishScript, StringComparison.Ordinal);
-        Assert.Contains("store_package_$releaseTag.json", publishScript, StringComparison.Ordinal);
+        Assert.Contains("store_package_$artifactTag.json", publishScript, StringComparison.Ordinal);
         Assert.Contains("app_payload_sha256", publishScript, StringComparison.Ordinal);
         Assert.Contains("app_payload_file_count", publishScript, StringComparison.Ordinal);
         Assert.Contains("symbol_sha256", publishScript, StringComparison.Ordinal);
@@ -121,7 +121,7 @@ public sealed class StoreEditionPackagingGuardTests
         Assert.Contains("-ExcludeRelativePrefixes @(\"runtime-seed/\")", releaseScript, StringComparison.Ordinal);
         Assert.Contains("app_payload_sha256", releaseScript, StringComparison.Ordinal);
         Assert.Contains("Resolve-ReleasePayloadAppDir", releaseScript, StringComparison.Ordinal);
-        Assert.Contains("package_integrity_$releaseTag.json", publishScript, StringComparison.Ordinal);
+        Assert.Contains("package_integrity_$artifactTag.json", publishScript, StringComparison.Ordinal);
         Assert.Contains("Assert-SetupPayloadIntegrity", releaseScript, StringComparison.Ordinal);
         Assert.Contains("package_integrity_", releaseScript, StringComparison.Ordinal);
         int staleManifestRemoval = publishScript.IndexOf(

@@ -18,8 +18,15 @@ rem 默认包含视觉功能包；novision 可显式生成不含视觉依赖的�
 if /i "%~1"=="novision" set "VISION_ARGS=-VisionObb exclude"
 if /i "%~2"=="novision" set "VISION_ARGS=-VisionObb exclude"
 
+rem 双击（无参数）是临时出包：只编译/打包，不跑全量测试；带参数运行按发布验证执行。
+set "TEST_ARGS="
+if "%~1"=="" (
+    set "TEST_ARGS=-SkipFullTest"
+    echo [WARN] 未传参数：本地快速打包，跳过全量测试；正式发布请先跑 tools\Test-Release.ps1。
+)
+
 echo [WARN] Review docs\development\RELEASE_CHECKLIST.md before publishing.
 echo [WARN] Unconfirmed real-device checks no longer block packaging.
 
-pwsh -NoProfile -ExecutionPolicy Bypass -File "tools\Publish-CleanPackage.ps1" -DisablePatch %ARCHIVE_ARGS% %VISION_ARGS%
+pwsh -NoProfile -ExecutionPolicy Bypass -File "tools\Publish-CleanPackage.ps1" %TEST_ARGS% -DisablePatch %ARCHIVE_ARGS% %VISION_ARGS%
 exit /b %ERRORLEVEL%
