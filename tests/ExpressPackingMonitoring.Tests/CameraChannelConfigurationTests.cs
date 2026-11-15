@@ -438,8 +438,23 @@ public sealed class CameraChannelConfigurationTests
         string service = ReadProjectFile(Path.Combine("Services", "CameraBarcodeRecognitionService.cs"));
         Assert.Contains("public bool TrySubmitFrame(", service, StringComparison.Ordinal);
         Assert.Contains("CameraBarcodeFrameIntent intent", service, StringComparison.Ordinal);
-        Assert.Contains("if (forceVision)", service, StringComparison.Ordinal);
+        Assert.Contains("bool visionDue = forceVision", service, StringComparison.Ordinal);
         Assert.Contains("_visionFollowIntervalProvider()", service, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VisionObbDetectionRunsOnItsOwnWorker()
+    {
+        string service = ReadProjectFile(Path.Combine("Services", "CameraBarcodeRecognitionService.cs"));
+        string processor = ReadProjectFile(Path.Combine("Services", "CameraBarcodeVisionProcessor.cs"));
+        string worker = ReadProjectFile(Path.Combine("Services", "CameraBarcodeVisionWorker.cs"));
+
+        Assert.Contains("_visionWorker", service, StringComparison.Ordinal);
+        Assert.Contains("ProcessBarcodeFrame(", service, StringComparison.Ordinal);
+        Assert.Contains("ProcessLoopAsync", worker, StringComparison.Ordinal);
+        Assert.Contains("_processor.ProcessVisionFrame", worker, StringComparison.Ordinal);
+        Assert.Contains("ProcessVisionFrame(", processor, StringComparison.Ordinal);
+        Assert.DoesNotContain("lock (_gate)", processor, StringComparison.Ordinal);
     }
 
     /// <summary>

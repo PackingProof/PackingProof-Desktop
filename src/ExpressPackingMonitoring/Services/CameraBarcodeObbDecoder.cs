@@ -131,7 +131,8 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         Func<string, bool>? isValid,
         CameraBarcodeGuideGeometry geometry)
     {
-        if (LastObbDetections.Count == 0)
+        IReadOnlyList<VisionObbDetection> detections = LastObbDetections;
+        if (detections.Count == 0)
         {
             LastSelectedObbDetection = null;
             long started = Stopwatch.GetTimestamp();
@@ -147,14 +148,14 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
 
         string? decoded = DecodeDetectedRegions(
             frame,
-            LastObbDetections,
+            detections,
             isValid,
             geometry,
             useGuideRegionFallback: false);
         if (decoded != null)
             return decoded;
 
-        if (HasBarcodeDetections())
+        if (HasBarcodeDetections(detections))
         {
             LastSelectedObbDetection = null;
             LogStandaloneGuideDiagnostic(
@@ -286,7 +287,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         var timingDiagnostics = new List<VisionObbTimingDiagnostic>();
         var fullFrame = new Rect(0, 0, frame.Width, frame.Height);
         int candidateIndex = 0;
-        foreach (VisionObbDetection detection in SelectDecodeCandidates())
+        foreach (VisionObbDetection detection in SelectDecodeCandidates(frame))
         {
             int width = Math.Max(1, (int)Math.Round(detection.Width));
             int height = Math.Max(1, (int)Math.Round(detection.Height));
@@ -416,19 +417,15 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         return decoded;
     }
 
-    private IReadOnlyList<VisionObbDetection> SelectDecodeCandidates()
+    private IReadOnlyList<VisionObbDetection> SelectDecodeCandidates(Mat frame)
     {
-        if (!HasBarcodeClassSupport())
-            return LastObbDetections;
-
-        VisionObbDetection[] waybills = LastObbDetections
-            .Where(detection => VisionObbClassPolicy.IsWaybill(detection))
-            .ToArray();
-        return LastObbDetections
-            .Where(detection => VisionObbClassPolicy.IsBarcode(detection))
-            .Where(barcode => waybills.Any(waybill =>
-                VisionObbGeometry.Contains(waybill, barcode)))
-            .ToArray();
+        VisionObbDetection? best = VisionObbCandidatePolicy.SelectBestDecodeCandidate(
+            LastObbDetections,
+            frame.Width,
+            frame.Height,
+            _standardDecoder.QrCodeEnabledForDecoding,
+            HasBarcodeClassSupport());
+        return best is { } detection ? [detection] : [];
     }
 
     private bool HasBarcodeClassSupport() =>
@@ -437,7 +434,11 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             VisionObbClassPolicy.IsBarcode(detection));
 
     private bool HasBarcodeDetections() =>
-        LastObbDetections.Any(detection =>
+        HasBarcodeDetections(LastObbDetections);
+
+    private static bool HasBarcodeDetections(
+        IReadOnlyList<VisionObbDetection> detections) =>
+        detections.Any(detection =>
             VisionObbClassPolicy.IsBarcode(detection));
 
     private void LogCandidateDiagnostics(
@@ -564,7 +565,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     {
         long patchStarted = Stopwatch.GetTimestamp();
         using Mat sourcePatch = useDirectCrop
-            ? CreateAxisAlignedPatch(frame, detection)
+            ? CreateDirectCropPatch(frame, detection)
             : CreateRotatedPatch(frame, detection);
         using Mat patch = AddQuietZone(sourcePatch, QuietZoneRatio);
         double patchMs = Stopwatch.GetElapsedTime(patchStarted).TotalMilliseconds;
@@ -592,8 +593,11 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
                 patchMs,
                 Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds);
         }
+
+        // 小角度候选按轴对齐裁图后只跑一次快速解码；失败直接放弃当前帧，
+        // 不再回退到 4 方向慢扫。OBB 已经把候选摆正，慢扫只会把实时档拖慢。
         return new ObbPatchDecodeAttempt(
-            _standardDecoder.DecodeDetached(patch, isValid),
+            null,
             patchMode,
             patchMs,
             Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds);
@@ -874,22 +878,23 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
 
     internal static Mat CreateRotatedPatch(Mat frame, in VisionObbDetection detection)
     {
-        int width = Math.Max(1, (int)Math.Round(detection.Width));
-        int height = Math.Max(1, (int)Math.Round(detection.Height));
+        VisionObbDetection normalized = NormalizeLongEdge(detection);
+        int paddedWidth = Math.Max(1, (int)Math.Round(normalized.Width));
+        int paddedHeight = Math.Max(1, (int)Math.Round(normalized.Height));
         int padding = Math.Max(
             8,
-            (int)Math.Round(Math.Min(width, height) * CropPaddingRatio));
-        int outputWidth = Math.Clamp(width + padding * 2, 8, 4096);
-        int outputHeight = Math.Clamp(height + padding * 2, 8, 4096);
+            (int)Math.Round(Math.Min(paddedWidth, paddedHeight) * CropPaddingRatio));
+        int outputWidth = Math.Clamp(paddedWidth + padding * 2, 8, 4096);
+        int outputHeight = Math.Clamp(paddedHeight + padding * 2, 8, 4096);
 
-        Point2f[] source = VisionObbGeometry.ToCorners(detection)
+        Point2f[] source = VisionObbGeometry.ToCorners(normalized)
             .Take(3)
             .ToArray();
         Point2f[] destination =
         [
             new(padding, padding),
-            new(padding + width, padding),
-            new(padding + width, padding + height)
+            new(padding + paddedWidth, padding),
+            new(padding + paddedWidth, padding + paddedHeight)
         ];
 
         using Mat transform = Cv2.GetAffineTransform(source, destination);
@@ -903,6 +908,43 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             BorderTypes.Constant,
             Scalar.White);
         return patch;
+    }
+
+    internal static bool ShouldRotateDirectCrop(double angleDegrees)
+    {
+        if (!double.IsFinite(angleDegrees))
+            return false;
+        double normalized = ((angleDegrees % 360) + 360) % 360;
+        return (normalized >= 45 && normalized < 135)
+               || (normalized >= 225 && normalized < 315);
+    }
+
+    internal static Mat CreateDirectCropPatch(
+        Mat frame,
+        in VisionObbDetection detection)
+    {
+        VisionObbDetection normalized = NormalizeLongEdge(detection);
+        Mat axisAligned = CreateAxisAlignedPatch(frame, normalized);
+        if (!ShouldRotateDirectCrop(normalized.AngleDegrees))
+            return axisAligned;
+
+        var rotated = new Mat();
+        Cv2.Rotate(axisAligned, rotated, RotateFlags.Rotate90Clockwise);
+        axisAligned.Dispose();
+        return rotated;
+    }
+
+    private static VisionObbDetection NormalizeLongEdge(
+        in VisionObbDetection detection)
+    {
+        if (detection.Width >= detection.Height)
+            return detection;
+        return detection with
+        {
+            Width = detection.Height,
+            Height = detection.Width,
+            AngleDegrees = detection.AngleDegrees + 90
+        };
     }
 
     public void Dispose()

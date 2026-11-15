@@ -156,6 +156,8 @@
     <Compile Include="Services\AutoStartService.cs" />
     <Compile Include="Services\Extensions\ExtensionStartupEntryRewriter.cs" />
     <Compile Include="Services\CameraBarcodeRecognitionService.cs" />
+  <Compile Include="Services\CameraBarcodeRecognitionService.Vision.cs" />
+  <Compile Include="Services\CameraBarcodeFrameDecoder.DetachedFast.cs" />
     <Compile Include="Services\CameraBarcodeFrameIntent.cs" />
     <Compile Include="Services\CameraBarcodeMotionGate.cs" />
     <Compile Include="Services\CameraVisionAutoEnablePolicy.cs" />
@@ -163,6 +165,9 @@
     <Compile Include="Services\CameraBarcodeDecodeAngleTelemetry.cs" />
     <Compile Include="Services\CameraBarcodeDecodeSizePolicy.cs" />
     <Compile Include="Services\CameraBarcodeVisionProcessor.cs" />
+  <Compile Include="Services\CameraBarcodeVisionWorker.cs" />
+  <Compile Include="Services\CameraBarcodeStatusFactory.cs" />
+  <Compile Include="Services\VisionObbCandidatePolicy.cs" />
     <Compile Include="Services\CoalescingBackgroundRefresh.cs" />
     <Compile Include="Services\VisionObbPerformanceBenchmark.cs" />
     <Compile Include="Services\CameraBarcodeObbDecoder.cs" />
@@ -306,6 +311,7 @@
     <Compile Include="UI\RecognitionSampleExportWorkflow.cs" />
     <Compile Include="UI\VideoImportDialog.xaml.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs" />
+  <Compile Include="UI\SettingsWindow.CameraVision.cs" />
     <Compile Include="UI\SettingsWindow.CameraChannels.cs" />
     <Compile Include="UI\SettingsWindow.SampleContribution.cs" />
     <Compile Include="UI\SettingsWindow.ZoomGuide.cs" />

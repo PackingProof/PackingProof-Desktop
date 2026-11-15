@@ -44,6 +44,8 @@ public partial class AppConfig
     {
         ArgumentNullException.ThrowIfNull(config);
         config.EnableCameraBarcodeEnhancedRecognition = enabled;
+        if (enabled)
+            config.EnableCameraBarcodeQrCode = false;
         config.CameraVisionEnableSource = enabled
             ? CameraVisionEnableSourceManualOn
             : CameraVisionEnableSourceManualOff;
@@ -97,6 +99,17 @@ public partial class AppConfig
             && config.EnableCameraBarcodeEnhancedRecognition != enabled)
         {
             config.EnableCameraBarcodeEnhancedRecognition = enabled;
+            changed = true;
+        }
+
+        // 倾斜面单增强与二维码识别互斥。历史配置里可能两个都开着；
+        // 升级时默认二维码优先，关闭增强识别并固定为手动关闭，避免 benchmark
+        // 下一次又把它自动打开。
+        if (config.EnableCameraBarcodeEnhancedRecognition
+            && config.EnableCameraBarcodeQrCode)
+        {
+            config.EnableCameraBarcodeEnhancedRecognition = false;
+            config.CameraVisionEnableSource = CameraVisionEnableSourceManualOff;
             changed = true;
         }
 

@@ -834,6 +834,46 @@ public sealed class ConfigurationAndScannerTests
 
 
     [Fact]
+    public void NormalizeAfterLoad_PrefersQrCodeWhenBothRecognitionModesAreEnabled()
+    {
+        var config = new AppConfig
+        {
+            CameraVisionSchemaVersion = AppConfig.CurrentCameraVisionSchemaVersion,
+            CameraVisionPolicyVersion = AppConfig.CurrentCameraVisionPolicyVersion,
+            CameraVisionEnableSource = AppConfig.CameraVisionEnableSourceManualOn,
+            EnableCameraBarcodeEnhancedRecognition = true,
+            EnableCameraBarcodeQrCode = true
+        };
+
+        bool changed = AppConfig.NormalizeAfterLoad(config);
+
+        Assert.True(changed);
+        Assert.True(config.EnableCameraBarcodeQrCode);
+        Assert.False(config.EnableCameraBarcodeEnhancedRecognition);
+        Assert.Equal(
+            AppConfig.CameraVisionEnableSourceManualOff,
+            config.CameraVisionEnableSource);
+        Assert.False(AppConfig.NormalizeAfterLoad(config));
+    }
+
+    [Fact]
+    public void MarkCameraVisionUserChoice_EnablingEnhancedDisablesQrCode()
+    {
+        var config = new AppConfig
+        {
+            EnableCameraBarcodeQrCode = true
+        };
+
+        AppConfig.MarkCameraVisionUserChoice(config, enabled: true);
+
+        Assert.True(config.EnableCameraBarcodeEnhancedRecognition);
+        Assert.False(config.EnableCameraBarcodeQrCode);
+        Assert.Equal(
+            AppConfig.CameraVisionEnableSourceManualOn,
+            config.CameraVisionEnableSource);
+    }
+
+    [Fact]
     public void NormalizeAfterLoad_ResolvesConflictingScannerModesAndBounds()
     {
         var config = new AppConfig

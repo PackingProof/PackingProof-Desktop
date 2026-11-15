@@ -29,16 +29,22 @@ public static class CameraBarcodeSpeed
         _ => TimeSpan.FromMilliseconds(250)
     };
 
-    /// <summary>智能视觉跟随刷新 OBB 的独立节流：最高约 4 FPS，视觉连续性交给界面补帧。</summary>
-    public static TimeSpan VisionFollowIntervalFor(double frameRate)
+    /// <summary>
+    /// OBB 视觉刷新间隔：实时档不设人为频率上限，视觉 worker 按实际推理耗时吃满；
+    /// 标准档限制约 4 FPS，间歇档限制约 1 FPS。硬件跟不上时只丢旧帧，不阻塞 ZXing。
+    /// </summary>
+    public static TimeSpan VisionFollowIntervalFor(double frameRate, string? speed)
     {
-        const int maximumFps = 4;
-        double effectiveFps = frameRate > 0
-            ? Math.Min(frameRate, maximumFps)
-            : maximumFps;
-        return TimeSpan.FromMilliseconds(
-            1000.0 / Math.Max(1, effectiveFps));
+        string normalized = Normalize(speed);
+        if (string.Equals(normalized, Realtime, StringComparison.Ordinal))
+            return TimeSpan.FromMilliseconds(1);
+        if (string.Equals(normalized, Intermittent, StringComparison.Ordinal))
+            return TimeSpan.FromMilliseconds(1000);
+        return TimeSpan.FromMilliseconds(250);
     }
+
+    public static TimeSpan VisionFollowIntervalFor(double frameRate) =>
+        VisionFollowIntervalFor(frameRate, Standard);
 
     /// <summary>候选单号出现后，在不超过用户档位的前提下临时切到实时间隔。</summary>
     public static TimeSpan ActiveDecodeInterval(

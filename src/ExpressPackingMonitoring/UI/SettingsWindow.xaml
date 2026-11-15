@@ -1603,6 +1603,7 @@
                                         <CheckBox x:Name="CameraBarcodeQrCodeCheckBox"
                                                   Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableCameraBarcodeQrCode}"
+                                                  Checked="CameraBarcodeQrCodeCheckBox_Checked"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
@@ -1625,6 +1626,8 @@
                                         <CheckBox x:Name="CameraBarcodeEnhancedRecognitionCheckBox"
                                                   Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableCameraBarcodeEnhancedRecognition}"
+                                                  Checked="CameraBarcodeEnhancedRecognitionCheckBox_Changed"
+                                                  Unchecked="CameraBarcodeEnhancedRecognitionCheckBox_Changed"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
                                                   Style="{StaticResource ToggleSwitchStyle}"/>

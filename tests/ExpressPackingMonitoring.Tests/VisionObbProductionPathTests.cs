@@ -249,6 +249,39 @@ public sealed class VisionObbProductionPathTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void DirectCropRotationKeepsVerticalBarcodeDecodable()
+    {
+        const double angle = 90;
+        using var frame = CreateRotatedBarcodeFrame(angle);
+        var detection = CreateDetection(angle);
+        using var patch = CameraBarcodeObbDecoder.CreateDirectCropPatch(
+            frame,
+            detection);
+        using var decoder = new CameraBarcodeFrameDecoder();
+
+        Assert.True(
+            patch.Width > patch.Height,
+            "垂直裁图应旋转成横向");
+        Assert.Equal(
+            "YT123456789012",
+            decoder.DecodeDetached(patch, _ => true));
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(90, true)]
+    [InlineData(180, false)]
+    [InlineData(270, true)]
+    public void DirectCropRotationMatchesQuarterTurn(
+        double angle,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            CameraBarcodeObbDecoder.ShouldRotateDirectCrop(angle));
+    }
+
+    [Fact]
     public void SmallAngleDirectCropDecodesRotatedBarcode()
     {
         const double angle = 8;

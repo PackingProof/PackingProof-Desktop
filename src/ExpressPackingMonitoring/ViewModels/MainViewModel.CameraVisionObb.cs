@@ -272,8 +272,15 @@ public partial class MainViewModel
             CameraVisionAutoEnablePolicy.ResolveEnableDecision(
                 Config.CameraVisionEnableSource,
                 recommended);
-        Config.EnableCameraBarcodeEnhancedRecognition = decision.Enabled;
-        Config.CameraVisionEnableSource = decision.Source;
+        bool qrCodeEnabled = Config.EnableCameraBarcodeQrCode;
+        bool blockedByQrCode = decision.Enabled && qrCodeEnabled;
+        Config.EnableCameraBarcodeEnhancedRecognition =
+            decision.Enabled && !qrCodeEnabled;
+        if (Config.EnableCameraBarcodeEnhancedRecognition)
+            Config.EnableCameraBarcodeQrCode = false;
+        Config.CameraVisionEnableSource = blockedByQrCode
+            ? AppConfig.CameraVisionEnableSourceManualOff
+            : decision.Source;
         VisionObbHost.PreferDirectMl = !string.Equals(
             provider,
             "CPU",
@@ -286,19 +293,27 @@ public partial class MainViewModel
         if (showToast)
         {
             ShowToast(
-                decision.Kind switch
-                {
-                    CameraVisionEnableDecisionKind.AutoEnabled =>
-                        AppLanguage.Get("本机性能检测通过，已自动开启倾斜面单识别"),
-                    CameraVisionEnableDecisionKind.AutoDisabled =>
-                        AppLanguage.Get("本机性能检测未通过，已自动关闭倾斜面单识别"),
-                    CameraVisionEnableDecisionKind.ManualOnRetained =>
-                        AppLanguage.Get("本机性能检测完成，已保持你的手动开启设置"),
-                    _ => AppLanguage.Get("本机性能检测完成，已保持你的手动关闭设置")
-                },
+                blockedByQrCode
+                    ? AppLanguage.Get("本机性能检测完成，倾斜面单识别保持关闭")
+                    : decision.Kind switch
+                    {
+                        CameraVisionEnableDecisionKind.AutoEnabled =>
+                            AppLanguage.Get("本机性能检测通过，已自动开启倾斜面单识别"),
+                        CameraVisionEnableDecisionKind.AutoDisabled =>
+                            AppLanguage.Get("本机性能检测未通过，已自动关闭倾斜面单识别"),
+                        CameraVisionEnableDecisionKind.ManualOnRetained =>
+                            AppLanguage.Get("本机性能检测完成，已保持你的手动开启设置"),
+                        _ => AppLanguage.Get("本机性能检测完成，已保持你的手动关闭设置")
+                    },
                 ToastSeverity.Information);
         }
-        return decision;
+        return blockedByQrCode
+            ? decision with
+            {
+                Enabled = false,
+                Source = AppConfig.CameraVisionEnableSourceManualOff
+            }
+            : decision;
     }
 
     private void StoreCameraVisionBenchmarkCache(

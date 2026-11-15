@@ -1740,18 +1740,19 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Theory]
-    [InlineData(0, 250)]
-    [InlineData(10, 250)]
-    [InlineData(15, 250)]
-    [InlineData(60, 250)]
-    [InlineData(3, 333.33)]
-    public void CameraBarcodeSpeed_VisionFollowHasIndependentBoundedCadence(
+    [InlineData(30, "Realtime", 1)]
+    [InlineData(5, "Realtime", 1)]
+    [InlineData(30, "Standard", 250)]
+    [InlineData(5, "Standard", 250)]
+    [InlineData(30, "Intermittent", 1000)]
+    public void CameraBarcodeSpeed_VisionFollowRespectsUserSpeed(
         double frameRate,
+        string speed,
         double expectedMs)
     {
         Assert.Equal(
             expectedMs,
-            CameraBarcodeSpeed.VisionFollowIntervalFor(frameRate).TotalMilliseconds,
+            CameraBarcodeSpeed.VisionFollowIntervalFor(frameRate, speed).TotalMilliseconds,
             2);
     }
 
@@ -1835,15 +1836,15 @@ public sealed class CameraBarcodeRecognitionTests
             tracker.Observe("YT123456789012", Start.AddMilliseconds(500));
 
         CameraBarcodeRecognitionStatus confirmedStatus =
-            CameraBarcodeRecognitionService.CreateStatus(
+            CameraBarcodeStatusFactory.CreateStatus(
                 confirmed,
                 reportVisibleCodes: true);
         CameraBarcodeRecognitionStatus previewStatus =
-            CameraBarcodeRecognitionService.CreateStatus(
+            CameraBarcodeStatusFactory.CreateStatus(
                 visible,
                 reportVisibleCodes: true);
         CameraBarcodeRecognitionStatus runtimeStatus =
-            CameraBarcodeRecognitionService.CreateStatus(
+            CameraBarcodeStatusFactory.CreateStatus(
                 visible,
                 reportVisibleCodes: false);
 

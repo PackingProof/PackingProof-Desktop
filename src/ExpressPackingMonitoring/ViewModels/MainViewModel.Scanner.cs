@@ -356,7 +356,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     CameraBarcodeSpeed.Realtime,
                     _actualCameraFps),
                 visionFollowIntervalProvider:
-                    () => CameraBarcodeSpeed.VisionFollowIntervalFor(_actualCameraFps),
+                    () => CameraBarcodeSpeed.VisionFollowIntervalFor(
+                        _actualCameraFps,
+                        Config.CameraBarcodeRecognitionSpeed),
                 cameraBarcodeDecodingEnabledProvider:
                     () => Config.EnableCameraBarcodeRecognition,
                 visionObbDecodingEnabledProvider:
@@ -384,7 +386,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     CameraBarcodeSpeed.Realtime,
                     _actualCameraFps),
                 visionFollowIntervalProvider:
-                    () => CameraBarcodeSpeed.VisionFollowIntervalFor(_actualCameraFps),
+                    () => CameraBarcodeSpeed.VisionFollowIntervalFor(
+                        _actualCameraFps,
+                        Config.CameraBarcodeRecognitionSpeed),
                 cameraBarcodeDecodingEnabledProvider: () => false,
                 visionObbDecodingEnabledProvider: () => false);
             _cameraVisionSmartZoomRecognition.StatusChanged +=
@@ -406,7 +410,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 && !IsBusy;
         }
 
-        private bool CanSubmitCameraVisionFrame()
+        private bool CanSubmitCameraVisionFrame(bool allowWhileBusy = false)
         {
             return (Config?.EnableCameraBarcodeRecognition == true
                     || Config?.EnableVisionObbSmartZoom == true)
@@ -414,7 +418,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 && !_shutdownRequested
                 && !_isSetupWizardActive
                 && !_isCameraSleeping
-                && !IsBusy;
+                && (allowWhileBusy || !IsBusy);
         }
 
         /// <summary>
@@ -436,6 +440,19 @@ namespace ExpressPackingMonitoring.ViewModels
 
             if (!CanSubmitCameraVisionFrame())
             {
+                // 录像/确认阶段 IsBusy 会挡住普通识别提交，但 OBB 框不应因此
+                // 消失。这里只把视觉帧送进 OBB worker，不触发条码解码。
+                if (ShouldRunVisionObb
+                    && CanSubmitCameraVisionFrame(allowWhileBusy: true)
+                    && _cameraBarcodeRecognition?.TrySubmitVisionFrame(frame) == true)
+                {
+                    LogBarcodeSubmitDiagnostic(
+                        sourceChannelNumber,
+                        expectedChannel,
+                        accepted: true,
+                        "忙碌阶段仅更新 OBB");
+                    return;
+                }
                 LogBarcodeSubmitDiagnostic(sourceChannelNumber, expectedChannel, accepted: false, "前置条件不满足");
                 return;
             }
