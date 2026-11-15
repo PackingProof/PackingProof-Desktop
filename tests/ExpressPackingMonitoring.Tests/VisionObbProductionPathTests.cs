@@ -372,6 +372,88 @@ public sealed class VisionObbProductionPathTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void CachedDecodeFallsBackToGuideRegionWhenNoBarcodeIsDetected()
+    {
+        using var frame = CreateRotatedBarcodeFrame(angleDegrees: 0);
+        var waybill = new VisionObbDetection(
+            CenterX: frame.Width / 2.0,
+            CenterY: frame.Height / 2.0,
+            Width: 640,
+            Height: 360,
+            AngleDegrees: 0,
+            Score: 0.95f,
+            ClassId: VisionObbClassIds.Waybill);
+        using var decoder = new CameraBarcodeFrameDecoder();
+        using var obbDecoder = new CameraBarcodeObbDecoder(
+            decoder,
+            settingsProvider: () => (true, "test-model.onnx"),
+            decodeBarcodesProvider: () => true,
+            detectorFactory: new FixedDetectorFactory(
+                new FixedDetector(waybill, classCount: 2)));
+
+        obbDecoder.DetectOnly(frame);
+        string? decoded = obbDecoder.DecodeCachedDetections(
+            frame,
+            _ => true,
+            CameraBarcodeGuideGeometry.Default);
+
+        Assert.Equal("YT123456789012", decoded);
+        Assert.Null(obbDecoder.LastSelectedObbDetection);
+    }
+
+    [Fact]
+    public void CachedDecodeDoesNotFallbackWhenBarcodeIsDetectedOutsideWaybill()
+    {
+        using var barcode = CreateBarcodeMat("YT123456789012");
+        using var frame = new Mat(
+            new Size(960, 540),
+            MatType.CV_8UC3,
+            Scalar.White);
+        using (Mat target = frame.SubMat(
+                   new Rect(40, 40, barcode.Width, barcode.Height)))
+        {
+            barcode.CopyTo(target);
+        }
+
+        var distantWaybill = new VisionObbDetection(
+            CenterX: 760,
+            CenterY: 430,
+            Width: 220,
+            Height: 120,
+            AngleDegrees: 0,
+            Score: 0.96f,
+            ClassId: VisionObbClassIds.Waybill);
+        var barcodeDetection = new VisionObbDetection(
+            CenterX: 40 + barcode.Width / 2.0,
+            CenterY: 40 + barcode.Height / 2.0,
+            Width: barcode.Width,
+            Height: barcode.Height,
+            AngleDegrees: 0,
+            Score: 0.95f,
+            ClassId: VisionObbClassIds.Barcode);
+        using var decoder = new CameraBarcodeFrameDecoder();
+        using var obbDecoder = new CameraBarcodeObbDecoder(
+            decoder,
+            settingsProvider: () => (true, "test-model.onnx"),
+            decodeBarcodesProvider: () => true,
+            detectorFactory: new FixedDetectorFactory(
+                new FixedDetector(distantWaybill, classCount: 2)));
+
+        // 直接覆盖 Barcode 检测，模拟模型同时找出面单和面单外的条码。
+        obbDecoder.DecodeDetectedRegions(
+            frame,
+            [distantWaybill, barcodeDetection],
+            _ => true,
+            useGuideRegionFallback: false);
+        string? decoded = obbDecoder.DecodeCachedDetections(
+            frame,
+            _ => true,
+            CameraBarcodeGuideGeometry.Default);
+
+        Assert.Null(decoded);
+    }
+
+    [Fact]
     public void CachedDecodeFallsBackToGuideRegionWhenEveryObbCandidateIsWrong()
     {
         using var frame = CreateRotatedBarcodeFrame(angleDegrees: 0);
@@ -636,10 +718,14 @@ public sealed class VisionObbProductionPathTests(ITestOutputHelper output)
         public VisionModelMetadata? ReadModelMetadata(string modelPath) => null;
     }
 
-    private sealed class FixedDetector(VisionObbDetection detection)
+    private sealed class FixedDetector(
+        VisionObbDetection detection,
+        int classCount = 1)
         : IVisionObbDetector
     {
         public string ExecutionProvider => "test";
+
+        public int ClassCount => classCount;
 
         public IReadOnlyList<VisionObbDetection> Detect(Mat frame) => [detection];
 

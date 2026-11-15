@@ -155,7 +155,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         if (decoded != null)
             return decoded;
 
-        if (HasBarcodeClassSupport())
+        if (HasBarcodeDetections())
         {
             LastSelectedObbDetection = null;
             LogStandaloneGuideDiagnostic(
@@ -166,8 +166,9 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             return null;
         }
 
-        // 检测框只代表候选区域，不能作为“画面里一定有码”的证据。
-        // 所有 OBB 裁图都失败后必须回到原始取景区域，避免假框阻断正常 ZXing。
+        // 当前帧完全没有 Barcode 类检测时才回到取景框 ZXing。
+        // 只要模型看见过 Barcode（偏出面单、过小或解码失败都算），就不再兜底，
+        // 避免把画面里其他包裹的码读进来。
         LastSelectedObbDetection = null;
         long fallbackStarted = Stopwatch.GetTimestamp();
         string? fallbackDecoded = _standardDecoder.DecodeGuideRegion(frame, isValid, geometry);
@@ -392,6 +393,15 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             return null;
         }
 
+        // 检出过 Barcode 就不再回退普通 ZXing，避免同帧其他包裹的码被误读。
+        if (HasBarcodeDetections())
+        {
+            LogCandidateDiagnostics(
+                diagnostics,
+                timingDiagnostics);
+            return null;
+        }
+
         long fallbackStarted = Stopwatch.GetTimestamp();
         string? decoded = _standardDecoder.DecodeGuideRegion(frame, isValid, geometry);
         timingDiagnostics.Add(CreateGuideTimingDiagnostic(
@@ -425,6 +435,10 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     private bool HasBarcodeClassSupport() =>
         _lastDetectorClassCount > 1
         || LastObbDetections.Any(detection =>
+            VisionObbClassPolicy.IsBarcode(detection));
+
+    private bool HasBarcodeDetections() =>
+        LastObbDetections.Any(detection =>
             VisionObbClassPolicy.IsBarcode(detection));
 
     private void LogCandidateDiagnostics(
