@@ -16,11 +16,33 @@ internal static class VisionObbCandidatePolicy
         bool qrCodeEnabled,
         bool hasBarcodeClassSupport)
     {
+        IReadOnlyList<VisionObbDetection> candidates =
+            SelectBestDecodeCandidates(
+                detections,
+                frameWidth,
+                frameHeight,
+                qrCodeEnabled,
+                hasBarcodeClassSupport,
+                maxCandidates: 1);
+        return candidates.Count > 0 ? candidates[0] : null;
+    }
+
+    internal static IReadOnlyList<VisionObbDetection> SelectBestDecodeCandidates(
+        IReadOnlyList<VisionObbDetection> detections,
+        int frameWidth,
+        int frameHeight,
+        bool qrCodeEnabled,
+        bool hasBarcodeClassSupport,
+        int maxCandidates)
+    {
         if (detections.Count == 0 || frameWidth <= 0 || frameHeight <= 0)
-            return null;
+            return [];
 
         if (!hasBarcodeClassSupport)
-            return SelectBestLegacyDetection(detections);
+        {
+            VisionObbDetection? legacy = SelectBestLegacyDetection(detections);
+            return legacy is { } detection ? [detection] : [];
+        }
 
         VisionObbDetection[] waybills = detections
             .Where(detection => VisionObbClassPolicy.IsWaybill(detection))
@@ -29,10 +51,9 @@ internal static class VisionObbCandidatePolicy
             .Where(detection => VisionObbClassPolicy.IsBarcode(detection))
             .ToArray();
         if (barcodes.Length == 0 || waybills.Length == 0)
-            return null;
+            return [];
 
-        VisionObbDetection? best = null;
-        double bestScore = double.MinValue;
+        var ranked = new List<(VisionObbDetection Barcode, double Score)>();
         foreach (VisionObbDetection barcode in barcodes)
         {
             int width = Math.Max(1, (int)Math.Round(barcode.Width));
@@ -48,7 +69,10 @@ internal static class VisionObbCandidatePolicy
             }
 
             VisionObbDetection? containing = waybills
-                .Where(waybill => VisionObbGeometry.Contains(waybill, barcode))
+                .Where(waybill =>
+                    VisionObbGeometry.ContainsWithCenterAndThreeCorners(
+                        waybill,
+                        barcode))
                 .OrderByDescending(waybill => waybill.Score)
                 .ThenByDescending(waybill => waybill.Width * waybill.Height)
                 .Cast<VisionObbDetection?>()
@@ -56,21 +80,20 @@ internal static class VisionObbCandidatePolicy
             if (containing is not { } waybill)
                 continue;
 
-            double score = CalculateScore(
+            ranked.Add((barcode, CalculateScore(
                 barcode,
                 waybill,
                 frameWidth,
                 frameHeight,
                 width,
-                height);
-            if (score > bestScore)
-            {
-                bestScore = score;
-                best = barcode;
-            }
+                height)));
         }
 
-        return best;
+        return ranked
+            .OrderByDescending(item => item.Score)
+            .Take(Math.Max(1, maxCandidates))
+            .Select(item => item.Barcode)
+            .ToArray();
     }
 
     internal static double CalculateScore(

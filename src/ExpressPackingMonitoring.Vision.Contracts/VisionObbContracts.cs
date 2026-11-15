@@ -56,6 +56,36 @@ public static class VisionObbGeometry
                 new Point((int)Math.Round(corner.X), (int)Math.Round(corner.Y)),
                 true) >= -tolerancePixels);
     }
+
+    /// <summary>
+    /// 条码被手/遮挡物吃掉一个角时，仍允许中心在面单内、至少三个角在面单内。
+    /// 只用于解码候选筛选；绘制和智能跟随仍使用严格包含。
+    /// </summary>
+    public static bool ContainsWithCenterAndThreeCorners(
+        in VisionObbDetection container,
+        in VisionObbDetection contained,
+        double tolerancePixels = 3)
+    {
+        if (tolerancePixels < 0 || !double.IsFinite(tolerancePixels))
+            tolerancePixels = 0;
+        Point[] outer = ToCorners(container)
+            .Select(point => new Point(
+                (int)Math.Round(point.X),
+                (int)Math.Round(point.Y)))
+            .ToArray();
+        var center = new Point(
+            (int)Math.Round(contained.CenterX),
+            (int)Math.Round(contained.CenterY));
+        if (Cv2.PointPolygonTest(outer, center, true) < -tolerancePixels)
+            return false;
+
+        int insideCorners = ToCorners(contained).Count(corner =>
+            Cv2.PointPolygonTest(
+                outer,
+                new Point((int)Math.Round(corner.X), (int)Math.Round(corner.Y)),
+                true) >= -tolerancePixels);
+        return insideCorners >= 3;
+    }
 }
 
 public static class VisionObbClassIds

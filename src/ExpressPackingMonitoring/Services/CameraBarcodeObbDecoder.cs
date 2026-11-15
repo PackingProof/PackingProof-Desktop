@@ -376,6 +376,8 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
                 decoded: true));
             orientedCandidates.Add(new DecodedObbBarcodeCandidate(oriented, detection));
             candidateIndex++;
+            // 第一个候选成功即停，第二个只在第一个失败时才解码。
+            break;
         }
 
         ObbBarcodeSelection selection = SelectCandidate(
@@ -424,13 +426,15 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
 
     private IReadOnlyList<VisionObbDetection> SelectDecodeCandidates(Mat frame)
     {
-        VisionObbDetection? best = VisionObbCandidatePolicy.SelectBestDecodeCandidate(
-            LastObbDetections,
-            frame.Width,
-            frame.Height,
-            _standardDecoder.QrCodeEnabledForDecoding,
-            HasBarcodeClassSupport());
-        return best is { } detection ? [detection] : [];
+        IReadOnlyList<VisionObbDetection> candidates =
+            VisionObbCandidatePolicy.SelectBestDecodeCandidates(
+                LastObbDetections,
+                frame.Width,
+                frame.Height,
+                _standardDecoder.QrCodeEnabledForDecoding,
+                HasBarcodeClassSupport(),
+                maxCandidates: 2);
+        return candidates;
     }
 
     private bool HasBarcodeClassSupport() =>

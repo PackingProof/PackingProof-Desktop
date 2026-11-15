@@ -80,6 +80,45 @@ public sealed class VisionObbCandidatePolicyTests
     }
 
     [Fact]
+    public void SelectBest_ReturnsTwoCandidatesForFallback()
+    {
+        var waybill = Waybill(500, 400, 400, 300);
+        var first = Barcode(480, 400, 220, 110, 0.95f);
+        var second = Barcode(560, 400, 180, 90, 0.80f);
+
+        IReadOnlyList<VisionObbDetection> selected =
+            VisionObbCandidatePolicy.SelectBestDecodeCandidates(
+                [waybill, first, second],
+                frameWidth: 1000,
+                frameHeight: 800,
+                qrCodeEnabled: false,
+                hasBarcodeClassSupport: true,
+                maxCandidates: 2);
+
+        Assert.Equal(2, selected.Count);
+    }
+
+    [Fact]
+    public void SelectBest_AllowsOneOccludedBarcodeCorner()
+    {
+        var waybill = Waybill(500, 400, 400, 300);
+        var oneCornerOutside =
+            new VisionObbDetection(
+                650, 350, 150, 100, 45, 0.95f, VisionObbClassIds.Barcode);
+
+        VisionObbDetection? selected =
+            VisionObbCandidatePolicy.SelectBestDecodeCandidate(
+                [waybill, oneCornerOutside],
+                frameWidth: 1000,
+                frameHeight: 800,
+                qrCodeEnabled: false,
+                hasBarcodeClassSupport: true);
+
+        Assert.NotNull(selected);
+        Assert.Equal(oneCornerOutside.CenterX, selected.Value.CenterX);
+    }
+
+    [Fact]
     public void SelectBest_RejectsBarcodeWithoutWaybill()
     {
         var barcode = Barcode(500, 400, 200, 100);
