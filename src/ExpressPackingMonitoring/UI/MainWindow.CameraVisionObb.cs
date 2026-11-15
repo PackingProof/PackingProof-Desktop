@@ -258,7 +258,7 @@ public partial class MainWindow
             track.TargetPoints = track.CurrentPoints;
             track.StartPoints = track.CurrentPoints;
             track.StartedAtMs = nowMs;
-            track.DurationMs = 500;
+            track.DurationMs = 300;
             track.StartOpacity = track.Shape.Opacity;
             track.TargetOpacity = 0;
             track.RemoveWhenFinished = true;

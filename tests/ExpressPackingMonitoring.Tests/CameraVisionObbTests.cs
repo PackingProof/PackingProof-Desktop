@@ -370,7 +370,7 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
 
         Assert.Contains("CompositionTarget.Rendering", code, StringComparison.Ordinal);
         Assert.Contains("StartBoxAnimation", code, StringComparison.Ordinal);
-        Assert.Contains("track.DurationMs = 500", code, StringComparison.Ordinal);
+        Assert.Contains("track.DurationMs = 300", code, StringComparison.Ordinal);
         Assert.Contains("matchedTracks.Add(created)", code, StringComparison.Ordinal);
     }
 
