@@ -3,9 +3,13 @@
   "_comment": "累计退役清单：出包时把新算出的条目并进来（只增不减），随发布一起提交；白名单（tts_cache / ffmpeg / libvlc）不入此表。",
   "retired": [
     "LibVLCSharp.WPF.dll",
+    "Microsoft.DiaSymReader.Native.amd64.dll",
     "Microsoft.VisualBasic.Forms.dll",
     "mscordaccore_amd64_amd64_10.0.1326.50504.dll",
     "mscordaccore_amd64_amd64_8.0.2826.26413.dll",
+    "mscordaccore.dll",
+    "mscordbi.dll",
+    "msquic.dll",
     "NAudio.WinForms.dll",
     "Scripts/快递助手订单推送.user.js",
     "SharpDX.Direct3D11.dll",
