@@ -92,10 +92,15 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         double sourceOffsetX = 0,
         double sourceOffsetY = 0)
     {
-        LastObbDetections = [];
         LastSelectedObbDetection = null;
         if (_disposed || frame == null || frame.IsDisposed || frame.Empty())
+        {
+            LastObbDetections = [];
             return;
+        }
+
+        // 推理期间保留上一帧结果，避免条码 worker 恰好读到清空后的空列表，
+        // 把界面上的框高频闪掉；推理完成后再整体替换。
         LastObbDetections = DetectDetections(
             frame,
             sourceOffsetX,
