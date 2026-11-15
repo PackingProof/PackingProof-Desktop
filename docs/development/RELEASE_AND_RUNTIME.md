@@ -189,11 +189,9 @@ zip 会自动解开、目录会递归扫 `dll`/`exe`；退出码 0 通过、1 �
 发布出去之后还要对一遍"用户到底看不看得见、下不下得动"：
 
 ```powershell
-pwsh -NoProfile -File tools\Test-UpdateReachability.ps1 [-Version <X.Y.Z>] [-AllowLegacyBlind]
+pwsh -NoProfile -File tools\Test-UpdateReachability.ps1 [-Version <X.Y.Z>]
 ```
 
 它对着线上两个平台的 release 复盘：目标版本两边是否都带 `update_v*.json` 与 AppPatch、清单里的
-`size`/`sha256` 是否和真实增量包一致、两个平台是否指向同一份内容；再按 0.0.73 / 0.0.74 老客户端的
-挑选口径（Gitee 只看第一页且是旧 → 新、GitHub 新 → 旧）模拟一遍挑版本，挑不到就直接失败并打印
-"要删哪些老 release、要删哪些老 `update_v*.json`"。只读、不改任何发布内容；等客户端全部升级到
-带分页挑选的版本之后，可用 `-AllowLegacyBlind` 放行这一项。
+`size`/`sha256` 是否和真实增量包一致、两个平台是否指向同一份内容。只读、不改任何发布内容。
+0.0.73 / 0.0.74 的分页挑选兼容逻辑仍保留在应用端，但两个版本发布均已超过一个月，不再作为发布阻断条件。

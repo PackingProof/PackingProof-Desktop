@@ -1,17 +1,13 @@
 [CmdletBinding()]
 param(
     [string]$Repo = 'PackingProof/PackingProof-Desktop',
-    [string]$Version = '',
-    [switch]$AllowLegacyBlind,
-    [int]$LegacyPageSize = 30
+    [string]$Version = ''
 )
 
 # 只读校验：不动任何发布内容。
 #
-# 现场事故：v0.0.75 发布后，老客户端（0.0.73 / 0.0.74）在 Gitee 上只看得到最旧的
-# LegacyPageSize 条 release，新版被挤到第二页 → 判"没有带本平台安装包的版本" → 掉到
-# GitHub → 更新清单挂在打不开的 github.com 附件域名上 → 用户只看到"没有连接、没有回应"。
-# 本脚本按老客户端的挑选口径复盘"这一版发布之后，用户到底看不看得见、下不下得动"。
+# 本脚本校验目标版本在两个平台是否带齐更新清单和增量包，以及下载内容是否一致。
+# 0.0.73 / 0.0.74 的分页挑选兼容逻辑仍保留在应用端，但不再作为发布阻断条件。
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -196,40 +192,6 @@ if ($null -ne $GiteeManifest -and $null -ne $GithubManifest) {
     }
     if ($GiteeChecksum -and $GithubChecksum -and $GiteeChecksum -ne $GithubChecksum) {
         Write-Fail '两个平台的清单指向的增量包不是同一份（sha256 不一致）'
-    }
-}
-
-# 老客户端（0.0.73 / 0.0.74）的挑选口径：Gitee 只看第一页（旧 → 新）、取第一个带更新清单的版本；
-# GitHub 是新 → 旧，取第一个带更新清单的版本。
-$GiteeFirstPage = @($GiteeReleases | Select-Object -First $LegacyPageSize)
-$LegacyPick = @($GiteeFirstPage | Where-Object { (Get-ManifestAssets $_).Count -gt 0 })[0]
-$LegacyPickTag = if ($null -eq $LegacyPick) { '<无>' } else { $LegacyPick.tag_name }
-$GithubPick = @($GithubReleases | Where-Object { (Get-ManifestAssets $_).Count -gt 0 })[0]
-$GithubPickTag = if ($null -eq $GithubPick) { '<无>' } else { $GithubPick.tag_name }
-Write-Host "老客户端会挑中的版本：Gitee = $LegacyPickTag，GitHub = $GithubPickTag"
-
-if ($LegacyPickTag -eq $Tag -and $GithubPickTag -eq $Tag) {
-    Write-Pass "0.0.73 / 0.0.74 老客户端能看见 $Tag"
-}
-else {
-    $Message = "老客户端（0.0.73 / 0.0.74）挑不到 $Tag（Gitee=$LegacyPickTag、GitHub=$GithubPickTag）；" `
-        + 'Gitee 挑不到就会掉到 GitHub，而 github.com 的附件域名在国内常常下不动'
-    if ($AllowLegacyBlind) {
-        Write-Warn "$Message（已按 -AllowLegacyBlind 放行）"
-    }
-    else {
-        Write-Fail $Message
-        $PruneCount = [Math]::Max(0, $GiteeReleases.Count - $LegacyPageSize)
-        if ($PruneCount -gt 0) {
-            $Prune = @($GiteeReleases | Select-Object -First $PruneCount | ForEach-Object { $_.tag_name })
-            Write-Host ("  补救：Gitee 上删掉最老的 {0} 个 release，让 {1} 落进第一页：{2}" -f $PruneCount, $Tag, ($Prune -join ', '))
-        }
-        $OlderManifests = @($GiteeReleases | Where-Object {
-                (Get-ManifestAssets $_).Count -gt 0 -and $_.tag_name -ne $Tag
-            } | ForEach-Object { $_.tag_name })
-        if ($OlderManifests.Count -gt 0) {
-            Write-Host ("  补救：Gitee 上删掉这些更早版本的 update_v*.json，否则老客户端会先挑到它们：{0}" -f ($OlderManifests -join ', '))
-        }
     }
 }
 
