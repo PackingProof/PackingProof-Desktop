@@ -358,6 +358,73 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void NonFiniteDisplayPointsAreRejectedBeforeReachingWpf()
+    {
+        var detection = new VisionObbDetection(
+            double.NaN,
+            50,
+            20,
+            10,
+            0,
+            0.95f);
+
+        Assert.Empty(MainWindow.BuildObbDisplayPoints(
+            detection,
+            new WpfPoint(10, 20),
+            2));
+
+        MainWindow.VisionObbRectangleFrame frame =
+            MainWindow.ResolveRectangleFrame(
+            [
+                new WpfPoint(double.NaN, 10),
+                new WpfPoint(110, 10),
+                new WpfPoint(110, 50),
+                new WpfPoint(10, 50)
+            ]);
+        Assert.True(double.IsFinite(frame.Width));
+        Assert.True(double.IsFinite(frame.Height));
+        Assert.True(double.IsFinite(frame.Angle));
+        Assert.True(double.IsFinite(frame.TopLeft.X));
+        Assert.True(double.IsFinite(frame.TopLeft.Y));
+
+        MainWindow.VisionObbLineFrame line =
+            MainWindow.ResolveBarcodeLine(
+            [
+                new WpfPoint(0, double.NaN),
+                new WpfPoint(100, 10),
+                new WpfPoint(100, 40),
+                new WpfPoint(0, 40)
+            ]);
+        Assert.True(double.IsFinite(line.StartPoint.X));
+        Assert.True(double.IsFinite(line.StartPoint.Y));
+        Assert.True(double.IsFinite(line.EndPoint.X));
+        Assert.True(double.IsFinite(line.EndPoint.Y));
+    }
+
+    [Fact]
+    public void InterpolationFallsBackToTheFiniteEndpoint()
+    {
+        WpfPoint[] result = MainWindow.InterpolatePoints(
+        [
+            new WpfPoint(10, 20),
+            new WpfPoint(30, 40)
+        ],
+        [
+            new WpfPoint(double.NaN, 25),
+            new WpfPoint(35, 45)
+        ],
+        0.5);
+
+        Assert.All(result, point =>
+        {
+            Assert.True(double.IsFinite(point.X));
+            Assert.True(double.IsFinite(point.Y));
+        });
+        Assert.Equal(new WpfPoint(10, 20), result[0]);
+        Assert.Equal(new WpfPoint(32.5, 42.5), result[1]);
+    }
+
+    [Fact]
     public void ObbBoxesInterpolateBetweenDetectionsAndFadeWhenLost()
     {
         string code = File.ReadAllText(
@@ -812,4 +879,5 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
         throw new DirectoryNotFoundException(
             "ExpressPackingMonitoring repository root was not found.");
     }
+
 }

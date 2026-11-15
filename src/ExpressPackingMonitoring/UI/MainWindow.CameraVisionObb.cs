@@ -143,18 +143,24 @@ public partial class MainWindow
             }
             _lastVisionObbTargetUpdateMs = nowMs;
         }
-        Point[][] targets = vm.CameraVisionObbDetections
-            .Select(detection => BuildObbDisplayPoints(detection, origin, scale))
+        var displayTargets = vm.CameraVisionObbDetections
+            .Select(detection => (
+                Detection: detection,
+                Points: BuildObbDisplayPoints(detection, origin, scale)))
+            .Where(item => HasFinitePoints(item.Points))
             .ToArray();
-        int[] targetClassIds = vm.CameraVisionObbDetections
-            .Select(detection => detection.ClassId)
+        Point[][] targets = displayTargets
+            .Select(item => item.Points)
+            .ToArray();
+        int[] targetClassIds = displayTargets
+            .Select(item => item.Detection.ClassId)
             .ToArray();
         int selectedTargetIndex = -1;
         if (vm.CameraVisionSelectedObbDetection is { } selected)
         {
-            for (int index = 0; index < vm.CameraVisionObbDetections.Count; index++)
+            for (int index = 0; index < displayTargets.Length; index++)
             {
-                if (vm.CameraVisionObbDetections[index].Equals(selected))
+                if (displayTargets[index].Detection.Equals(selected))
                 {
                     selectedTargetIndex = index;
                     break;
@@ -164,7 +170,7 @@ public partial class MainWindow
         SynchronizeAnimatedVisionObbBoxes(
             targets,
             targetClassIds,
-            vm.CameraVisionObbDetections,
+            displayTargets.Select(item => item.Detection).ToArray(),
             selectedTargetIndex,
             _visionObbAnimationDurationMs);
         UpdateVisionObbBoxColors(vm);
@@ -370,7 +376,7 @@ public partial class MainWindow
         out double cost)
     {
         cost = double.MaxValue;
-        if (track.CurrentPoints.Length != 4 || target.Length != 4)
+        if (!HasFinitePoints(track.CurrentPoints) || !HasFinitePoints(target))
             return false;
 
         double elapsedMs = Math.Max(0, nowMs - track.LastSeenMs);
@@ -630,7 +636,7 @@ public partial class MainWindow
     internal static VisionObbRectangleFrame ResolveRectangleFrame(
         IReadOnlyList<Point> points)
     {
-        if (points.Count != 4)
+        if (!HasFinitePoints(points))
             return new VisionObbRectangleFrame(0, 0, 0, new Point(), 0);
         double width = Math.Max(1, Distance(points[0], points[1]));
         double height = Math.Max(1, Distance(points[1], points[2]));
@@ -649,7 +655,7 @@ public partial class MainWindow
     internal static VisionObbLineFrame ResolveBarcodeLine(
         IReadOnlyList<Point> points)
     {
-        if (points.Count != 4)
+        if (!HasFinitePoints(points))
             return new VisionObbLineFrame(new Point(), new Point());
 
         int longestEdgeIndex = 0;
@@ -807,13 +813,24 @@ public partial class MainWindow
         double progress)
     {
         if (start.Count != target.Count)
-            return target.ToArray();
+            return SanitizePoints(target);
         var result = new Point[start.Count];
         for (int index = 0; index < result.Length; index++)
         {
-            result[index] = new Point(
-                start[index].X + (target[index].X - start[index].X) * progress,
-                start[index].Y + (target[index].Y - start[index].Y) * progress);
+            Point startPoint = IsFinitePoint(start[index])
+                ? start[index]
+                : IsFinitePoint(target[index])
+                    ? target[index]
+                    : new Point();
+            Point targetPoint = IsFinitePoint(target[index])
+                ? target[index]
+                : startPoint;
+            var interpolated = new Point(
+                startPoint.X + (targetPoint.X - startPoint.X) * progress,
+                startPoint.Y + (targetPoint.Y - startPoint.Y) * progress);
+            result[index] = IsFinitePoint(interpolated)
+                ? interpolated
+                : targetPoint;
         }
         return result;
     }
@@ -823,13 +840,37 @@ public partial class MainWindow
         Point origin,
         double scale)
     {
+        if (!double.IsFinite(detection.CenterX)
+            || !double.IsFinite(detection.CenterY)
+            || !double.IsFinite(detection.Width)
+            || !double.IsFinite(detection.Height)
+            || !double.IsFinite(detection.AngleDegrees)
+            || !IsFinitePoint(origin)
+            || !double.IsFinite(scale)
+            || scale <= 0)
+        {
+            return [];
+        }
+
         Point2f[] corners = VisionObbGeometry.ToCorners(detection);
-        return corners
+        Point[] points = corners
             .Select(corner => new Point(
                 origin.X + corner.X * scale,
                 origin.Y + corner.Y * scale))
             .ToArray();
+        return HasFinitePoints(points) ? points : [];
     }
+
+    private static Point[] SanitizePoints(IReadOnlyList<Point> points) =>
+        points
+            .Select(point => IsFinitePoint(point) ? point : new Point())
+            .ToArray();
+
+    private static bool HasFinitePoints(IReadOnlyList<Point> points) =>
+        points.Count == 4 && points.All(IsFinitePoint);
+
+    private static bool IsFinitePoint(Point point) =>
+        double.IsFinite(point.X) && double.IsFinite(point.Y);
 
     internal static PathGeometry BuildVisionGuideMarkerGeometry(
         double width,
