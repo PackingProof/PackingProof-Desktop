@@ -13,6 +13,7 @@ public partial class MainViewModel
     private IReadOnlyList<VisionObbDetection> _cameraVisionObbDetections = [];
     private VisionObbDetection? _cameraVisionSelectedObbDetection;
     private VisionObbDetection? _cameraVisionSmartZoomTarget;
+    private bool _cameraVisionConfirmedByObb;
     private bool _cameraVisionSupportsBarcodeDetection;
     private bool _cameraVisionBenchmarkRunning;
     private bool _cameraVisionModelAvailable;
@@ -24,7 +25,11 @@ public partial class MainViewModel
     public IReadOnlyList<VisionObbDetection> CameraVisionObbDetections
     {
         get => _cameraVisionObbDetections;
-        private set => SetProperty(ref _cameraVisionObbDetections, value);
+        private set
+        {
+            if (SetProperty(ref _cameraVisionObbDetections, value))
+                OnPropertyChanged(nameof(CameraVisionGuideUsesRecognitionColor));
+        }
     }
 
     public VisionObbDetection? CameraVisionSelectedObbDetection
@@ -32,6 +37,17 @@ public partial class MainViewModel
         get => _cameraVisionSelectedObbDetection;
         private set => SetProperty(ref _cameraVisionSelectedObbDetection, value);
     }
+
+    /// <summary>
+    /// 没有 Waybill 检测时由取景框承担识别颜色；
+    /// 有 Waybill 但最终是取景框兜底确认的，也由取景框显示命中。
+    /// 正常的 OBB 命中只给对应面单框上色。
+    /// </summary>
+    public bool CameraVisionGuideUsesRecognitionColor =>
+        VisionObbRuntimePolicy.ShouldGuideFrameShowRecognitionColor(
+            CameraVisionObbDetections,
+            IsCameraBarcodeConfirmed,
+            _cameraVisionConfirmedByObb);
 
     public VisionObbDetection? CameraVisionSmartZoomTarget
     {

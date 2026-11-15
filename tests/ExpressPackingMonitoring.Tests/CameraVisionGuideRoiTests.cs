@@ -205,10 +205,14 @@ public sealed class CameraVisionGuideRoiTests
             "IsCameraVisionFullFrameMode",
             xaml,
             StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "StrokeDashArray",
-            SliceCornerPath(xaml, cornerPath, guideBox),
+        string corner = SliceCornerPath(xaml, cornerPath, guideBox);
+        Assert.DoesNotContain("StrokeDashArray", corner, StringComparison.Ordinal);
+        Assert.Contains(
+            "CameraVisionGuideUsesRecognitionColor",
+            corner,
             StringComparison.Ordinal);
+        Assert.Contains("IsCameraBarcodeCandidate", corner, StringComparison.Ordinal);
+        Assert.Contains("IsCameraBarcodeConfirmed", corner, StringComparison.Ordinal);
     }
 
     [Fact]

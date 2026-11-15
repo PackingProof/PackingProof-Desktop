@@ -440,12 +440,25 @@
                                             <DataTrigger Binding="{Binding IsCameraVisionGuideMarkerMode}" Value="True">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsCameraBarcodeCandidate}" Value="True">
+                                            <!--
+                                                没有 Waybill 面单时（未开启增强识别、没识别到面单），
+                                                或虽有面单但最终靠取景框兜底确认时，取景框显示绿/黄；
+                                                正常的 OBB 命中只给那张面单框上色。
+                                            -->
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsCameraBarcodeCandidate}" Value="True"/>
+                                                    <Condition Binding="{Binding CameraVisionGuideUsesRecognitionColor}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
                                                 <Setter Property="Stroke" Value="{StaticResource CameraCandidateStroke}"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsCameraBarcodeConfirmed}" Value="True">
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsCameraBarcodeConfirmed}" Value="True"/>
+                                                    <Condition Binding="{Binding CameraVisionGuideUsesRecognitionColor}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
                                                 <Setter Property="Stroke" Value="{StaticResource CameraConfirmedStroke}"/>
-                                            </DataTrigger>
+                                            </MultiDataTrigger>
                                             <DataTrigger Binding="{Binding IsCameraBarcodeGuideEditable}" Value="True">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                             </DataTrigger>

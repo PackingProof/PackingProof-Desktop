@@ -350,7 +350,17 @@ namespace ExpressPackingMonitoring.ViewModels
             private set => SetProperty(ref _cameraBarcodeStatusText, value);
         }
         public bool IsCameraBarcodeCandidate { get => _isCameraBarcodeCandidate; private set => SetProperty(ref _isCameraBarcodeCandidate, value); }
-        public bool IsCameraBarcodeConfirmed { get => _isCameraBarcodeConfirmed; private set => SetProperty(ref _isCameraBarcodeConfirmed, value); }
+        public bool IsCameraBarcodeConfirmed
+        {
+            get => _isCameraBarcodeConfirmed;
+            private set
+            {
+                if (SetProperty(ref _isCameraBarcodeConfirmed, value))
+                {
+                    OnPropertyChanged(nameof(CameraVisionGuideUsesRecognitionColor));
+                }
+            }
+        }
         public bool IsCameraBarcodeRecognitionEnabled => Config?.EnableCameraBarcodeRecognition == true;
 
         private double _diskUsagePercent;

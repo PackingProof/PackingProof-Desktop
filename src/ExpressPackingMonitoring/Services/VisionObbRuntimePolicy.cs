@@ -1,7 +1,15 @@
+using ExpressPackingMonitoring.Vision;
+
 namespace ExpressPackingMonitoring.Services;
 
 internal static class VisionObbRuntimePolicy
 {
+    internal static bool ShouldGuideFrameShowRecognitionColor(
+        IReadOnlyList<VisionObbDetection> detections,
+        bool barcodeConfirmed,
+        bool confirmedByObb) =>
+        !detections.Any(detection => VisionObbClassPolicy.IsWaybill(detection))
+        || (barcodeConfirmed && !confirmedByObb);
     internal static bool ShouldRunSmartZoom(
         bool smartZoomMasterEnabled,
         bool smartZoomEnabled) =>

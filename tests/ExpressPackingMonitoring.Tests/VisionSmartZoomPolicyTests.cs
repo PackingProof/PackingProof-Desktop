@@ -115,6 +115,101 @@ public sealed class VisionSmartZoomPolicyTests
     }
 
     [Fact]
+    public void GuideFrameKeepsRecognitionColorOnlyWithoutWaybillDetection()
+    {
+        var waybill = new VisionObbDetection(
+            300,
+            220,
+            220,
+            140,
+            0,
+            0.95f,
+            VisionObbClassIds.Waybill);
+        var barcode = new VisionObbDetection(
+            300,
+            220,
+            120,
+            36,
+            0,
+            0.93f,
+            VisionObbClassIds.Barcode);
+
+        Assert.True(VisionObbRuntimePolicy.ShouldGuideFrameShowRecognitionColor(
+            [],
+            barcodeConfirmed: false,
+            confirmedByObb: false));
+        Assert.False(VisionObbRuntimePolicy.ShouldGuideFrameShowRecognitionColor(
+            [waybill, barcode],
+            barcodeConfirmed: false,
+            confirmedByObb: false));
+        Assert.False(VisionObbRuntimePolicy.ShouldGuideFrameShowRecognitionColor(
+            [waybill, barcode],
+            barcodeConfirmed: true,
+            confirmedByObb: true));
+        Assert.True(VisionObbRuntimePolicy.ShouldGuideFrameShowRecognitionColor(
+            [waybill, barcode],
+            barcodeConfirmed: true,
+            confirmedByObb: false));
+        Assert.True(VisionObbRuntimePolicy.ShouldGuideFrameShowRecognitionColor(
+            [barcode],
+            barcodeConfirmed: false,
+            confirmedByObb: false));
+    }
+
+    [Fact]
+    public void ResolveWaybillSelection_MapsBarcodeToContainingWaybill()
+    {
+        var waybill = new VisionObbDetection(
+            300,
+            220,
+            220,
+            140,
+            0,
+            0.95f,
+            VisionObbClassIds.Waybill);
+        var barcode = new VisionObbDetection(
+            300,
+            220,
+            120,
+            36,
+            0,
+            0.93f,
+            VisionObbClassIds.Barcode);
+
+        Assert.Equal(
+            waybill,
+            VisionSmartZoomPolicy.ResolveWaybillSelection(
+                [waybill, barcode],
+                barcode));
+    }
+
+    [Fact]
+    public void ResolveWaybillSelection_DoesNotMapBarcodeOutsideWaybill()
+    {
+        var waybill = new VisionObbDetection(
+            700,
+            400,
+            220,
+            140,
+            0,
+            0.95f,
+            VisionObbClassIds.Waybill);
+        var barcode = new VisionObbDetection(
+            100,
+            100,
+            120,
+            36,
+            0,
+            0.93f,
+            VisionObbClassIds.Barcode);
+
+        Assert.Null(
+            VisionSmartZoomPolicy.ResolveWaybillSelection(
+                [waybill, barcode],
+                barcode));
+    }
+
+    [Fact]
     public void SelectTarget_RetainsNearbyPreviousCandidate()
     {
         var previous = new VisionObbDetection(320, 240, 200, 100, 0, 0.95f);

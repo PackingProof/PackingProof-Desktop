@@ -680,6 +680,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (_isDisposed)
                 return;
 
+            VisionObbDetection? mappedSelection = null;
             if (!ShouldRunSeparateCameraSmartZoom)
             {
                 SetCameraVisionModelAvailable(status.VisionObbAvailable);
@@ -687,9 +688,18 @@ namespace ExpressPackingMonitoring.ViewModels
                 CameraVisionSupportsBarcodeDetection =
                     status.SupportsBarcodeDetection;
                 if (status.SelectedObbDetection is { } selected)
-                    CameraVisionSelectedObbDetection = selected;
-                else if (!IsCameraBarcodeConfirmed)
+                {
+                    mappedSelection =
+                        VisionSmartZoomPolicy.ResolveWaybillSelection(
+                            CameraVisionObbDetections,
+                            selected);
+                    CameraVisionSelectedObbDetection = mappedSelection;
+                }
+                else if (!IsCameraBarcodeConfirmed
+                    || status.State == CameraBarcodeRecognitionState.Confirmed)
+                {
                     CameraVisionSelectedObbDetection = null;
+                }
             }
             UpdateCameraVisionSmartZoomTarget(
                 ShouldRunSeparateCameraSmartZoom
@@ -704,6 +714,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 _cameraBarcodeFeedbackCts?.Cancel();
                 var cts = _cameraBarcodeFeedbackCts = new CancellationTokenSource();
+                _cameraVisionConfirmedByObb = mappedSelection is not null;
+                OnPropertyChanged(nameof(CameraVisionGuideUsesRecognitionColor));
                 IsCameraBarcodeCandidate = false;
                 IsCameraBarcodeConfirmed = true;
                 CameraBarcodeStatusText = $"已识别 {status.Code}";
@@ -726,6 +738,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!cts.IsCancellationRequested && !_isDisposed)
                 {
                     IsCameraBarcodeConfirmed = false;
+                    _cameraVisionConfirmedByObb = false;
                     IsCameraBarcodeCandidate = false;
                     CameraBarcodeStatusText = "将面单条形码放入框内";
                 }
@@ -747,6 +760,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     forceReleaseVisionRuntime || !ShouldRunSeparateCameraSmartZoom);
             IsCameraBarcodeCandidate = false;
             IsCameraBarcodeConfirmed = false;
+            _cameraVisionConfirmedByObb = false;
             CameraVisionObbDetections = [];
             CameraVisionSelectedObbDetection = null;
             CameraVisionSupportsBarcodeDetection = false;

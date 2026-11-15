@@ -30,11 +30,9 @@ internal static class VisionSmartZoomPolicy
                 return decoded;
             if (VisionObbClassPolicy.IsBarcode(decoded))
             {
-                VisionObbDetection? containing = waybills
-                    .Where(waybill => VisionObbGeometry.Contains(waybill, decoded))
-                    .OrderBy(waybill => Math.Max(1, waybill.Width * waybill.Height))
-                    .Cast<VisionObbDetection?>()
-                    .FirstOrDefault();
+                VisionObbDetection? containing = FindContainingWaybill(
+                    waybills,
+                    decoded);
                 if (containing is { } mapped)
                     return mapped;
             }
@@ -93,6 +91,34 @@ internal static class VisionSmartZoomPolicy
 
         return best;
     }
+
+    /// <summary>
+    /// 把解码选中的 Barcode 映射回包住它的 Waybill，供界面选框和放大共用。
+    /// 双类别模型返回的是 Barcode 检测，界面必须用面单框显示选中状态，
+    /// 否则会退回只给取景框上色，看不出命中的是哪一张面单。
+    /// </summary>
+    internal static VisionObbDetection? ResolveWaybillSelection(
+        IReadOnlyList<VisionObbDetection> detections,
+        VisionObbDetection? selected)
+    {
+        if (selected is not { } value)
+            return null;
+        if (VisionObbClassPolicy.IsWaybill(value))
+            return value;
+        return VisionObbClassPolicy.IsBarcode(value)
+            ? FindContainingWaybill(detections, value)
+            : null;
+    }
+
+    internal static VisionObbDetection? FindContainingWaybill(
+        IEnumerable<VisionObbDetection> detections,
+        VisionObbDetection barcode) =>
+        detections
+            .Where(detection => VisionObbClassPolicy.IsWaybill(detection))
+            .Where(waybill => VisionObbGeometry.Contains(waybill, barcode))
+            .OrderBy(waybill => Math.Max(1, waybill.Width * waybill.Height))
+            .Cast<VisionObbDetection?>()
+            .FirstOrDefault();
 
     internal static WpfRect ResolveTargetRect(
         in VisionObbDetection detection,
