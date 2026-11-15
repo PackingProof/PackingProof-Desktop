@@ -513,7 +513,7 @@ if ([version]$normalizedVersion -ge [version]'0.0.86' -and
 }
 
 if ($SkipFullTest) {
-    Write-Warning "Quick local package: skipping full regression tests. Release validation must run tools\Test-Release.ps1 separately."
+    Write-Warning "Quick local package: skipping full regression tests. Official releases must have already passed tools\Test-Release-Automated.ps1 on this exact tag."
 }
 else {
     Invoke-CoreRegressionTests

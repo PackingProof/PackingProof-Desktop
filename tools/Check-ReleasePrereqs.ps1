@@ -299,4 +299,4 @@ if ($blockers.Count -gt 0) {
 
 Write-Host ""
 Write-Host "本机发布前置条件齐备"
-Write-Host "下一步：pwsh -NoProfile -File tools\Test-CI.ps1 跑本地 CI 门禁"
+Write-Host "下一步：合并 PR 并创建版本标签，再运行 pwsh -NoProfile -File tools\Prepare-Release.ps1 -Version <X.Y.Z>"

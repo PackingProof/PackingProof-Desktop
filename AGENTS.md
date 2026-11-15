@@ -101,6 +101,7 @@ pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 ## 测试与验证
 
 - 每次改动至少运行 `dotnet build ExpressPackingMonitoring.sln -c Debug` 和与改动直接相关的回归测试（`dotnet test tests/ExpressPackingMonitoring.Tests/ExpressPackingMonitoring.Tests.csproj -c Debug --filter ...`）。全量 `dotnet test` 只在版本提交/发版前运行，或改动跨模块、关键路径（更新/自更新/打包、录像/存储/删除、扩展 API 授权、Web 协议）时运行；同一代码状态已经跑过全量且未再改动时不要重复跑。
+- 正式发布先合并 PR 并在合并后的提交上创建版本标签，再运行 `tools\Prepare-Release.ps1`。该脚本只执行一次发布自动验收，并以 `-SkipFullTest` 出包；不要再先跑 `Test-CI.ps1`、`Test-Release-Automated.ps1` 又让打包脚本重复跑全量测试。PR CI 已通过时，本机不重复跑 `Test-CI.ps1`。
 - 单一界面、文案或局部逻辑的小改动按上一条执行即可，不要求每次微调都跑全量；但不得跳过构建和对应回归测试。
 - 录像、Web 播放、TTS、打包或 FFmpeg 变更还要验证受影响的实际流程；油猴解析使用 `Test/HTML/` 样本。
 - 测试环境缺少依赖或生成文件时，优先使用原始仓库或局域网编译环境。任何未完成的验证及原因都必须明确报告。

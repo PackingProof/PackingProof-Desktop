@@ -77,20 +77,20 @@
 
 - 发布版本维护在仓根 `Directory.Build.props` 的 `<Version>`（所有工程继承同一份，工程文件不得自己再写 `<Version>`；`ProjectVersionSourceTests` 守这条），并与 `vX.Y.Z` 标签一致。之所以收敛成一处：应用显示版本、更新判断读的是 `Config/AppVersion.cs`，而它跟 `Logging/RuntimeLog.cs` 一起被编进 **Core** 程序集，Core 与主程序各写一份版本时开发构建会读到旧号（0.0.79 之后界面一直显示 0.0.78，Mac 打包也拿 Core 的版本号），正式包因为发布脚本全局覆盖 `InformationalVersion` 才看不出来。对应版本标签位于 `HEAD` 且工作区干净时，正式产物和 `InformationalVersion` 只使用纯版本号；未打对应标签的测试包使用 Git 标准的 `-<距最近标签提交数>-g<短CommitID>` 后缀，脏工作区再追加 `-dirty`。AppPatch、更新清单和包内协议版本始终使用纯语义版本，完整 Commit ID 继续写入程序集元数据。基线、完整包和 AppPatch 必须复用同一次发布生成的主程序文件，保证测试包身份可追溯且不影响更新比较。
 - 代码改动一律走远程 PR，只有发布准备阶段仅更新 `Directory.Build.props` 版本号的 chore 可以直接提交到 `main`；该提交不得夹带代码、配置、测试或文档修改。提到哪个平台按问题来源决定：我们自己发现的 **bug** 先在 GitHub 开 issue，再提 PR 并在说明里关联那个 issue；性能、功能、工具、文档这类**不是 bug** 的改动直接提 PR，不必为了留痕再补一个 issue。别人在某平台提的 issue，PR 就提到那个平台（Gitee 的 issue 提 Gitee PR，GitHub 的 issue 提 GitHub PR）。PR 默认两边都提；目标可以用仓库根目录 `.env` 的 `PR_TARGET_HOST`（`gitee` / `github` / `both`，默认 `both`）或命令行 `-Target` 覆盖。用 `pwsh -NoProfile -File tools\Submit-ChangePr.ps1 -Title "<PR 标题>" [-Merge] -Confirmed` 推送分支、创建 PR，用快进合并（提交原样保留）、把主干对齐到同一个提交；**不加 `-Confirmed` 只打印计划并拒绝执行**，提交 PR 前必须先经人工确认。
-- 发布顺序固定为：在功能分支提交并保持工作区干净 → 运行本地 CI → 提 PR 并合并到主干（快进合并，提交原样保留，不改写 SHA，不 squash）→ 同步主干 → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 先按 `docs/development/RELEASE_CHECKLIST.md` 做变更审计（竞态/性能/关键路径），再以该标签身份执行一次 Release 构建、全量测试、自动验收、打包和产物校验 → 只推送该标签到 GitHub/Gitee → 创建 Release 并上传已校验产物 → **把同一次构建出的 Microsoft Store `.msixupload` 提交 Partner Center**。**Gitee 安装包按完整 Setup 大小分流：严格小于 100MB 时直接上传 `PackingProof_Setup_vX.Y.Z.exe`，否则上传商店桥接安装器 `PackingProof Installer.exe`（`-StoreBridgeInstallerPath`），不再生成 no-runtime 安装包**。macOS 包由 Mac 侧 `tools/Publish-MacRelease.sh` 挂到同一个 Release。标签必须指向已在主干上的提交且先于正式构建：既避免先构建测试身份再为正式标签重复编译，也避免 PR rebase 之后标签悬空。
+- 发布顺序固定为：在功能分支完成聚焦测试并保持工作区干净 → 提 PR，由 PR CI 与合并门禁验证（本地已通过 PR CI 时不再重复跑 `Test-CI.ps1`）→ 快进合并到主干（提交原样保留，不改写 SHA，不 squash）→ 同步主干并在合并后的提交上创建本地 `vX.Y.Z` 标签 → 按 `docs/development/RELEASE_CHECKLIST.md` 做变更审计（竞态/性能/关键路径）→ 运行一次 `tools/Prepare-Release.ps1`，在同一标签提交上完成发布自动验收和出包 → 只推送该标签到 GitHub/Gitee → 创建 Release 并上传已校验产物 → **把同一次构建出的 Microsoft Store `.msixupload` 提交 Partner Center**。**Gitee 安装包按完整 Setup 大小分流：严格小于 100MB 时直接上传 `PackingProof_Setup_vX.Y.Z.exe`，否则上传商店桥接安装器 `PackingProof Installer.exe`（`-StoreBridgeInstallerPath`），不再生成 no-runtime 安装包**。macOS 包由 Mac 侧 `tools/Publish-MacRelease.sh` 挂到同一个 Release。标签必须指向已在主干上的提交且先于正式构建：既避免先构建测试身份再为正式标签重复编译，也避免 PR rebase 之后标签悬空。
 - 打包脚本会在产物目录生成 `release_commits_v<X.Y.Z>.txt`（上一个正式版以来的全部提交，仅本地核对、不上传），并按需生成或保留 `RELEASE_NOTES_v<X.Y.Z>.md`；重新打包不会再冲掉已经写好的发布笔记。
 - 发布脚本 `tools/Publish-Releases.ps1` 属于门禁的一部分：它校验发布笔记的分段与占位符、校验 `update_v<X.Y.Z>.json` 的 `title` 与 `notes` 是否已填写，并在打印提交清单后要求显式传入 `-ConfirmCommitCoverage`。只想自检用 `-ValidateOnly`，已经发布过的版本要补正文用 `-UpdateNotes`（只更新正文与标题，不重复上传附件）。
-- 本地 CI 命令为 `pwsh -NoProfile -File tools/Test-CI.ps1`，它与 `.github/workflows/ci.yml` 保持同一还原、构建、单元测试和 JavaScript 语法检查门禁。发布前必须先通过本地 CI，再运行 `tools/Test-Release-Automated.ps1`；任一失败都不得推送标签或发布。
+- `Test-CI.ps1` 是开发分支的 Debug 门禁，与 `.github/workflows/ci.yml` 同口径；PR CI 已通过时，正式发布不要在本机再重复跑一遍。创建发布标签后只运行 `tools/Prepare-Release.ps1`：它先执行一次 `Test-Release-Automated.ps1`（Release 构建、全量测试、WPF 与 Web 验收），再调用 `Publish-CleanPackage.ps1 -SkipFullTest` 复用同一提交出包，避免重复全量测试。任一失败都不得推送标签或发布。
 - 开始构建前先跑 `pwsh -NoProfile -File tools/Check-ReleasePrereqs.ps1` 自检本机发布条件（工作区、标签与版本一致性、启动器基线与逻辑输入指纹、gh/gitee 登录态、dotnet、7-Zip、Inno Setup）。只读检查，不构建、不上传、不打印凭据。启动器逻辑输入变化时它会直接要求先重建基线，避免打包到一半才返工。
 - `.github/workflows/release-package.yml` 只响应 `v*.*.*` 标签或手动触发，不再响应普通 `main` push。GitHub 侧仅对已在本地通过门禁的标签执行一次发布包构建，避免每次提交都耗电打包。CI 配置 `STORE_IDENTITY_NAME` / `STORE_PUBLISHER` Secrets 时会一起构建 Store MSIX；未配置时只构建 Setup，并在日志里明确标记该产物不是正式发布包。
 - 发布工作流不需要额外 FFmpeg Secret。仓库不提交 54MB 精简产物，标签构建会优先使用缓存或本地产物；没有时按清单中的固定 HTTPS 来源下载 Gyan essentials，并校验大小和 SHA256。第三方开发者也因此可以直接构建和出包，只需承担更大的包体积。
 - 发布工作流同样不需要模型 Secret：正式标签构建和默认手动构建都会准备视觉模型；只有手动触发并显式取消 `vision_obb` 时才生成不含视觉功能包的产物。默认构建要求 `vision-model-baseline.json` 的 `source.repository` 指向 `PackingProof/PackingProof-Vision`，`source.urls` 使用该仓库对应 Release 的固定 HTTPS 地址，并按 SHA256 校验。模型未上传到 Vision Release、下载失败或内容漂移时，包含功能包的发布门禁必须失败，不能用开发机缓存或“带开关但没有模型”的包继续发布。
 - 推荐运行 `打包脚本-增量.bat v<X.Y.Z>`。直接调用时使用；正式发布默认同时构建 Store MSIX，只有本地验证才允许加 `-SkipStorePackage`：
-- 双击（无参数）运行 `tools\打包脚本-增量.bat` 或 `tools\打包脚本-基线.bat` 是本地快速出包：跳过全量回归测试，只执行编译和打包；正式发布必须带版本参数运行增量脚本（或先单独运行 `tools\Test-Release.ps1`），`Publish-CleanPackage.ps1` 默认仍会跑全量测试。
+- 双击（无参数）运行 `tools\打包脚本-增量.bat` 或 `tools\打包脚本-基线.bat` 是本地快速出包：跳过全量回归测试，只执行编译和打包。正式发布不要单独调用打包脚本，统一运行 `Prepare-Release.ps1`，由它先完成唯一一次发布自动验收，再以 `-SkipFullTest` 出包。
 - 本地产物名统一带 `-<距上个标签提交数>-g<短 Commit>` 与 `-dirty` 后缀（如 `v0.0.99-16-g54739bdb`），Setup、AppPatch、update JSON、launcher manifest、package integrity、release info、发布笔记和提交清单使用同一套；标签精确指向 HEAD 时后缀为空。Release 标签、下载 URL 和 Store MSIX 身份仍使用纯 `vX.Y.Z`。
 
 ```powershell
-pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBaselineVersion <基线版本> -BaselineAppDir "package\PackingProof+v<基线版本>\PackingProof+v<基线版本>\app"
+pwsh -NoProfile -File tools\Prepare-Release.ps1 -Version <X.Y.Z> -PatchBaselineVersion <基线版本> -BaselineAppDir "package\PackingProof+v<基线版本>\PackingProof+v<基线版本>\app"
 ```
 
 - `<基线版本>` 在 0.0.86 及以后固定为 `0.0.84`；0.0.83/0.0.84 历史发布才使用 `0.0.18`。`tools\打包脚本-增量.bat` 与 `tools\Publish-CleanPackage.ps1` 的默认补丁基线都必须是 `0.0.84`，不要再复制旧命令里的 `0.0.18`。
@@ -99,7 +99,7 @@ pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 - 产物根目录同时生成 `package_integrity_v<X.Y.Z>.json`，记录 Setup 的文件名、大小、SHA256 和本次 exact `app\` 的逐文件指纹；`Publish-Releases.ps1` 会校验 Setup 未被替换，并要求 Setup 与 Store MSIX 指向同一份 exact 应用负载。
 - `-ReuseExistingLauncherBaseline` 只用于同一发布标签重发；普通新版本不传。
 - 正式标签构建通过后，只把 `vX.Y.Z` 标签推送到 GitHub 与组织 Gitee 仓库 `PackingProof/PackingProof-Desktop`（`main` 已在 PR 合并时更新，不再直接推送提交），然后创建 Release；同一版本的 Store `.msixupload` 必须在 Partner Center 完成提交，才算这次发布完成。禁止普通 `main` push 触发发布包工作流。
-- 发布前执行 `pwsh -NoProfile -File tools/Test-Release-Automated.ps1`。不得在未完成真实设备检查时传 `-ConfirmManualCoreChecks`。
+- 发布自动验收只通过 `Prepare-Release.ps1` 执行一次，不要先单独跑 `Test-Release-Automated.ps1` 再由打包脚本重复跑测试。不得在未完成真实设备检查时传 `-ConfirmManualCoreChecks`。
 - 采集链路的现场结论（走哪条后端、GPU 转换有没有真生效、每帧整帧拷贝要花多少）用 `pwsh -NoProfile -File tools/Diagnose-CameraPipeline.ps1` 一次跑出来：报告与探针日志写到输出目录，只读配置、录像和现场 `runtime.log`。整帧拷贝那一段不需要摄像头、也不用退出主程序，随手可跑；GPU/CPU 对照要独占摄像头，脚本会提示先关程序。
 - `docs/development/RELEASE_CHECKLIST.md` 是发布前 AI/自动化照着跑的清单（命令与产物校验）；需要人和设备才能做的现场检查在 `docs/development/RELEASE_FIELD_CHECKS.md`，发布时提醒执行但不阻断，也不用写进发布说明。
 - **打包前先审计**上一版本以来的完整变更，追踪录像、更新、授权、备份、删除和文件替换等关键路径；自动测试通过不能替代这一步。可信的正确性、数据安全、兼容性、性能或竞态问题均阻断发布，除非用户明确接受记录在案的例外。
@@ -134,7 +134,7 @@ pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 ## 重发同一版本（热修已发布版本）
 
-正常发布跑：`Publish-CleanPackage.ps1`（同时出 Setup 与 Store 提交包）→ `Publish-Releases.ps1`（建 Release 传 Git 资产并校验 Store 包）→ Partner Center 上传同版本 `.msixupload`。完整 Setup 严格小于 100MB 时，`Publish-Releases.ps1` 会直接把它传到 Gitee；达到 100MB 时改传商店桥接安装器，参数为 `-StoreBridgeInstallerPath <PackingProof Installer.exe>`，不再生成 no-runtime 安装包。
+正常发布跑：`Prepare-Release.ps1`（在已打标签的提交上执行一次发布验收并同时出 Setup、AppPatch、更新清单与 Store 提交包）→ `Publish-Releases.ps1`（建 Release 传 Git 资产并校验 Store 包）→ Partner Center 上传同版本 `.msixupload`。完整 Setup 严格小于 100MB 时，`Publish-Releases.ps1` 会直接把它传到 Gitee；达到 100MB 时改传商店桥接安装器，参数为 `-StoreBridgeInstallerPath <PackingProof Installer.exe>`，不再生成 no-runtime 安装包。
 **给已经发出去的版本补修复**是另一件事，已经收敛成一条命令（重建 → 替换两边资产 → 按尺寸补齐 Gitee 安装入口）：
 
 ```powershell

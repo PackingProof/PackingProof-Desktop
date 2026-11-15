@@ -77,6 +77,39 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void ReleasePreparation_RunsValidationOnceAfterTagAndPackagesWithoutRepeat()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string prepareScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Prepare-Release.ps1"),
+            Encoding.UTF8);
+        string workflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "release-package.yml"),
+            Encoding.UTF8);
+
+        int tagCheckIndex = prepareScript.IndexOf(
+            "当前 HEAD 不是 $releaseTag 指向的提交",
+            StringComparison.Ordinal);
+        int validationIndex = prepareScript.IndexOf(
+            "Test-Release-Automated.ps1",
+            StringComparison.Ordinal);
+        int packageIndex = prepareScript.IndexOf(
+            "Publish-CleanPackage.ps1",
+            StringComparison.Ordinal);
+        int skipTestIndex = prepareScript.IndexOf(
+            "\"-SkipFullTest\"",
+            packageIndex,
+            StringComparison.Ordinal);
+
+        Assert.True(tagCheckIndex >= 0, "发布准备必须先校验版本标签");
+        Assert.True(validationIndex > tagCheckIndex, "标签校验必须早于发布自动验收");
+        Assert.True(packageIndex > validationIndex, "发布自动验收必须早于出包");
+        Assert.True(skipTestIndex > packageIndex, "出包必须显式跳过重复全量测试");
+        Assert.Contains("tools\\Prepare-Release.ps1", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("tools\\Test-Release-Automated.ps1", workflow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Packaging_BundlesVcRuntimeAndDropsDebugOnlyRuntimeFiles()
     {
         string repositoryRoot = FindRepositoryRoot();
