@@ -183,6 +183,8 @@ public partial class MainWindow
         {
             for (int targetIndex = 0; targetIndex < targets.Count; targetIndex++)
             {
+                if (!CanMatchTrackClass(track.ClassId, targetClassIds[targetIndex]))
+                    continue;
                 if (TryCalculateTrackMatchCost(
                         track,
                         targets[targetIndex],
@@ -343,6 +345,9 @@ public partial class MainWindow
         _animatedVisionObbBoxes.Add(created);
         return created;
     }
+
+    internal static bool CanMatchTrackClass(int trackClassId, int targetClassId) =>
+        trackClassId == targetClassId;
 
     private static bool TryCalculateTrackMatchCost(
         AnimatedVisionObbBox track,

@@ -426,6 +426,21 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
     }
 
     [Theory]
+    [InlineData(VisionObbClassIds.Waybill, VisionObbClassIds.Waybill, true)]
+    [InlineData(VisionObbClassIds.Barcode, VisionObbClassIds.Barcode, true)]
+    [InlineData(VisionObbClassIds.Waybill, VisionObbClassIds.Barcode, false)]
+    [InlineData(VisionObbClassIds.Barcode, VisionObbClassIds.Waybill, false)]
+    public void TrackMatchingKeepsDetectionClassBoundary(
+        int trackClassId,
+        int targetClassId,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            MainWindow.CanMatchTrackClass(trackClassId, targetClassId));
+    }
+
+    [Theory]
     [InlineData(false, false, true)]
     [InlineData(true, false, true)]
     [InlineData(false, true, true)]

@@ -41,10 +41,10 @@ public partial class MainWindow
         Rect? smartTarget)
     {
         bool useSmartTarget = smartTarget.HasValue;
+        // 两个框都先定位到各自目标再交叉淡化；只移动即将显示的那个会让淡出框停在旧位置。
+        SetZoomGuideRectDirect(DefaultZoomGuideBoxHost, defaultTarget);
         if (smartTarget is { } currentSmartTarget)
             SetZoomGuideRectDirect(ZoomGuideBoxHost, currentSmartTarget);
-        else
-            SetZoomGuideRectDirect(DefaultZoomGuideBoxHost, defaultTarget);
 
         double crossFadeMs = ResolveZoomGuideCrossFadeMs(useSmartTarget);
         FadeZoomGuideBox(

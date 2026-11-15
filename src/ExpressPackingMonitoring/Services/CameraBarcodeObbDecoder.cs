@@ -40,7 +40,6 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     private bool _missingModelLogged;
     private bool _disposed;
     private long _lastObbDiagnosticsAtMs;
-    private string _lastObbDiagnosticsSignature = "";
     private double _lastDetectionMs;
     private int _lastDetectionCount;
     private int _lastDetectorClassCount = 1;
@@ -449,23 +448,10 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             return;
 
         long nowMs = Environment.TickCount64;
-        string signature = string.Join(
-            "|",
-            diagnostics.Select(candidate =>
-                $"{candidate.CenterX:F0}:{candidate.CenterY:F0}:"
-                + $"{candidate.Width:F0}:{candidate.Height:F0}:"
-                + $"{candidate.AngleDegrees:F0}:{candidate.Score:F2}:"
-                + $"{candidate.DecodeAllowed}:{candidate.Decoded}"));
-        if (string.Equals(
-                signature,
-                _lastObbDiagnosticsSignature,
-                StringComparison.Ordinal)
-            && nowMs - _lastObbDiagnosticsAtMs < ObbDiagnosticsMinIntervalMs)
-        {
+        // 诊断日志是同步写盘，不能跟着框抖动每帧写；统一最多每 1.5 秒输出一次。
+        if (nowMs - _lastObbDiagnosticsAtMs < ObbDiagnosticsMinIntervalMs)
             return;
-        }
 
-        _lastObbDiagnosticsSignature = signature;
         _lastObbDiagnosticsAtMs = nowMs;
         VisionObbDiagnosticLog.Append(diagnostics);
         VisionObbTimingDiagnosticLog.Append(timingDiagnostics);
