@@ -29,6 +29,14 @@ $script:SharedRuntimeExcludedFileNames = @(
     'System.Design.dll',
     'System.Drawing.Design.dll'
 )
+$script:SharedRuntimeIncludedCultureNames = @(
+    'en',
+    'en-US',
+    'ja',
+    'ja-JP',
+    'zh-Hans',
+    'zh-CN'
+)
 # 主程序用硬链接落成布局时写下的标记（ExpressPackingMonitoring.UpdateCore\RuntimeLayoutSeeder.cs 里的同名常量）。
 # 它不是布局载荷、不在清单里，但仍然算合法内容：安装目录里那份布局正是这样被落成的。
 $script:SharedRuntimeLayoutSeedMarkerFileName = '.seeded-by-app'
@@ -186,6 +194,27 @@ function Get-RelativePosixPath {
     return $full.Substring($base.Length).Replace('\', '/')
 }
 
+function Test-SharedRuntimeFileExcluded {
+    param(
+        [Parameter(Mandatory = $true)][string]$FileName,
+        [Parameter(Mandatory = $true)][string]$RelativePath
+    )
+
+    if ($script:SharedRuntimeExcludedFileNames -contains $FileName) {
+        return $true
+    }
+
+    if (-not $FileName.EndsWith('.resources.dll', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+    $segments = $RelativePath -split '/'
+    if ($segments.Count -lt 2) {
+        return $false
+    }
+    $cultureName = $segments[$segments.Count - 2]
+    return $script:SharedRuntimeIncludedCultureNames -notcontains $cultureName
+}
+
 function New-SharedRuntimeLayout {
     param(
         [Parameter(Mandatory = $true)][string]$AppDir,
@@ -213,8 +242,8 @@ function New-SharedRuntimeLayout {
         $target = Join-Path $destination ("shared\" + $framework.Name + "\" + $framework.Version)
         [System.IO.Directory]::CreateDirectory($target) | Out-Null
         foreach ($sourceFile in Get-ChildItem -LiteralPath $framework.SourceDirectory -Recurse -File) {
-            if ($script:SharedRuntimeExcludedFileNames -contains $sourceFile.Name) { continue }
             $relativePath = Get-RelativePosixPath -BasePath $framework.SourceDirectory -FullPath $sourceFile.FullName
+            if (Test-SharedRuntimeFileExcluded -FileName $sourceFile.Name -RelativePath $relativePath) { continue }
             $destinationFile = Join-Path $target ($relativePath -replace '/', '\')
             [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($destinationFile)) | Out-Null
             Copy-Item -LiteralPath $sourceFile.FullName -Destination $destinationFile -Force

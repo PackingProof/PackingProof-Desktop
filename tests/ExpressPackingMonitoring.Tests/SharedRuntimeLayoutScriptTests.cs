@@ -24,6 +24,28 @@ public sealed class SharedRuntimeLayoutScriptTests
     }
 
     [Fact]
+    public void SharedRuntimeLayout_KeepsOnlyProductLocalizedResources()
+    {
+        using var fixture = new Fixture();
+        fixture.AddLocalizedResources();
+
+        ProcessResult build = fixture.Build();
+
+        Assert.True(build.ExitCode == 0, build.Output + build.Error);
+        using JsonDocument manifest = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(fixture.LayoutPath, "layout.json"), Encoding.UTF8));
+        string[] paths = manifest.RootElement
+            .GetProperty("files")
+            .EnumerateArray()
+            .Select(file => file.GetProperty("path").GetString() ?? "")
+            .ToArray();
+        Assert.Contains(paths, path => path.Contains("/ja/", StringComparison.Ordinal));
+        Assert.Contains(paths, path => path.Contains("/zh-Hans/", StringComparison.Ordinal));
+        Assert.DoesNotContain(paths, path => path.Contains("/fr/", StringComparison.Ordinal));
+        Assert.DoesNotContain(paths, path => path.Contains("/de/", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Build_WritesManifestWithVersionsAndMigrationMap()
     {
         using var fixture = new Fixture();
@@ -215,6 +237,21 @@ public sealed class SharedRuntimeLayoutScriptTests
                 WriteFile(Path.Combine(frameworkRoot, framework + ".deps.json"), "{}");
                 WriteFile(Path.Combine(frameworkRoot, framework + ".runtimeconfig.json"), "{}");
                 WriteFile(Path.Combine(frameworkRoot, "newer-only.dll"), "newer");
+            }
+        }
+
+        public void AddLocalizedResources()
+        {
+            string frameworkRoot = Path.Combine(
+                _dotNetRoot,
+                "shared",
+                "Microsoft.WindowsDesktop.App",
+                RuntimeVersion);
+            foreach (string culture in new[] { "ja", "zh-Hans", "fr", "de" })
+            {
+                WriteFile(
+                    Path.Combine(frameworkRoot, culture, "PresentationFramework.resources.dll"),
+                    culture);
             }
         }
 
