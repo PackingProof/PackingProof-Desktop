@@ -484,6 +484,25 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void Packaging_DisablesAppHostCetCompatibilityBeforeCreatingAllDistributionPayloads()
+    {
+        string publishScript = File.ReadAllText(
+            Path.Combine(FindRepositoryRoot(), "tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+
+        int policyIndex = publishScript.IndexOf(
+            "PortableExecutableCetPolicy]::TryDisableCetCompatibility",
+            StringComparison.Ordinal);
+        int runtimeSeedIndex = publishScript.IndexOf(
+            "生成共享运行时布局",
+            StringComparison.Ordinal);
+        Assert.True(policyIndex >= 0);
+        Assert.True(runtimeSeedIndex > policyIndex);
+        Assert.Contains("Setup, AppPatch and Store MSIX", publishScript, StringComparison.Ordinal);
+        Assert.Contains("$publishedAppExe", publishScript, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Tests_IncludeVisionObbByDefaultAndCanExcludeIt()
     {
         string repositoryRoot = FindRepositoryRoot();

@@ -1514,6 +1514,28 @@ foreach ($pdbFile in $publishedPdbFiles) {
     Remove-Item -LiteralPath $pdbFile.FullName -Force
 }
 
+# Store MSIX 没有根启动器，必须在统一应用负载阶段关闭 apphost 的 CET_COMPAT；
+# Setup 和 AppPatch 也复用这份 EXE，避免三个渠道在旧版 Windows 10 上启动行为不一致。
+$publishedAppExe = Join-Path $appPublishDir "ExpressPackingMonitoring.exe"
+$publishedUpdateCore = Join-Path $appPublishDir "ExpressPackingMonitoring.UpdateCore.dll"
+if (-not (Test-Path -LiteralPath $publishedAppExe -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $publishedUpdateCore -PathType Leaf)) {
+    throw "Release publish is missing the apphost or UpdateCore assembly needed for CET policy"
+}
+Add-Type -Path $publishedUpdateCore
+$cetChanged = $false
+$cetError = $null
+$cetPolicyApplied = [ExpressPackingMonitoring.UpdateCore.PortableExecutableCetPolicy]::TryDisableCetCompatibility(
+    $publishedAppExe,
+    [ref]$cetChanged,
+    [ref]$cetError)
+if (-not $cetPolicyApplied) {
+    throw "Failed to disable apphost CET compatibility: $cetError"
+}
+if ($cetChanged) {
+    Write-Host "Cleared apphost CET compatibility for Setup, AppPatch and Store MSIX."
+}
+
 # 这些是调试/诊断或可选网络组件，正常启动不会加载；删掉给 Gitee 的完整 Setup 腾出空间。
 Remove-DebugOnlyRuntimeFiles -AppDir $appPublishDir
 # ONNX Runtime 依赖 MSVCP/VCRUNTIME；带上 app-local 副本，用户不需要另外装 VC++。
