@@ -7,7 +7,7 @@
     发布脚本仍会用 -p:InformationalVersion 全局覆盖正式产物的信息版本。
   -->
   <PropertyGroup>
-    <Version>0.0.100</Version>
+    <Version>0.0.101</Version>
     <!-- 主程序和测试都必须使用同一份钉死的 FFmpeg 基线。 -->
     <FFmpegBaselineVersion>4.4.1-minimal</FFmpegBaselineVersion>
     <FFmpegBaselineExecutable>$(MSBuildThisFileDirectory)package\dependency-cache\ffmpeg\$(FFmpegBaselineVersion)\ffmpeg.exe</FFmpegBaselineExecutable>
