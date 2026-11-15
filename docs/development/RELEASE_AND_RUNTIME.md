@@ -38,6 +38,7 @@
 ## 启动器与增量更新
 
 - 用户应从包根目录启动器进入。启动器立即启动主程序、后台检查并下载经过校验的 AppPatch 到 `cache\updates`，下次启动时安装。
+- Windows 10 会在 CET 兼容的 apphost 上开启影子栈，但部分版本缺少 .NET 10 要求的 special user-mode APC；现场 dump 表现为 `coreclr!Thread::StaticInitialize` 主动以 `0x80131506` 退出，应用日志不会生成。启动器在 Windows 10 上会先清除主程序 PE 调试目录里的 `CET_COMPAT` 标记，保留 CFG 等其他缓解，再从 apphost 正常启动；Windows 11 不做此项调整。
 - 启动器启动主程序后会等待主窗口出现（最多 12 秒）；主程序提前退出或窗口未出现时，写 `%LOCALAPPDATA%\ExpressPackingMonitoring\log\startup-diagnostics-<时间>-<pid>.txt` 并弹窗提示，关闭提示后自动打开日志文件夹。诊断包含系统版本/架构、关键文件、VC++/UCRT 运行库、OpenCV/ONNX/DirectML/LibVLC 原生依赖加载结果、`runtime.log` 与 `launcher_update.log` 尾部；发现 VC++/UCRT 缺失、原生依赖加载失败或退出码指向缺 DLL 时，弹窗提供 Microsoft Visual C++ 2015-2022 x64 官方下载入口。正常启动不写。遇到用户“打不开/没反应”时先收这份文件和 `launcher_update.log`，不要只按系统版本猜测。
 - 启动器启动主程序时设置 `DOTNET_DbgEnableMiniDump=1`、`DOTNET_DbgMiniDumpType=2`，托管崩溃写到 `%LOCALAPPDATA%\ExpressPackingMonitoring\dumps\crash_<pid>.dmp`，只保留最近 10 份；启动诊断会列出转储文件。`createdump.exe` 必须保留，但只有通过启动器启动时才有这套环境；直接启动 `app\ExpressPackingMonitoring.exe` 和 Store 版不经过启动器，不会自动生成 .NET minidump。原生崩溃仍需 Windows 错误报告或额外 native dump 机制。
 - 增量包下载带断点续传：主程序与启动器共用 `ExpressPackingMonitoring.UpdateCore\ResumableFileDownload.cs`，半截包按版本留在 `cache\updates\partial\*.partial` 里，断线、停滞、换源（GitHub ↔ Gitee）、跨重启都带 `Range` 从断点继续。服务端不认 `Range`（回 200/416）就截断重下，绝不拼两段不同来源的字节；最终仍要过体积 + SHA256 双校验才发布到 `pending`，校验不过的断点会被清掉并只重下一次。下载停滞判据是"60 秒没有新字节"而不是绝对时长：主程序端增量包不再用清单那 75 秒的 `HttpClient` 总超时（否则 75MB 的过渡包在慢网上正好卡在下到一半），启动器的下载也单独给 30 分钟预算；超时保留断点，重试从断点继续。

@@ -126,6 +126,8 @@ internal static class Program
         if (runtimeContext.RepairedMisplacedLayout)
             WriteLog("运行时装在了 app\\runtime\\（老启动器应用过渡补丁的结果），已搬回安装根目录 runtime\\");
 
+        PrepareAppHostCetCompatibility(appPath);
+
         // 写下"本启动器具备哪些能力"，主程序据此判断这份补丁到底装不装得上。
         // 老启动器不写这个文件，主程序会按最低能力处理——这正是 0.0.81 机器的正确判定。
         LauncherProtocol.WriteState(
@@ -1256,6 +1258,27 @@ internal static class Program
         return 1;
     }
 
+    private static void PrepareAppHostCetCompatibility(string appPath)
+    {
+        // Windows 10 会在 CET 兼容进程上开启影子栈，但部分版本缺少 .NET 10 要求的
+        // special user-mode APC，导致 CLR 在任何应用代码运行前以 0x80131506 退出。
+        if (!OperatingSystem.IsWindows()
+            || OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)
+            || !File.Exists(appPath))
+        {
+            return;
+        }
+
+        if (!PortableExecutableCetPolicy.TryDisableCetCompatibility(appPath, out bool changed, out string? error))
+        {
+            WriteLog("处理主程序 CET 兼容标记失败：" + error);
+            return;
+        }
+
+        if (changed)
+            WriteLog("当前 Windows 10 不完整支持 CET 影子栈；已关闭 apphost 的 CET 兼容标记后启动");
+    }
+
     private enum StartupState
     {
         Started,
@@ -1318,6 +1341,7 @@ internal static class Program
         unchecked((int)0xC000007B) => "映像格式不正确（常见于 32/64 位不匹配或 DLL 损坏）",
         unchecked((int)0xC0000142) => "DLL 初始化失败",
         unchecked((int)0xE0434352) => ".NET 运行时异常（应用启动阶段抛出）",
+        unchecked((int)0x80131506) => "CLR 执行引擎初始化失败（常见于 Windows 10 CET 影子栈兼容问题）",
         _ => ""
     };
 

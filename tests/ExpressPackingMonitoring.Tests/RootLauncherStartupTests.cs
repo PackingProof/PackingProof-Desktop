@@ -79,6 +79,17 @@ public sealed class RootLauncherStartupTests
         Assert.Contains("PruneCrashDumps", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RootLauncherDisablesCetCompatibilityBeforeStartingOnWindows10()
+    {
+        string source = File.ReadAllText(
+            Path.Combine(FindRepositoryRoot(), "src", "ExpressPackingMonitoring.Launcher", "Program.cs"));
+
+        Assert.Contains("PrepareAppHostCetCompatibility(appPath);", source, StringComparison.Ordinal);
+        Assert.Contains("OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)", source, StringComparison.Ordinal);
+        Assert.Contains("PortableExecutableCetPolicy.TryDisableCetCompatibility(appPath", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
