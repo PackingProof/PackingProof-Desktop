@@ -606,13 +606,6 @@ namespace ExpressPackingMonitoring.ViewModels
             Interlocked.Exchange(
                 ref _pendingCameraBarcodeConfirmation,
                 confirmed);
-            // 解码条码自身的外接几何只保留诊断日志；智能放大使用状态里携带的
-            // “本次选中的单个 OBB 面单”，不会把条码框或同屏其他面单混进来。
-            RuntimeLog.Info(
-                "CameraBarcode",
-                confirmed.Geometry == null
-                    ? $"Confirmed geometry unavailable, code={confirmed.Code}"
-                    : $"Confirmed geometry code={confirmed.Code}, x={confirmed.Geometry.X:F1}, y={confirmed.Geometry.Y:F1}, w={confirmed.Geometry.Width:F1}, h={confirmed.Geometry.Height:F1}");
         }
 
         private void OnCameraBarcodeStatusChanged(CameraBarcodeRecognitionStatus status)
