@@ -92,9 +92,14 @@ namespace ExpressPackingMonitoring.ViewModels
                 RuntimeLog.Warn("Camera", $"RestartCameraWithRecordingStop start trigger={trigger}, recording={IsRecording}, failures={_consecutiveRestartFailures}");
                 if (IsRecording)
                 {
-                    _stopReason = string.Equals(trigger, "recording-frame-stalled", StringComparison.Ordinal)
-                        ? "录像画面中断"
-                        : "摄像头重连";
+                    bool frameStalled = string.Equals(
+                        trigger,
+                        "recording-frame-stalled",
+                        StringComparison.Ordinal);
+                    _stopReason = frameStalled ? "录像画面中断" : "摄像头重连";
+                    _stopOrigin = frameStalled
+                        ? ScanStopOrigin.CameraStall
+                        : ScanStopOrigin.CameraReconnect;
                     RuntimeLog.Warn("Camera", "Camera reconnect requested while recording, stopping current recording before restart");
                     await SafeStopRecordingAsync();
 
@@ -1366,6 +1371,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (!inGracePeriod && !sameCodePostRollPending && Config.EnableAutoStop && (DateTime.Now - _lastMotionTime).TotalSeconds >= Config.AutoStopMinutes * 60.0)
                         {
                             _stopReason = "静止超时";
+                            _stopOrigin = ScanStopOrigin.StaticTimeout;
                             _ = Application.Current.Dispatcher.InvokeAsync(async () => {
                                 if (_isDisposed) return;
                                 await SafeStopRecordingAsync();
@@ -1379,6 +1385,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (!inGracePeriod && !sameCodePostRollPending && Config.EnableMaxDuration && elapsedSec >= Config.MaxDurationMinutes * 60.0)
                         {
                             _stopReason = "时长超时";
+                            _stopOrigin = ScanStopOrigin.DurationTimeout;
                             _ = Application.Current.Dispatcher.InvokeAsync(async () => {
                                 if (_isDisposed) return;
                                 await SafeStopRecordingAsync();

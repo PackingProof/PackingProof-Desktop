@@ -9,8 +9,10 @@ internal sealed class ScanAuditRecorder : IDisposable
 {
     internal const int MaxInMemoryEvents = 20_000;
     internal const int FlushBatchSize = 20;
+    internal const string AbandonedOutcome = "abandoned";
     internal static readonly TimeSpan MaxFlushDelay = TimeSpan.FromSeconds(2);
     internal static readonly TimeSpan DuplicateWindow = TimeSpan.FromSeconds(2);
+    internal static readonly TimeSpan NonTerminalEventRetention = TimeSpan.FromHours(1);
     private static readonly TimeSpan RecentKeyLifetime = TimeSpan.FromSeconds(10);
 
     private readonly object _gate = new();
@@ -32,6 +34,9 @@ internal sealed class ScanAuditRecorder : IDisposable
     private string _activeEventId = "";
     private long _activeRecordId;
     private bool _disposed;
+
+    /// <summary>单元测试注入点：在批量快照之后、写库之前制造更新竞态。</summary>
+    internal Action? BeforePersistForTests { get; set; }
 
     internal ScanAuditRecorder(
         string databasePath,
@@ -84,6 +89,8 @@ internal sealed class ScanAuditRecorder : IDisposable
                 RuntimeLog.Warn(
                     "ScanAudit",
                     $"In-memory scan event limit reached; event not retained source={record.Source}, order={record.NormalizedOrder}");
+                // 唤醒后台任务清理已过期未完成事件，否则会一直卡在上限。
+                SignalWorker();
                 return "";
             }
 
@@ -326,7 +333,11 @@ internal sealed class ScanAuditRecorder : IDisposable
             _events[eventId] = current with
             {
                 Outcome = Trim(outcome, 64),
-                StopOrigin = Trim(stopOrigin, 64),
+                // 停止请求已经写入稳定原因码时不能被本地化文案覆盖，
+                // 否则同一字段会随界面语言变化，统计和导出无法按原因聚合。
+                StopOrigin = string.IsNullOrWhiteSpace(current.StopOrigin)
+                    ? Trim(stopOrigin, 64)
+                    : current.StopOrigin,
                 Detail = Trim(detail ?? "", 1000),
                 DurationMs = Math.Max(
                     0,
@@ -425,8 +436,11 @@ internal sealed class ScanAuditRecorder : IDisposable
     private async Task FlushDirtyAsync(CancellationToken cancellationToken)
     {
         List<ScanEventRecord> batch;
+        int abandonedCount;
         lock (_gate)
         {
+            // 没有新事件时也要清理过期的非终态事件，否则内存上限会被它们占满。
+            abandonedCount = PrunePersistedEvents();
             if (_dirty.Count == 0)
                 return;
 
@@ -440,19 +454,30 @@ internal sealed class ScanAuditRecorder : IDisposable
             PruneRecentDecisions(_clock());
         }
 
+        if (abandonedCount > 0)
+        {
+            RuntimeLog.Info(
+                "ScanAudit",
+                $"Marked {abandonedCount} stale scan audit events as abandoned");
+        }
+
         if (batch.Count == 0)
             return;
 
         try
         {
+            BeforePersistForTests?.Invoke();
             ScanEventStore store = EnsureStore();
             await Task.Run(() => store.UpsertBatch(batch), cancellationToken).ConfigureAwait(false);
+            int abandonedAfterWrite;
             lock (_gate)
             {
                 foreach (ScanEventRecord record in batch)
                     _persisted.Add(record.EventId);
-                PrunePersistedEvents();
+                abandonedAfterWrite = PrunePersistedEvents();
             }
+            if (abandonedAfterWrite > 0)
+                SignalWorker();
         }
         catch (OperationCanceledException)
         {
@@ -493,19 +518,41 @@ internal sealed class ScanAuditRecorder : IDisposable
         }
     }
 
-    private void PrunePersistedEvents()
+    private int PrunePersistedEvents()
     {
+        DateTimeOffset now = _clock();
+        PruneRecentDecisions(now);
         var recentEventIds = _recentDecisions.Values
             .Select(decision => decision.EventId)
             .ToHashSet(StringComparer.Ordinal);
+        int abandoned = 0;
         foreach ((string eventId, ScanEventRecord record) in _events.ToArray())
         {
             if (eventId == _activeEventId
                 || eventId == _pendingStartEventId
                 || recentEventIds.Contains(eventId)
                 || !_persisted.Contains(eventId)
-                || !IsTerminalOutcome(record.Outcome))
+                // 写库期间又更新过的事件不能在这里删，否则会丢掉最新的终态。
+                || _dirty.Contains(eventId))
             {
+                continue;
+            }
+
+            if (!IsTerminalOutcome(record.Outcome))
+            {
+                if (!IsStale(record, now))
+                    continue;
+
+                _events[eventId] = record with
+                {
+                    Outcome = AbandonedOutcome,
+                    Detail = string.IsNullOrWhiteSpace(record.Detail)
+                        ? "事件超过保留时间仍未结束"
+                        : Trim($"{record.Detail}；事件超过保留时间仍未结束", 1000),
+                    UpdatedAtUtc = FormatTimestamp(now)
+                };
+                _dirty.Add(eventId);
+                abandoned++;
                 continue;
             }
 
@@ -513,7 +560,23 @@ internal sealed class ScanAuditRecorder : IDisposable
             _dirty.Remove(eventId);
             _persisted.Remove(eventId);
         }
+
+        return abandoned;
     }
+
+    private static bool IsStale(ScanEventRecord record, DateTimeOffset now)
+    {
+        bool parsed = TryParseTimestamp(record.LastOccurredAtUtc, out DateTimeOffset lastActivity)
+            || TryParseTimestamp(record.OccurredAtUtc, out lastActivity);
+        return parsed && now - lastActivity >= NonTerminalEventRetention;
+    }
+
+    private static bool TryParseTimestamp(string value, out DateTimeOffset timestamp) =>
+        DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.RoundtripKind,
+            out timestamp);
 
     private static bool IsTerminalOutcome(string outcome) => outcome is
         "ignored" or
@@ -522,7 +585,8 @@ internal sealed class ScanAuditRecorder : IDisposable
         "stopped" or
         "completed" or
         "discarded" or
-        "failed";
+        "failed" or
+        AbandonedOutcome;
 
     private void SignalWorker()
     {
@@ -591,4 +655,10 @@ internal static class ScanStopOrigin
     internal const string SameCode = "same_code";
     internal const string StopCommand = "stop_command";
     internal const string Switch = "scan_switch";
+    internal const string ApplicationExit = "app_exit";
+    internal const string StorageLow = "storage_low";
+    internal const string CameraStall = "camera_stall";
+    internal const string CameraReconnect = "camera_reconnect";
+    internal const string StaticTimeout = "static_timeout";
+    internal const string DurationTimeout = "duration_timeout";
 }

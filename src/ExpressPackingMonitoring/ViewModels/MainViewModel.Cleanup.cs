@@ -584,6 +584,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_isDisposed || !IsRecording)
                     return;
                 _stopReason = "本地缓存空间不足";
+                _stopOrigin = ScanStopOrigin.StorageLow;
                 RecordingCacheStatusText =
                     "本地缓存已接近磁盘安全线，正在安全停止当前录像";
                 IsRecordingCacheWarning = true;

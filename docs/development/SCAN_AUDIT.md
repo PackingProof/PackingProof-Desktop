@@ -20,6 +20,18 @@
 - 2 秒内同来源、同标准化单号、同动作、同原因、同结果、同前序录像的“忽略”事件合并为一行，
   使用 `RepeatCount`、`LastOccurredAtUtc` 记录重复次数和最后时间。
 - 开始、切换、停止、录像失败等不同业务结果不得合并。
+- `StopOrigin` 只写稳定原因码（如 `manual_button`、`same_code`、`app_exit`、`static_timeout`），
+  本地化停止文案只用于录像记录和详情，不能写进这个字段。
+
+## 未完成事件与保留期
+
+- `received`（输入已记录、决策未写入）、`blocked`（当前不能处理）、`queued`（冷却窗口内排队）、
+  `start_requested`/`stop_requested`（等待录像开始/停止）、`started`/`stopping`（录像生命周期中）
+  属于非终态。
+- 非终态事件超过 1 小时、且不是当前活动事件、待开始事件或最近去重事件时，后台标记为
+  `abandoned` 并落库，随后从内存移除，避免 20k 上限被历史未完成事件占满。
+- `ScanEvents` 保留 365 天，`ScanEventStore` 启动时清理更早的记录；`Diagnose-MissingVideos.ps1`
+  的 `-ScanEventDays` 只能导出保留期内的数据。
 
 ## UI 线程约束
 

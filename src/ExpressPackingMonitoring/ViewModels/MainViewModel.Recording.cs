@@ -96,7 +96,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             if (!IsRecording || _isDisposed) return;
 
-            _scanAudit?.RecordStopRequested(_stopReason);
+            _scanAudit?.RecordStopRequested(_stopOrigin);
             IsBusy = true;
             BusyText = _shutdownRequested ? "正在关闭程序..." : "正在停止";
             IsRecording = false; // 1. 立即改变 UI 状态
@@ -228,7 +228,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             _db?.MarkVideoDeleted(filePath, deleteReason);
                         _scanAudit?.RecordRecordingFinished(
                             recordId,
-                            stopOrigin: stopReason,
+                            stopOrigin: _stopOrigin,
                             outcome: "discarded",
                             durationSeconds: recordDuration,
                             manualStop: IsManualStopReason(stopReason),
@@ -262,7 +262,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         _db?.UpdateVideoRecordOnStop(recordId, DateTime.Now, durSec, fileSize, stopReason, videoCodec, videoEncoder);
                         _scanAudit?.RecordRecordingFinished(
                             recordId,
-                            stopOrigin: stopReason,
+                            stopOrigin: _stopOrigin,
                             outcome: "completed",
                             durationSeconds: recordDuration,
                             manualStop: IsManualStopReason(stopReason),
@@ -718,6 +718,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _audioFailedForCurrentRecording = false;
                 _currentVideoFilePath = filePath;
                 _stopReason = "手动";
+                _stopOrigin = ScanStopOrigin.ManualButton;
                 _recordingOrderId = CurrentOrderId;
                 _recordingMode = CurrentMode;
                 _currentVideoCodec = Config.VideoCodec?.Trim().ToLowerInvariant() ?? "h264";

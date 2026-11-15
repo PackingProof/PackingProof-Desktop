@@ -1241,6 +1241,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (_currentScanRecord != null) _currentScanRecord.OrderId = upperResult;
                     }
                     _stopReason = "同码停录";
+                    _stopOrigin = ScanStopOrigin.SameCode;
                     _scanAudit?.RecordStopFromInput(
                         auditEventId,
                         recordId,
@@ -1309,6 +1310,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (IsRecording)
                 {
                     _stopReason = "扫码切换";
+                    _stopOrigin = ScanStopOrigin.Switch;
                     _scanAudit?.RecordStopRequested(ScanStopOrigin.Switch);
                 }
                 // 预录快照必须在录制串行锁内获取，避免并发扫码分别消费同一环形缓冲。

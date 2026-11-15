@@ -393,6 +393,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private string _currentVideoCodec;
         private string _currentVideoEncoder;
         private string _stopReason = "手动";     // 停止录制的原因
+        private string _stopOrigin = ScanStopOrigin.ManualButton; // 稳定停止来源码，写审计不写本地化文案
         private string _recordingOrderId;       // 录制开始时的单号
         private string _recordingSessionId;     // 当前录像会话 ID，供第三方扩展数据绑定
         private volatile WatermarkSnapshot _recordingWatermarkSnapshot = WatermarkSnapshot.Empty;
@@ -917,6 +918,7 @@ namespace ExpressPackingMonitoring.ViewModels
             try { _cameraPairingQrDecoder.Dispose(); } catch { }
             try { _uiHeartbeatTimer?.Stop(); } catch { }
             _stopReason = "程序退出";
+            _stopOrigin = ScanStopOrigin.ApplicationExit;
 
             string videoFileToConvert = null;
             string audioFileToConvert = null;

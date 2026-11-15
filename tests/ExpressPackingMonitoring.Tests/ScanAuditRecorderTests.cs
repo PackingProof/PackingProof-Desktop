@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
+using System.Globalization;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -130,7 +131,7 @@ public sealed class ScanAuditRecorderTests
         fixture.Clock.Advance(TimeSpan.FromSeconds(12));
         fixture.Recorder.RecordRecordingFinished(
             recordId: 55,
-            stopOrigin: ScanStopOrigin.SameCode,
+            stopOrigin: "同码停录",
             outcome: "completed",
             durationSeconds: 12.3,
             manualStop: false,
@@ -146,6 +147,136 @@ public sealed class ScanAuditRecorderTests
         Assert.Equal("completed", row.Outcome);
         Assert.Equal(ScanStopOrigin.SameCode, row.StopOrigin);
         Assert.Equal(12300, row.DurationMs);
+    }
+
+    [Fact]
+    public void RecordingStopPassesStableOriginCode()
+    {
+        string source = RepositorySource.ReadMainViewModelParts("Recording")
+            .ReplaceLineEndings("\n");
+
+        Assert.Contains(
+            "_scanAudit?.RecordStopRequested(_stopOrigin);",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "RecordStopRequested(_stopReason)",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StaleNonTerminalEventIsMarkedAbandoned()
+    {
+        using var fixture = new Fixture();
+        string eventId = fixture.Recorder.Begin(
+            ScanInputSource.CameraZxing,
+            "JD005",
+            "JD005",
+            wasRecording: false,
+            priorRecordId: 0);
+        fixture.Recorder.RecordDecision(
+            eventId,
+            "Ignore",
+            "CannotProcess",
+            "blocked",
+            priorRecordId: 0);
+        await fixture.Recorder.FlushForTestsAsync(TestContext.Current.CancellationToken);
+
+        fixture.Clock.Advance(
+            ScanAuditRecorder.NonTerminalEventRetention + TimeSpan.FromMinutes(1));
+        await fixture.Recorder.FlushForTestsAsync(TestContext.Current.CancellationToken);
+
+        using var store = new ScanEventStore(fixture.DatabasePath);
+        ScanEventRecord row = Assert.Single(store.Query(normalizedOrder: "JD005"));
+        Assert.Equal(ScanAuditRecorder.AbandonedOutcome, row.Outcome);
+    }
+
+    [Fact]
+    public async Task TerminalUpdateDuringFlushIsNotLost()
+    {
+        using var fixture = new Fixture();
+        string eventId = fixture.Recorder.Begin(
+            ScanInputSource.CameraZxing,
+            "JD006",
+            "JD006",
+            wasRecording: false,
+            priorRecordId: 0);
+        fixture.Recorder.RecordDecision(
+            eventId,
+            "Start",
+            "Ready",
+            "start_requested",
+            priorRecordId: 0);
+
+        using var persistEntered = new ManualResetEventSlim();
+        using var releasePersist = new ManualResetEventSlim();
+        fixture.Recorder.BeforePersistForTests = () =>
+        {
+            persistEntered.Set();
+            releasePersist.Wait(
+                TimeSpan.FromSeconds(5),
+                TestContext.Current.CancellationToken);
+        };
+
+        Task flush = fixture.Recorder.FlushForTestsAsync(TestContext.Current.CancellationToken);
+        Assert.True(persistEntered.Wait(
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken));
+        fixture.Recorder.RecordDecision(
+            eventId,
+            "Stop",
+            "SameCodeMatched",
+            "completed",
+            priorRecordId: 0);
+        fixture.Clock.Advance(TimeSpan.FromSeconds(11));
+        releasePersist.Set();
+        await flush;
+        fixture.Recorder.BeforePersistForTests = null;
+        await fixture.Recorder.FlushForTestsAsync(TestContext.Current.CancellationToken);
+
+        using var store = new ScanEventStore(fixture.DatabasePath);
+        ScanEventRecord row = Assert.Single(store.Query(normalizedOrder: "JD006"));
+        Assert.Equal("completed", row.Outcome);
+    }
+
+    [Fact]
+    public void StorePrunesEventsOlderThanRetention()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "PackingProof-ScanStore-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string databasePath = Path.Combine(directory, "scan-events.db");
+        try
+        {
+            DateTimeOffset old = DateTimeOffset.UtcNow
+                .AddDays(-ScanEventStore.RetentionDays - 1);
+            var record = new ScanEventRecord
+            {
+                EventId = Guid.NewGuid().ToString("N"),
+                OccurredAtUtc = old.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
+                LastOccurredAtUtc = old.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
+                UpdatedAtUtc = old.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
+                Source = "test",
+                NormalizedOrder = "JDOLD",
+                Outcome = "completed"
+            };
+
+            using (var store = new ScanEventStore(databasePath))
+                store.UpsertBatch([record]);
+
+            using var reopened = new ScanEventStore(databasePath);
+            Assert.Empty(reopened.Query());
+            Assert.Equal(
+                0,
+                reopened.PruneOlderThan(
+                    DateTimeOffset.UtcNow.AddDays(-ScanEventStore.RetentionDays)));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]

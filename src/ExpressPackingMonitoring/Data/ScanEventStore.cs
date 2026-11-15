@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring.Logging;
 using Microsoft.Data.Sqlite;
 using System.Globalization;
 
@@ -33,6 +34,8 @@ internal sealed record ScanEventRecord
 
 internal sealed class ScanEventStore : IDisposable
 {
+    internal const int RetentionDays = 365;
+
     private readonly object _gate = new();
     private readonly SqliteConnection _connection;
     private bool _disposed;
@@ -50,6 +53,14 @@ internal sealed class ScanEventStore : IDisposable
         ExecuteNonQuery("PRAGMA journal_mode=WAL;");
         ExecuteNonQuery("PRAGMA synchronous=NORMAL;");
         EnsureSchema();
+
+        int pruned = PruneOlderThan(DateTimeOffset.UtcNow.AddDays(-RetentionDays));
+        if (pruned > 0)
+        {
+            RuntimeLog.Info(
+                "ScanAudit",
+                $"Pruned {pruned} scan events older than {RetentionDays} days");
+        }
     }
 
     internal void UpsertBatch(IReadOnlyList<ScanEventRecord> records)
@@ -64,6 +75,20 @@ internal sealed class ScanEventStore : IDisposable
             foreach (ScanEventRecord record in records)
                 UpsertCore(record, transaction);
             transaction.Commit();
+        }
+    }
+
+    internal int PruneOlderThan(DateTimeOffset cutoff)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            using SqliteCommand command = _connection.CreateCommand();
+            command.CommandText = "DELETE FROM ScanEvents WHERE OccurredAtUtc < @cutoff;";
+            command.Parameters.AddWithValue(
+                "@cutoff",
+                cutoff.UtcDateTime.ToString("O", CultureInfo.InvariantCulture));
+            return command.ExecuteNonQuery();
         }
     }
 
