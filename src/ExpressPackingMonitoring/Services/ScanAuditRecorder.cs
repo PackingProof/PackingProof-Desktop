@@ -417,19 +417,25 @@ internal sealed class ScanAuditRecorder : IDisposable
 
     private async Task WaitForFlushWindowAsync(CancellationToken cancellationToken)
     {
-        Task deadline = Task.Delay(MaxFlushDelay, cancellationToken);
-        while (!deadline.IsCompleted)
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(MaxFlushDelay);
+        try
         {
-            lock (_gate)
+            while (true)
             {
-                if (_dirty.Count == 0 || _dirty.Count >= FlushBatchSize)
-                    return;
-            }
+                lock (_gate)
+                {
+                    if (_dirty.Count == 0 || _dirty.Count >= FlushBatchSize)
+                        return;
+                }
 
-            Task wake = _wake.WaitAsync(cancellationToken);
-            Task completed = await Task.WhenAny(wake, deadline).ConfigureAwait(false);
-            if (ReferenceEquals(completed, deadline))
-                return;
+                await _wake.WaitAsync(deadline.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+            when (!cancellationToken.IsCancellationRequested)
+        {
+            // 本批最多等待 MaxFlushDelay；超时令牌会同时取消等待，不能留下孤儿 waiter。
         }
     }
 
