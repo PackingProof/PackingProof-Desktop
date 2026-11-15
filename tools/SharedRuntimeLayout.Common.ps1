@@ -29,6 +29,12 @@ $script:SharedRuntimeExcludedFileNames = @(
     'System.Design.dll',
     'System.Drawing.Design.dll'
 )
+$script:SharedRuntimeExcludedFilePatterns = @(
+    'Microsoft.DiaSymReader.Native.*.dll',
+    'mscordaccore*.dll',
+    'mscordbi.dll',
+    'msquic.dll'
+)
 $script:SharedRuntimeIncludedCultureNames = @(
     'en',
     'en-US',
@@ -202,6 +208,11 @@ function Test-SharedRuntimeFileExcluded {
 
     if ($script:SharedRuntimeExcludedFileNames -contains $FileName) {
         return $true
+    }
+    foreach ($pattern in $script:SharedRuntimeExcludedFilePatterns) {
+        if ($FileName -like $pattern) {
+            return $true
+        }
     }
 
     if (-not $FileName.EndsWith('.resources.dll', [System.StringComparison]::OrdinalIgnoreCase)) {

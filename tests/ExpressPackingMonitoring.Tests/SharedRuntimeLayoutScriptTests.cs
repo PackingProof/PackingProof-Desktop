@@ -46,6 +46,28 @@ public sealed class SharedRuntimeLayoutScriptTests
     }
 
     [Fact]
+    public void SharedRuntimeLayout_ExcludesDebugOnlyRuntimeFiles()
+    {
+        using var fixture = new Fixture();
+        fixture.AddDebugOnlyRuntimeFiles();
+
+        ProcessResult build = fixture.Build();
+
+        Assert.True(build.ExitCode == 0, build.Output + build.Error);
+        using JsonDocument manifest = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(fixture.LayoutPath, "layout.json"), Encoding.UTF8));
+        string[] paths = manifest.RootElement
+            .GetProperty("files")
+            .EnumerateArray()
+            .Select(file => file.GetProperty("path").GetString() ?? "")
+            .ToArray();
+        Assert.DoesNotContain(paths, path => path.EndsWith("Microsoft.DiaSymReader.Native.amd64.dll", StringComparison.Ordinal));
+        Assert.DoesNotContain(paths, path => path.EndsWith("mscordaccore_amd64_amd64_10.0.1326.50504.dll", StringComparison.Ordinal));
+        Assert.DoesNotContain(paths, path => path.EndsWith("mscordbi.dll", StringComparison.Ordinal));
+        Assert.DoesNotContain(paths, path => path.EndsWith("msquic.dll", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Build_WritesManifestWithVersionsAndMigrationMap()
     {
         using var fixture = new Fixture();
@@ -252,6 +274,25 @@ public sealed class SharedRuntimeLayoutScriptTests
                 WriteFile(
                     Path.Combine(frameworkRoot, culture, "PresentationFramework.resources.dll"),
                     culture);
+            }
+        }
+
+        public void AddDebugOnlyRuntimeFiles()
+        {
+            string frameworkRoot = Path.Combine(
+                _dotNetRoot,
+                "shared",
+                "Microsoft.NETCore.App",
+                RuntimeVersion);
+            foreach (string fileName in new[]
+                     {
+                         "Microsoft.DiaSymReader.Native.amd64.dll",
+                         "mscordaccore_amd64_amd64_10.0.1326.50504.dll",
+                         "mscordbi.dll",
+                         "msquic.dll"
+                     })
+            {
+                WriteFile(Path.Combine(frameworkRoot, fileName), fileName);
             }
         }
 
