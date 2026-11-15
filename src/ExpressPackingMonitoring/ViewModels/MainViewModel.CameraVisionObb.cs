@@ -18,6 +18,8 @@ public partial class MainViewModel
     private bool _cameraVisionBenchmarkRunning;
     private bool _cameraVisionModelAvailable;
     private bool _cameraVisionStartupReady;
+    private readonly CancellationTokenSource _cameraVisionBenchmarkCts = new();
+    private Task _cameraVisionBenchmarkCompletion = Task.CompletedTask;
 
     public bool IsVisionObbAvailable => VisionObbHost.IsAvailable;
 
@@ -160,6 +162,9 @@ public partial class MainViewModel
         }
 
         _cameraVisionBenchmarkRunning = true;
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        _cameraVisionBenchmarkCompletion = completion.Task;
         NotifyCameraVisionGuideStateChanged();
         try
         {
@@ -168,7 +173,8 @@ public partial class MainViewModel
                     modelPath,
                     preferDirectMl: true,
                     frameWidth: Config.FrameWidth,
-                    frameHeight: Config.FrameHeight));
+                    frameHeight: Config.FrameHeight,
+                    cancellationToken: _cameraVisionBenchmarkCts.Token));
             if (_isDisposed)
                 return;
             VisionObbBenchmarkResult result = directMlResult;
@@ -183,7 +189,8 @@ public partial class MainViewModel
                         modelPath,
                         preferDirectMl: false,
                         frameWidth: Config.FrameWidth,
-                        frameHeight: Config.FrameHeight));
+                        frameHeight: Config.FrameHeight,
+                        cancellationToken: _cameraVisionBenchmarkCts.Token));
                 if (_isDisposed)
                     return;
                 result = VisionObbPerformanceBenchmark.SelectFasterProvider(
@@ -241,6 +248,10 @@ public partial class MainViewModel
                     + $"recommended={result.Recommended}, "
                     + $"enableSource={applied.Source}, enabled={applied.Enabled}");
         }
+        catch (OperationCanceledException)
+            when (_isDisposed || _cameraVisionBenchmarkCts.IsCancellationRequested)
+        {
+        }
         catch (Exception ex)
         {
             RuntimeLog.Warn("CameraVision", $"本机性能检测失败：{ex.Message}");
@@ -248,7 +259,28 @@ public partial class MainViewModel
         finally
         {
             _cameraVisionBenchmarkRunning = false;
+            completion.TrySetResult();
             NotifyCameraVisionGuideStateChanged();
+        }
+    }
+
+    private void StopCameraVisionBenchmarkForShutdown()
+    {
+        _cameraVisionBenchmarkCts.Cancel();
+        try
+        {
+            if (_cameraVisionBenchmarkCompletion.Wait(TimeSpan.FromSeconds(30)))
+                _cameraVisionBenchmarkCts.Dispose();
+            else
+                RuntimeLog.Warn(
+                    "CameraVision",
+                    "本机性能检测在退出等待 30 秒后仍未结束，保留资源等待进程退出");
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn(
+                "CameraVision",
+                $"等待本机性能检测停止失败：{ex.Message}");
         }
     }
 

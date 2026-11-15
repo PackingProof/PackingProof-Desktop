@@ -923,6 +923,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _cameraBarcodeFeedbackCts?.Cancel();
             _previewAlertCts?.Cancel();
             try { StopOverlayChannels(); } catch { }
+            StopCameraVisionBenchmarkForShutdown();
             try { _cameraBarcodeRecognition?.Dispose(); } catch { }
             try { _cameraVisionSmartZoomRecognition?.Dispose(); } catch { }
             try { _cameraPairingQrDecoder.Dispose(); } catch { }

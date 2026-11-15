@@ -425,6 +425,46 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task RecognitionDisposeWaitsForActiveVisionInference()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var detector = new BlockingObbDetector(entered, release);
+        using var frame = new Mat(
+            new Size(320, 240),
+            MatType.CV_8UC3,
+            Scalar.White);
+        using var service = new CameraBarcodeRecognitionService(
+            _ => true,
+            visionObbProvider: () => (true, "blocking.onnx"),
+            visionObbDecodingEnabledProvider: () => true,
+            visionObbDetectorFactory: new FixedObbDetectorFactory(detector));
+
+        Assert.True(service.TrySubmitFrame(
+            frame,
+            CameraBarcodeFrameIntent.VisionWithMotionGatedBarcode));
+        Assert.True(entered.Wait(
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken));
+
+        Task disposeTask = Task.Run(
+            service.Dispose,
+            TestContext.Current.CancellationToken);
+        await Task.Delay(
+            TimeSpan.FromMilliseconds(200),
+            TestContext.Current.CancellationToken);
+        Assert.False(disposeTask.IsCompleted);
+        Assert.False(detector.Disposed);
+
+        release.Set();
+        await disposeTask.WaitAsync(
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(detector.Disposed);
+    }
+
+    [Fact]
     public void ObbBoxesInterpolateBetweenDetectionsAndFadeWhenLost()
     {
         string code = File.ReadAllText(
@@ -788,7 +828,8 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
                     modelPath,
                     preferDirectMl: true,
                     frameWidth: benchmarkWidth,
-                    frameHeight: benchmarkHeight);
+                    frameHeight: benchmarkHeight,
+                    cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(benchmark.ModelAvailable);
             output.WriteLine(
                 $"OBB benchmark: resolution={benchmarkWidth}x{benchmarkHeight}, "
@@ -811,7 +852,8 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
                         modelPath,
                         preferDirectMl: false,
                         frameWidth: benchmarkWidth,
-                        frameHeight: benchmarkHeight);
+                        frameHeight: benchmarkHeight,
+                        cancellationToken: TestContext.Current.CancellationToken);
                 Assert.True(cpuBenchmark.ModelAvailable);
                 output.WriteLine(
                     $"OBB CPU benchmark: resolution={benchmarkWidth}x{benchmarkHeight}, "
@@ -878,6 +920,36 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
         }
         throw new DirectoryNotFoundException(
             "ExpressPackingMonitoring repository root was not found.");
+    }
+
+    private sealed class FixedObbDetectorFactory(IVisionObbDetector detector)
+        : IVisionObbDetectorFactory
+    {
+        public bool IsAvailable => true;
+
+        public IVisionObbDetector? TryLoad(
+            string? modelPath,
+            bool preferDirectMl = true) => detector;
+
+        public VisionModelMetadata? ReadModelMetadata(string modelPath) => null;
+    }
+
+    private sealed class BlockingObbDetector(
+        ManualResetEventSlim entered,
+        ManualResetEventSlim release)
+        : IVisionObbDetector
+    {
+        public string ExecutionProvider => "blocking";
+        public bool Disposed { get; private set; }
+
+        public IReadOnlyList<VisionObbDetection> Detect(Mat frame)
+        {
+            entered.Set();
+            release.Wait();
+            return [];
+        }
+
+        public void Dispose() => Disposed = true;
     }
 
 }

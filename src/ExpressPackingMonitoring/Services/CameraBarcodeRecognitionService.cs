@@ -1527,14 +1527,16 @@ internal sealed partial class CameraBarcodeRecognitionService : IDisposable
         Func<TimeSpan>? fastGuideIntervalProvider = null,
         Func<TimeSpan>? visionFollowIntervalProvider = null,
         Func<bool>? cameraBarcodeDecodingEnabledProvider = null,
-        Func<bool>? visionObbDecodingEnabledProvider = null)
+        Func<bool>? visionObbDecodingEnabledProvider = null,
+        IVisionObbDetectorFactory? visionObbDetectorFactory = null)
     {
         _candidateValidator = candidateValidator ?? throw new ArgumentNullException(nameof(candidateValidator));
         _visionProcessor = new CameraBarcodeVisionProcessor(
             new CameraBarcodeFrameDecoder(qrCodeEnabledProvider),
             visionObbProvider,
             cameraBarcodeDecodingEnabledProvider,
-            visionObbDecodingEnabledProvider);
+            visionObbDecodingEnabledProvider,
+            visionObbDetectorFactory);
         _confirmationWindowProvider = confirmationWindowProvider;
         _confirmationHitsProvider = confirmationHitsProvider;
         _rearmDelayProvider = rearmDelayProvider;
@@ -1955,30 +1957,17 @@ internal sealed partial class CameraBarcodeRecognitionService : IDisposable
         pending?.Dispose();
         try { _pendingSignal.Release(); } catch (SemaphoreFullException) { }
 
-        bool completed = false;
         try
         {
-            completed = Task.WaitAll(
-                new[] { _workerTask, _visionWorker.Task },
-                1000);
+            Task.WaitAll(_workerTask, _visionWorker.Task);
         }
-        catch
+        catch (Exception ex)
         {
-            completed = _workerTask.IsCompleted && _visionWorker.Task.IsCompleted;
+            RuntimeLog.Warn(
+                "CameraBarcode",
+                $"Recognition worker stopped with an error：{ex.GetBaseException().Message}");
         }
-        if (completed)
-        {
-            DisposeWorkerResources();
-        }
-        else
-        {
-            RuntimeLog.Warn("CameraBarcode", "Recognition worker is still stopping; native decoder cleanup deferred");
-            _ = Task.WhenAll(_workerTask, _visionWorker.Task).ContinueWith(
-                _ => DisposeWorkerResources(),
-                CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default);
-        }
+        DisposeWorkerResources();
     }
 
     private void DisposeWorkerResources()

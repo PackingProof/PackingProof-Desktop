@@ -98,7 +98,8 @@ internal static class VisionObbPerformanceBenchmark
         string? modelPath,
         bool preferDirectMl = true,
         int frameWidth = ReferenceFrameWidth,
-        int frameHeight = ReferenceFrameHeight)
+        int frameHeight = ReferenceFrameHeight,
+        CancellationToken cancellationToken = default)
     {
         frameWidth = Math.Clamp(frameWidth, 320, 7680);
         frameHeight = Math.Clamp(frameHeight, 240, 4320);
@@ -141,34 +142,44 @@ internal static class VisionObbPerformanceBenchmark
         [
             MeasureNoObbProduction(
                 noObbDecoder,
-                blankFrame),
+                blankFrame,
+                cancellationToken),
             MeasureNoObbProduction(
                 noObbDecoder,
-                singleFrame),
+                singleFrame,
+                cancellationToken),
             MeasureNoObbProduction(
                 noObbDecoder,
-                doubleFrame),
+                doubleFrame,
+                cancellationToken),
             MeasureNoObbProduction(
                 noObbDecoder,
-                sixFrame),
+                sixFrame,
+                cancellationToken),
             MeasureNoObbProduction(
                 noObbQrDecoder,
-                qrFrame),
+                qrFrame,
+                cancellationToken),
             MeasureNoObbProduction(
                 noObbDecoder,
-                tiltedFrame),
+                tiltedFrame,
+                cancellationToken),
             MeasureNoObbProduction(
                 noObbDecoder,
-                falsePositive1Frame),
+                falsePositive1Frame,
+                cancellationToken),
             MeasureNoObbProduction(
                 noObbDecoder,
-                falsePositive3Frame),
+                falsePositive3Frame,
+                cancellationToken),
             MeasureNoObbProduction(
                 noObbDecoder,
-                falsePositive6Frame),
+                falsePositive6Frame,
+                cancellationToken),
             MeasureNoObbProduction(
                 noObbDecoder,
-                bareJdFrame)
+                bareJdFrame,
+                cancellationToken)
         ];
         LatencyMeasurement noObb = noObbMeasurements
             .OrderByDescending(measurement => measurement.P95Ms)
@@ -198,52 +209,62 @@ internal static class VisionObbPerformanceBenchmark
                 detector,
                 obbDecoder,
                 blankFrame,
-                blankDetections),
+                blankDetections,
+                cancellationToken),
             MeasureProduction(
                 detector,
                 obbDecoder,
                 singleFrame,
-                singleDetections),
+                singleDetections,
+                cancellationToken),
             MeasureProduction(
                 detector,
                 obbDecoder,
                 doubleFrame,
-                doubleDetections),
+                doubleDetections,
+                cancellationToken),
             MeasureProduction(
                 detector,
                 obbDecoder,
                 sixFrame,
-                sixDetections),
+                sixDetections,
+                cancellationToken),
             MeasureProduction(
                 detector,
                 qrObbDecoder,
                 qrFrame,
-                qrDetections),
+                qrDetections,
+                cancellationToken),
             MeasureProduction(
                 detector,
                 obbDecoder,
                 tiltedFrame,
-                tiltedDetections),
+                tiltedDetections,
+                cancellationToken),
             MeasureProduction(
                 detector,
                 obbDecoder,
                 falsePositive1Frame,
-                falsePositive1Detections),
+                falsePositive1Detections,
+                cancellationToken),
             MeasureProduction(
                 detector,
                 obbDecoder,
                 falsePositive3Frame,
-                falsePositive3Detections),
+                falsePositive3Detections,
+                cancellationToken),
             MeasureProduction(
                 detector,
                 obbDecoder,
                 falsePositive6Frame,
-                falsePositive6Detections),
+                falsePositive6Detections,
+                cancellationToken),
             MeasureProduction(
                 detector,
                 obbDecoder,
                 bareJdFrame,
-                bareJdDetections)
+                bareJdDetections,
+                cancellationToken)
         ];
         LatencyMeasurement enhanced = enhancedMeasurements
             .OrderByDescending(measurement => measurement.P95Ms)
@@ -264,14 +285,16 @@ internal static class VisionObbPerformanceBenchmark
 
     private static LatencyMeasurement MeasureNoObbProduction(
         CameraBarcodeFrameDecoder decoder,
-        Mat frame) =>
+        Mat frame,
+        CancellationToken cancellationToken) =>
         Measure(() =>
         {
             decoder.DecodeGuideRegion(
                 frame,
                 _ => true,
                 CameraBarcodeGuideGeometry.Default);
-        });
+        },
+        cancellationToken);
 
     internal static bool ShouldRecommend(
         string? provider,
@@ -297,16 +320,22 @@ internal static class VisionObbPerformanceBenchmark
                && enhancedCpuMsPerFrame <= RecommendedCpuMsPerFrame;
     }
 
-    private static LatencyMeasurement Measure(Action action)
+    private static LatencyMeasurement Measure(
+        Action action,
+        CancellationToken cancellationToken)
     {
         for (int index = 0; index < WarmupIterations; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             action();
+        }
 
         using Process process = Process.GetCurrentProcess();
         TimeSpan cpuBefore = process.TotalProcessorTime;
         var samples = new double[MeasuredIterations];
         for (int index = 0; index < samples.Length; index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             long started = Stopwatch.GetTimestamp();
             action();
             samples[index] = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -327,7 +356,8 @@ internal static class VisionObbPerformanceBenchmark
         IVisionObbDetector detector,
         CameraBarcodeObbDecoder obbDecoder,
         Mat frame,
-        IReadOnlyList<VisionObbDetection> detections) =>
+        IReadOnlyList<VisionObbDetection> detections,
+        CancellationToken cancellationToken) =>
         Measure(() =>
         {
             detector.Detect(frame);
@@ -336,7 +366,8 @@ internal static class VisionObbPerformanceBenchmark
                 detections,
                 _ => true,
                 useGuideRegionFallback: false);
-        });
+        },
+        cancellationToken);
 
     private static (Mat Frame, VisionObbDetection[] Detections) CreateTiltedBenchmarkFrame(
         int frameWidth,
