@@ -2583,7 +2583,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 bool confirmed = AppDialog.Confirm(
                     this,
-                    $"将打包运行日志、配置和完整录像数据库（含订单明细、买家留言等隐私数据）到本地压缩包。\n确认继续吗？打包完成后可把压缩包发到反馈邮箱 {FeedbackEmail}",
+                    AppLanguage.Format("导出诊断日志确认", FeedbackEmail),
                     "导出诊断日志",
                     AppDialogSeverity.Warning,
                     confirmText: "开始打包");
@@ -2615,7 +2615,7 @@ namespace ExpressPackingMonitoring.UI
                     $"大小：{FormatBytes(info.Length)}\n" +
                     "已复制路径并打开所在文件夹。\n\n" +
                     $"点击“复制邮箱地址”会复制反馈邮箱 {FeedbackEmail}，把刚生成的压缩包作为附件发过去即可。\n\n" +
-                    "注意：包内含完整订单数据库与本地配置，请勿转发给无关人员";
+                    AppLanguage.Get("诊断包隐私提示");
                 if (warnings.Count > 0)
                     message += "\n\n提示：\n" + string.Join("\n", warnings.Take(10));
 

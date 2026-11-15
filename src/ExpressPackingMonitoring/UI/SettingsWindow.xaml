@@ -3950,7 +3950,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="导出诊断日志" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="导出日志、配置和数据库，便于定位问题"
+                                            <TextBlock Text="导出日志、配置、崩溃转储和数据库，便于定位问题"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <Button Grid.Column="2"

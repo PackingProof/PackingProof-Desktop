@@ -981,6 +981,10 @@
   <data name="视频解码失败" xml:space="preserve"><value>Video decoding failed</value></data>
   <data name="导出诊断日志" xml:space="preserve"><value>Export logs</value></data>
   <data name="导出日志、配置和数据库，便于定位问题" xml:space="preserve"><value>Export logs, settings, and the database for troubleshooting</value></data>
+  <data name="导出日志、配置、崩溃转储和数据库，便于定位问题" xml:space="preserve"><value>Export logs, settings, crash dumps, and the database for troubleshooting</value></data>
+  <data name="导出诊断日志确认" xml:space="preserve"><value>Package runtime logs, settings, crash dumps when available, and the full recording database (including order details and buyer messages) into a local archive.
+Continue? After packaging, send the archive to {0}</value></data>
+  <data name="诊断包隐私提示" xml:space="preserve"><value>Note: The archive may contain the order database, local settings, and crash-process memory. Do not forward it to anyone else</value></data>
   <data name="网络摄像头（手动地址）" xml:space="preserve"><value>Network camera (manual URL)</value></data>
   <data name="网络摄像头地址" xml:space="preserve"><value>Network camera URL</value></data>
   <data name="例如：rtsp://账号:密码@192.168.1.64:554/stream" xml:space="preserve"><value>e.g. rtsp://user:password@192.168.1.64:554/stream</value></data>

@@ -20,8 +20,12 @@ internal sealed class FeedbackPackageService
 {
     internal const int MaxLogBytes = 2 * 1024 * 1024;
     internal const int MaxPackagesToKeep = 10;
+    internal const int MaxCrashDumpsToInclude = 1;
+    internal const long MaxCrashDumpBytes = 512L * 1024 * 1024;
     private const string RedactedMarker = "已脱敏";
     private const string ZipPrefix = "PackingProof_Feedback_";
+    private static readonly HashSet<string> CrashDumpExtensions =
+        new(StringComparer.OrdinalIgnoreCase) { ".dmp", ".hdmp", ".mdmp" };
 
     private readonly string _userDataDir;
     private readonly string _feedbackDir;
@@ -55,6 +59,7 @@ internal sealed class FeedbackPackageService
             CopyConfig(stagingDir, warningList);
             CopyDatabaseSnapshot(stagingDir, warningList);
             CopyScanEventSnapshot(stagingDir, warningList);
+            CopyCrashDumps(stagingDir, warningList);
             WriteInfoFile(stagingDir, warningList);
 
             string zipPath = GetUniqueZipPath();
@@ -210,6 +215,51 @@ internal sealed class FeedbackPackageService
         }
     }
 
+    private void CopyCrashDumps(string stagingDir, List<string> warnings)
+    {
+        string dumpDirectory = Path.Combine(_userDataDir, "dumps");
+        if (!Directory.Exists(dumpDirectory))
+            return;
+
+        FileInfo? latestDump = Directory
+            .EnumerateFiles(dumpDirectory, "*", SearchOption.TopDirectoryOnly)
+            .Where(path => CrashDumpExtensions.Contains(Path.GetExtension(path)))
+            .Select(path => new FileInfo(path))
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .FirstOrDefault();
+        if (latestDump == null)
+            return;
+        if (latestDump.Length > MaxCrashDumpBytes)
+        {
+            warnings.Add(
+                $"崩溃转储过大已跳过：{latestDump.Name}（{FormatBytes(latestDump.Length)}）");
+            return;
+        }
+
+        string stagingDumpDirectory = Path.Combine(stagingDir, "dumps");
+        Directory.CreateDirectory(stagingDumpDirectory);
+        string destinationPath = Path.Combine(stagingDumpDirectory, latestDump.Name);
+        try
+        {
+            using var source = new FileStream(
+                latestDump.FullName,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var destination = new FileStream(
+                destinationPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None);
+            source.CopyTo(destination);
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"崩溃转储读取失败已跳过：{latestDump.Name}（{ex.Message}）");
+            try { File.Delete(destinationPath); } catch { }
+        }
+    }
+
     private void WriteInfoFile(string stagingDir, List<string> warnings)
     {
         var builder = new StringBuilder();
@@ -240,7 +290,7 @@ internal sealed class FeedbackPackageService
                 builder.AppendLine($"- {warning}");
         }
         builder.AppendLine();
-        builder.AppendLine("注意：本压缩包包含完整订单数据库与本地配置，请勿转发给无关人员");
+        builder.AppendLine("注意：本压缩包可能包含完整订单数据库、本地配置和崩溃进程内存，请勿转发给无关人员");
         File.WriteAllText(
             Path.Combine(stagingDir, "feedback-info.txt"),
             builder.ToString(),
@@ -286,6 +336,11 @@ internal sealed class FeedbackPackageService
 
     private static string FormatMemory(ulong bytes) =>
         bytes == 0 ? "未获取" : $"{bytes / 1024d / 1024d / 1024d:F1} GB";
+
+    private static string FormatBytes(long bytes) =>
+        bytes >= 1024L * 1024 * 1024
+            ? $"{bytes / 1024d / 1024d / 1024d:F1} GB"
+            : $"{bytes / 1024d / 1024d:F1} MB";
 
     private string GetUniqueZipPath()
     {

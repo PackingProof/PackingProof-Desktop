@@ -163,6 +163,39 @@ public sealed class FeedbackPackageServiceTests
     }
 
     [Fact]
+    public void CreatePackage_IncludesLatestCrashDumpOnly()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string dumpDirectory = Path.Combine(directory, "dumps");
+            Directory.CreateDirectory(dumpDirectory);
+            string olderDump = Path.Combine(dumpDirectory, "crash_older.dmp");
+            string latestDump = Path.Combine(dumpDirectory, "crash_latest.dmp");
+            File.WriteAllBytes(olderDump, [1, 2, 3]);
+            File.WriteAllBytes(latestDump, [4, 5, 6, 7]);
+            File.SetLastWriteTimeUtc(olderDump, DateTime.UtcNow.AddMinutes(-5));
+            File.SetLastWriteTimeUtc(latestDump, DateTime.UtcNow);
+
+            var service = new FeedbackPackageService(directory);
+            string zipPath = service.CreatePackage(out _);
+
+            using var zip = ZipFile.OpenRead(zipPath);
+            Assert.Null(zip.GetEntry("dumps/crash_older.dmp"));
+            ZipArchiveEntry entry = Assert.IsType<ZipArchiveEntry>(
+                zip.GetEntry("dumps/crash_latest.dmp"));
+            using Stream stream = entry.Open();
+            using var copy = new MemoryStream();
+            stream.CopyTo(copy);
+            Assert.Equal(new byte[] { 4, 5, 6, 7 }, copy.ToArray());
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void CreatePackage_NoLongerEmitsMailDraftBeside()
     {
         string directory = CreateTempDirectory();
