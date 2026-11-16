@@ -52,6 +52,8 @@ $appProject = Join-Path $repoRoot "src\ExpressPackingMonitoring\ExpressPackingMo
 $releaseValidationScript = Join-Path $repoRoot "tools\Test-Release.ps1"
 $installerBuildScript = Join-Path $repoRoot "tools\Build-Installer.ps1"
 $ttsCacheBuilderProject = Join-Path $repoRoot "tools\ExpressPackingMonitoring.TtsCacheBuilder\ExpressPackingMonitoring.TtsCacheBuilder.csproj"
+$defaultScriptPackagerProject = Join-Path $repoRoot "tools\ExpressPackingMonitoring.DefaultScriptPackager\ExpressPackingMonitoring.DefaultScriptPackager.csproj"
+$defaultScriptManifestSourcePath = Join-Path $repoRoot "src\ExpressPackingMonitoring\Resources\DefaultScriptExtensions.json"
 $appPatchCmdSource = Join-Path $repoRoot "tools\Install-AppPatch.cmd"
 $appPatchScriptSource = Join-Path $repoRoot "tools\Apply-AppPatch.ps1"
 $appPatchInstallerCmdName = "双击更新主程序.cmd"
@@ -596,6 +598,57 @@ function Copy-PackageTtsCache {
 
     Copy-Item -LiteralPath $sourceDir -Destination $targetDir -Recurse -Force
     Write-Host "Package tts_cache copied: $targetDir"
+}
+
+function Copy-DefaultScriptPackages {
+    param(
+        [Parameter(Mandatory = $true)][string]$AppDir,
+        [Parameter(Mandatory = $true)][string]$AppVersion
+    )
+
+    $outputManifestPath = Join-Path $AppDir "Resources\DefaultScriptExtensions.json"
+    $cacheDirectory = Join-Path $repoRoot "package\dependency-cache\default-script-packages"
+    & dotnet run `
+        --project $defaultScriptPackagerProject `
+        -c $Configuration `
+        -- `
+        --manifest $defaultScriptManifestSourcePath `
+        --output-manifest $outputManifestPath `
+        --cache-dir $cacheDirectory `
+        --app-version $AppVersion
+    if ($LASTEXITCODE -ne 0) {
+        throw "Default script package preparation failed with exit code $LASTEXITCODE"
+    }
+
+    $metadata = Get-Content -Raw -Encoding UTF8 $outputManifestPath | ConvertFrom-Json
+    $packages = @($metadata.packages)
+    if ($packages.Count -eq 0) {
+        throw "Default script package preparation produced no packages."
+    }
+
+    $scriptPackageMaximumBytes = 1MB
+    $totalBytes = [long]0
+    $packageDirectory = Join-Path $AppDir "Resources\DefaultScriptPackages"
+    foreach ($package in $packages) {
+        $packagePath = Join-Path $packageDirectory ([string]$package.fileName)
+        if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
+            throw "Bundled default script package is missing: $packagePath"
+        }
+        $actualSize = (Get-Item -LiteralPath $packagePath).Length
+        if ($actualSize -ne [long]$package.size) {
+            throw "Bundled default script package size mismatch: $($package.id)"
+        }
+        $actualHash = (Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualHash -ne ([string]$package.sha256).ToLowerInvariant()) {
+            throw "Bundled default script package SHA256 mismatch: $($package.id)"
+        }
+        $totalBytes += $actualSize
+    }
+    if ($totalBytes -gt $scriptPackageMaximumBytes) {
+        throw "Bundled default script packages exceed the 1 MiB hard limit: $totalBytes bytes"
+    }
+    Write-Host ("Default script packages: {0} files, {1} bytes / {2} bytes" -f `
+        $packages.Count, $totalBytes, $scriptPackageMaximumBytes)
 }
 
 function Compress-PackageWithRetry {
@@ -1625,6 +1678,7 @@ Get-ChildItem -LiteralPath $outputFullPath -File -ErrorAction SilentlyContinue |
 
 Remove-PackageRuntimeState -AppDir $appPublishDir
 Copy-PackageTtsCache -AppDir $appPublishDir
+Copy-DefaultScriptPackages -AppDir $appPublishDir -AppVersion $normalizedVersion
 $publishedTtsCacheFiles = @(Get-ChildItem -LiteralPath (Join-Path $appPublishDir "tts_cache") -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Extension -in ".mp3", ".wav" })
 if (-not $SkipTtsCacheGeneration -and $publishedTtsCacheFiles.Count -eq 0) {

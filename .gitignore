@@ -29,6 +29,8 @@ src/ExpressPackingMonitoring.Vision.Obb/bin/
 src/ExpressPackingMonitoring.Vision.Obb/obj/
 tools/ExpressPackingMonitoring.TtsCacheBuilder/bin/
 tools/ExpressPackingMonitoring.TtsCacheBuilder/obj/
+tools/ExpressPackingMonitoring.DefaultScriptPackager/bin/
+tools/ExpressPackingMonitoring.DefaultScriptPackager/obj/
 tools/ExpressPackingMonitoring.AutomationHost/bin/
 tools/ExpressPackingMonitoring.AutomationHost/obj/
 tools/ExpressPackingMonitoring.VisionProbe/bin/

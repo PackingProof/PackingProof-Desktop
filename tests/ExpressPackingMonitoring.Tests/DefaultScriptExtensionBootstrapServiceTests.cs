@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Services.Extensions;
+using System.Security.Cryptography;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -90,6 +91,41 @@ public sealed class DefaultScriptExtensionBootstrapServiceTests
     }
 
     [Fact]
+    public async Task EnsureInstalled_PrefersBundledPackageWithoutLoadingMarket()
+    {
+        string root = CreateTemporaryDirectory();
+        string packageDirectory = Path.Combine(
+            root,
+            DefaultScriptExtensionManifest.BundledPackageDirectoryName);
+        Directory.CreateDirectory(packageDirectory);
+        byte[] bytes = "offline package"u8.ToArray();
+        string packagePath = Path.Combine(packageDirectory, "local-script-1.0.ppext");
+        File.WriteAllBytes(packagePath, bytes);
+        string sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        string manifestPath = CreateBundledManifest(
+            root,
+            "local.script",
+            "local-script-1.0.ppext",
+            bytes.Length,
+            sha256);
+        var market = new FakeMarket();
+        var installation = new FakeInstallation();
+        var service = new DefaultScriptExtensionBootstrapService(
+            market,
+            installation,
+            "v0.0.101",
+            manifestPath);
+
+        DefaultScriptExtensionBootstrapResult result =
+            await service.EnsureInstalledAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(market.CatalogRequested);
+        Assert.Equal(["local.script"], result.Installed);
+        Assert.Empty(result.Failures);
+        Assert.Equal(packagePath, Assert.Single(installation.Installs).PackagePath);
+    }
+
+    [Fact]
     public void ManifestRejectsUnsupportedSchemaAndInvalidIds()
     {
         string unsupported = CreateManifest(["packingproof.kdzs"], schemaVersion: 2);
@@ -97,6 +133,20 @@ public sealed class DefaultScriptExtensionBootstrapServiceTests
 
         Assert.Throws<InvalidDataException>(() => DefaultScriptExtensionManifest.Load(unsupported));
         Assert.Throws<InvalidDataException>(() => DefaultScriptExtensionManifest.Load(invalid));
+    }
+
+    [Fact]
+    public void ManifestRejectsBundledPackagesOverOneMiB()
+    {
+        string root = CreateTemporaryDirectory();
+        string manifestPath = CreateBundledManifest(
+            root,
+            "local.script",
+            "local-script-1.0.ppext",
+            DefaultScriptExtensionManifest.MaxBundledPackageBytes + 1,
+            new string('a', 64));
+
+        Assert.Throws<InvalidDataException>(() => DefaultScriptExtensionManifest.Load(manifestPath));
     }
 
     [Fact]
@@ -115,6 +165,20 @@ public sealed class DefaultScriptExtensionBootstrapServiceTests
         Assert.Contains("EnsureInstalledAsync(timeout.Token)", mainViewModel, StringComparison.Ordinal);
         Assert.Contains("EnsureInstalledAsync(timeout.Token)", printWorkstation, StringComparison.Ordinal);
         Assert.DoesNotContain("new ExtensionMarketWindow(\"packingproof.kdzs\")", mainViewModel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PackagingScriptEnforcesOneMiBLimitAndReusesOnlySelectedPackages()
+    {
+        string script = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "tools",
+            "Publish-CleanPackage.ps1"));
+
+        Assert.Contains("Copy-DefaultScriptPackages", script, StringComparison.Ordinal);
+        Assert.Contains("$scriptPackageMaximumBytes = 1MB", script, StringComparison.Ordinal);
+        Assert.Contains("default-script-packages", script, StringComparison.Ordinal);
+        Assert.Contains("Bundled default script packages exceed the 1 MiB hard limit", script, StringComparison.Ordinal);
     }
 
     private sealed class FakeMarket : IExtensionMarketSource
@@ -206,6 +270,7 @@ public sealed class DefaultScriptExtensionBootstrapServiceTests
             string? expectedSha256 = null)
         {
             Installs.Add(new InstalledCall(
+                packagePath,
                 expectedId ?? "",
                 expectedVersion ?? "",
                 expectedType ?? "",
@@ -222,6 +287,7 @@ public sealed class DefaultScriptExtensionBootstrapServiceTests
     }
 
     private sealed record InstalledCall(
+        string PackagePath,
         string Id,
         string Version,
         string Type,
@@ -253,6 +319,43 @@ public sealed class DefaultScriptExtensionBootstrapServiceTests
                 "scriptIds": [{{string.Join(",", scriptIds.Select(id => $"\"{id}\""))}}]
               }
               """);
+        return path;
+    }
+
+    private static string CreateBundledManifest(
+        string root,
+        string id,
+        string fileName,
+        long size,
+        string sha256)
+    {
+        string path = Path.Combine(root, "DefaultScriptExtensions.json");
+        File.WriteAllText(
+            path,
+            $$"""
+              {
+                "schemaVersion": 1,
+                "scriptIds": ["{{id}}"],
+                "packages": [
+                  {
+                    "id": "{{id}}",
+                    "version": "1.0",
+                    "fileName": "{{fileName}}",
+                    "size": {{size}},
+                    "sha256": "{{sha256}}"
+                  }
+                ]
+              }
+              """);
+        return path;
+    }
+
+    private static string CreateTemporaryDirectory()
+    {
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            $"packingproof-default-script-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
         return path;
     }
 }

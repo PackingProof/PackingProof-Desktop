@@ -34,6 +34,9 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>ExpressPackingMonitoring.Host</_Parameter1>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>ExpressPackingMonitoring.DefaultScriptPackager</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>
@@ -122,6 +125,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionResultInboxProcessor.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionRuntime.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionInstallationService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\DefaultScriptExtensionBootstrapService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionAutoUpdateService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionMarketClient.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionMarketModels.cs" />

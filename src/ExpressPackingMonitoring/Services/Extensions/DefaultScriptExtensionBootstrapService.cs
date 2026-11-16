@@ -10,8 +10,12 @@ namespace ExpressPackingMonitoring.Services.Extensions;
 /// </summary>
 internal sealed class DefaultScriptExtensionManifest
 {
+    internal const long MaxBundledPackageBytes = 1024 * 1024;
+    internal const string BundledPackageDirectoryName = "DefaultScriptPackages";
+
     public int SchemaVersion { get; set; }
     public List<string> ScriptIds { get; set; } = [];
+    public List<DefaultScriptExtensionBundledPackage> Packages { get; set; } = [];
 
     internal static DefaultScriptExtensionManifest Load(string path)
     {
@@ -46,7 +50,44 @@ internal sealed class DefaultScriptExtensionManifest
             throw new InvalidDataException("默认脚本清单包含无效扩展 ID");
         }
 
+        ValidatePackages(manifest, fullPath);
         return manifest;
+    }
+
+    private static void ValidatePackages(DefaultScriptExtensionManifest manifest, string manifestPath)
+    {
+        var scriptIds = new HashSet<string>(manifest.ScriptIds, StringComparer.Ordinal);
+        var packageIds = new HashSet<string>(StringComparer.Ordinal);
+        long totalBytes = 0;
+        foreach (DefaultScriptExtensionBundledPackage package in manifest.Packages)
+        {
+            if (!scriptIds.Contains(package.Id)
+                || !packageIds.Add(package.Id)
+                || string.IsNullOrWhiteSpace(package.Version)
+                || package.Size <= 0
+                || package.Sha256.Length != 64
+                || !package.Sha256.All(Uri.IsHexDigit)
+                || string.IsNullOrWhiteSpace(package.FileName)
+                || !string.Equals(
+                    Path.GetFileName(package.FileName),
+                    package.FileName,
+                    StringComparison.Ordinal)
+                || !package.FileName.EndsWith(".ppext", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("默认脚本清单包含无效离线包");
+            }
+
+            totalBytes = checked(totalBytes + package.Size);
+            if (totalBytes > MaxBundledPackageBytes)
+                throw new InvalidDataException("默认脚本离线包超过 1 MiB 硬门限");
+
+            string packagePath = Path.Combine(
+                Path.GetDirectoryName(manifestPath) ?? "",
+                BundledPackageDirectoryName,
+                package.FileName);
+            if (File.Exists(packagePath) && new FileInfo(packagePath).Length != package.Size)
+                throw new InvalidDataException($"默认脚本离线包大小不匹配：{package.FileName}");
+        }
     }
 
     private static bool IsValidExtensionId(string id) =>
@@ -55,6 +96,15 @@ internal sealed class DefaultScriptExtensionManifest
         && id.All(value =>
             char.IsAsciiLetterOrDigit(value)
             || value is '.' or '_' or '-');
+}
+
+internal sealed class DefaultScriptExtensionBundledPackage
+{
+    public string Id { get; set; } = "";
+    public string Version { get; set; } = "";
+    public string FileName { get; set; } = "";
+    public long Size { get; set; }
+    public string Sha256 { get; set; } = "";
 }
 
 internal sealed record DefaultScriptExtensionBootstrapResult(
@@ -73,7 +123,7 @@ internal sealed class DefaultScriptExtensionBootstrapService
     private readonly string _appVersion;
     private readonly string _manifestPath;
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private IReadOnlyList<string>? _scriptIds;
+    private DefaultScriptExtensionManifest? _manifest;
 
     internal static DefaultScriptExtensionBootstrapService Shared { get; } = new(
         new ExtensionMarketClient(),
@@ -99,7 +149,8 @@ internal sealed class DefaultScriptExtensionBootstrapService
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            IReadOnlyList<string> scriptIds = LoadScriptIds();
+            DefaultScriptExtensionManifest manifest = LoadManifest();
+            IReadOnlyList<string> scriptIds = manifest.ScriptIds;
             Dictionary<string, InstalledExtensionRecord> installed = _installation.GetInstalled()
                 .Where(record => string.Equals(record.Type, "userscript", StringComparison.Ordinal))
                 .GroupBy(record => record.Id, StringComparer.Ordinal)
@@ -114,22 +165,60 @@ internal sealed class DefaultScriptExtensionBootstrapService
             if (missing.Length == 0)
                 return new DefaultScriptExtensionBootstrapResult(satisfied, [], []);
 
-            ExtensionMarketSession session = await _market.LoadCatalogAsync(cancellationToken);
+            var installedNow = new List<string>();
+            var failures = new List<string>();
+            var remaining = new List<string>();
+            var bundledFailures = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (string extensionId in missing)
+            {
+                DefaultScriptExtensionBundledPackage? bundledPackage = manifest.Packages
+                    .FirstOrDefault(package => string.Equals(
+                        package.Id,
+                        extensionId,
+                        StringComparison.Ordinal));
+                if (TryInstallBundledPackage(bundledPackage, extensionId, out string bundledError))
+                {
+                    installedNow.Add(extensionId);
+                    satisfied.Add(extensionId);
+                }
+                else
+                {
+                    remaining.Add(extensionId);
+                    bundledFailures[extensionId] = bundledError;
+                }
+            }
+
+            if (remaining.Count == 0)
+                return new DefaultScriptExtensionBootstrapResult(satisfied, installedNow, failures);
+
+            ExtensionMarketSession session;
+            try
+            {
+                session = await _market.LoadCatalogAsync(cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested)
+            {
+                failures.AddRange(remaining.Select(id =>
+                    $"{id}: {bundledFailures.GetValueOrDefault(id, ex.Message)}"));
+                return new DefaultScriptExtensionBootstrapResult(satisfied, installedNow, failures);
+            }
+
             Dictionary<string, ExtensionMarketCatalogItem> catalog = session.Catalog.Extensions
                 .Where(item => !string.IsNullOrWhiteSpace(item.Id))
                 .GroupBy(item => item.Id, StringComparer.Ordinal)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
-            var installedNow = new List<string>();
-            var failures = new List<string>();
-            foreach (string extensionId in missing)
+            foreach (string extensionId in remaining)
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
                 if (!catalog.TryGetValue(extensionId, out ExtensionMarketCatalogItem? item)
                     || !string.Equals(item.Type, "userscript", StringComparison.Ordinal))
                 {
-                    failures.Add($"{extensionId}: 市场缺少脚本条目");
+                    failures.Add(bundledFailures.TryGetValue(extensionId, out string? bundledError)
+                        ? $"{extensionId}: {bundledError}"
+                        : $"{extensionId}: 市场缺少脚本条目");
                     continue;
                 }
 
@@ -201,12 +290,50 @@ internal sealed class DefaultScriptExtensionBootstrapService
         }
     }
 
-    private IReadOnlyList<string> LoadScriptIds()
+    private DefaultScriptExtensionManifest LoadManifest()
     {
-        if (_scriptIds != null) return _scriptIds;
-        DefaultScriptExtensionManifest manifest = DefaultScriptExtensionManifest.Load(_manifestPath);
-        _scriptIds = manifest.ScriptIds;
-        return _scriptIds;
+        return _manifest ??= DefaultScriptExtensionManifest.Load(_manifestPath);
+    }
+
+    private bool TryInstallBundledPackage(
+        DefaultScriptExtensionBundledPackage? package,
+        string extensionId,
+        out string error)
+    {
+        error = "";
+        if (package == null)
+        {
+            error = "市场缺少脚本条目且没有随包离线副本";
+            return false;
+        }
+
+        string manifestDirectory = Path.GetDirectoryName(_manifestPath) ?? "";
+        string packagePath = Path.Combine(
+            manifestDirectory,
+            DefaultScriptExtensionManifest.BundledPackageDirectoryName,
+            package.FileName);
+        if (!File.Exists(packagePath))
+        {
+            error = "随包离线副本不存在";
+            return false;
+        }
+
+        try
+        {
+            _installation.Install(
+                packagePath,
+                "",
+                extensionId,
+                package.Version,
+                "userscript",
+                package.Sha256);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"随包离线副本安装失败：{ex.Message}";
+            return false;
+        }
     }
 
     private static void TryDeletePackage(string packagePath)
