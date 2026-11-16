@@ -77,6 +77,11 @@
 
   <ItemGroup>
     <Resource Include="app.ico" />
+    <Content Include="Resources\DefaultScriptExtensions.json">
+      <TargetPath>Resources\DefaultScriptExtensions.json</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
@@ -155,6 +160,7 @@
     <Compile Include="Services\UninstallCleanupService.cs" />
     <Compile Include="Services\AutoStartService.cs" />
     <Compile Include="Services\Extensions\ExtensionStartupEntryRewriter.cs" />
+    <Compile Include="Services\Extensions\DefaultScriptExtensionBootstrapService.cs" />
     <Compile Include="Services\CameraBarcodeRecognitionService.cs" />
   <Compile Include="Services\CameraBarcodeRecognitionService.Vision.cs" />
   <Compile Include="Services\CameraBarcodeFrameDecoder.DetachedFast.cs" />

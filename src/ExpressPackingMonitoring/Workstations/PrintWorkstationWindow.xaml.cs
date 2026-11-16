@@ -1,7 +1,9 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Localization;
+using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.Services.Extensions;
 using ExpressPackingMonitoring.Themes;
 using ExpressPackingMonitoring.UI;
 using System.Collections.ObjectModel;
@@ -77,6 +79,7 @@ public partial class PrintWorkstationWindow : Window
     private bool _deploymentSetupPersisted;
     private bool _testOrderSending;
     private bool _purposeSwitchPending;
+    private int _userscriptGuidePreparing;
     public ObservableCollection<MobileBackupStatusItem> MobileBackupDeviceStatuses { get; } = [];
     public MobileBackupToastState ToastState { get; } = new();
 
@@ -168,6 +171,7 @@ public partial class PrintWorkstationWindow : Window
     {
         if (_loaded) return;
         _loaded = true;
+        QueueDefaultScriptExtensionsBootstrap();
         await StartServiceAsync();
     }
 
@@ -780,16 +784,95 @@ public partial class PrintWorkstationWindow : Window
             return;
         }
 
-        if (!UserscriptGuideNavigation.TryOpen(_host.LanAccessUrl, out string error))
-        {
-            ShowToast($"打开订单联动安装向导失败：{error}", ToastSeverity.Error);
+        if (Interlocked.Exchange(ref _userscriptGuidePreparing, 1) != 0)
             return;
+        _ = OpenUserscriptGuideAsync();
+    }
+
+    private async Task OpenUserscriptGuideAsync()
+    {
+        try
+        {
+            ShowToast(AppLanguage.Get("正在下载扩展包"), ToastSeverity.Information);
+            DefaultScriptExtensionBootstrapResult result = await Task.Run(async () =>
+            {
+                using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+                return await DefaultScriptExtensionBootstrapService.Shared.EnsureInstalledAsync(timeout.Token);
+            });
+
+            if (result.Failures.Count > 0)
+            {
+                RuntimeLog.Warn(
+                    "Extensions",
+                    $"工位安装向导准备默认脚本失败：{string.Join("；", result.Failures)}");
+            }
+            if (result.Satisfied.Count == 0)
+            {
+                AppDialog.Error(
+                    this,
+                    AppLanguage.Format(
+                        "安装扩展失败：{0}",
+                        AppLanguage.Get("扩展市场不可用")),
+                    AppLanguage.Get("安装扩展失败"));
+                return;
+            }
+
+            if (!UserscriptGuideNavigation.TryOpen(_host.LanAccessUrl, out string error))
+            {
+                ShowToast($"打开订单联动安装向导失败：{error}", ToastSeverity.Error);
+                return;
+            }
+            UserscriptTargetState.MarkGuideOpened(
+                _config,
+                _host.GetRecordingDevices(includeKnown: true));
+            RefreshDeviceSummary();
+            ShowToast("已打开订单联动安装向导");
         }
-        UserscriptTargetState.MarkGuideOpened(
-            _config,
-            _host.GetRecordingDevices(includeKnown: true));
-        RefreshDeviceSummary();
-        ShowToast("已打开订单联动安装向导");
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Extensions", $"工位安装向导自动准备脚本失败：{ex.Message}");
+            AppDialog.Error(
+                this,
+                AppLanguage.Format("安装扩展失败：{0}", ex.Message),
+                AppLanguage.Get("安装扩展失败"));
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _userscriptGuidePreparing, 0);
+        }
+    }
+
+    private void QueueDefaultScriptExtensionsBootstrap()
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCts.Token);
+                timeout.CancelAfter(TimeSpan.FromMinutes(5));
+                DefaultScriptExtensionBootstrapResult result =
+                    await DefaultScriptExtensionBootstrapService.Shared.EnsureInstalledAsync(timeout.Token);
+                if (result.Installed.Count > 0)
+                {
+                    RuntimeLog.Info(
+                        "Extensions",
+                        $"默认脚本已自动安装：{string.Join("；", result.Installed)}");
+                }
+                if (result.Failures.Count > 0)
+                {
+                    RuntimeLog.Warn(
+                        "Extensions",
+                        $"默认脚本自动安装失败：{string.Join("；", result.Failures)}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Extensions", $"默认脚本自动安装失败：{ex.Message}");
+            }
+        });
     }
 
     private static void OpenExtensionMarket(Window owner)

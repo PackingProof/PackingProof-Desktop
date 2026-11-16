@@ -882,6 +882,44 @@ namespace ExpressPackingMonitoring.ViewModels
             });
         }
 
+        /// <summary>
+        /// 默认脚本清单在启动后自动补齐；已安装时直接返回，不访问扩展市场。
+        /// 失败只写日志，安装向导入口还会再试一次，不阻塞主程序启动。
+        /// </summary>
+        private void QueueDefaultScriptExtensionsBootstrap()
+        {
+            CancellationToken appToken = _cts?.Token ?? CancellationToken.None;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(appToken);
+                    timeout.CancelAfter(TimeSpan.FromMinutes(5));
+                    DefaultScriptExtensionBootstrapResult result =
+                        await DefaultScriptExtensionBootstrapService.Shared.EnsureInstalledAsync(timeout.Token);
+                    if (result.Installed.Count > 0)
+                    {
+                        RuntimeLog.Info(
+                            "Extensions",
+                            $"默认脚本已自动安装：{string.Join("；", result.Installed)}");
+                    }
+                    if (result.Failures.Count > 0)
+                    {
+                        RuntimeLog.Warn(
+                            "Extensions",
+                            $"默认脚本自动安装失败：{string.Join("；", result.Failures)}");
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("Extensions", $"默认脚本自动安装失败：{ex.Message}");
+                }
+            });
+        }
+
         private void RecordExtensionAutoUpdateCheck()
         {
             string stamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -902,51 +940,102 @@ namespace ExpressPackingMonitoring.ViewModels
             System.Windows.Window owner = Application.Current?.Windows
                 .OfType<System.Windows.Window>()
                 .FirstOrDefault(window => window.IsActive);
-            bool officialInstalled = new ExtensionInstallationService().GetInstalled().Any(record =>
-                string.Equals(record.Id, ExtensionMarketOfficialUserscriptPackageSource.ExtensionId, StringComparison.Ordinal));
-            IReadOnlyList<ConnectedClientInfo> connectedClients = _webServer?.GetConnectedClients() ?? [];
-            bool earlyOfficialScript = connectedClients.Any(OfficialUserscriptMigrationService.IsEarlyOfficialHeartbeat);
-            bool duplicateOfficialScripts = OfficialUserscriptMigrationService.HasConcurrentLegacyAndCurrentScripts(connectedClients);
-            if (duplicateOfficialScripts)
-            {
-                AppDialog.Warning(
-                    owner,
-                    "检测到同一电脑正在同时运行新版和旧版订单联动脚本。Desktop 已自动忽略短时间内的重复订单，请在油猴中删除“快递助手 → 打包监控联动”或“订单备注播报插件”",
-                    "检测到重复脚本");
-            }
-            else if (earlyOfficialScript)
-            {
-                AppDialog.Warning(
-                    owner,
-                    "检测到正在运行的早期订单联动脚本。安装新版扩展后，请在油猴中删除“快递助手 → 打包监控联动”或“订单备注播报插件”，避免重复推送订单",
-                    "需要迁移旧脚本");
-            }
-            if ((earlyOfficialScript && !officialInstalled)
-                || new UserscriptCatalog().GetAll().Count == 0)
-            {
-                var market = new ExtensionMarketWindow("packingproof.kdzs");
-                if (owner != null) market.Owner = owner;
-                market.ShowDialog();
+            if (Interlocked.Exchange(ref _userscriptGuidePreparing, 1) != 0)
                 return;
-            }
-
-            if (_webServer == null || string.IsNullOrWhiteSpace(MonitorAccessAddress))
-            {
-                ShowToast("局域网服务尚未就绪，暂时无法生成快递助手脚本", ToastSeverity.Warning);
-                return;
-            }
-
-            if (!UserscriptGuideNavigation.TryOpen($"http://{MonitorAccessAddress}", out string error))
-            {
-                ShowToast($"打开快递助手联动安装向导失败：{error}", ToastSeverity.Error);
-                return;
-            }
-
-            UserscriptTargetState.MarkGuideOpened(
-                Config,
-                _webServer.GetRecordingDevices(MonitorAccessAddress, includeKnown: true));
-            RefreshUserscriptStatus();
+            _ = OpenUserscriptGuideAsync(owner);
         }
+
+        private async Task OpenUserscriptGuideAsync(System.Windows.Window owner)
+        {
+            try
+            {
+                ShowToast(AppLanguage.Get("正在下载扩展包"), ToastSeverity.Information);
+                GuideScriptPreparation preparation = await Task.Run(async () =>
+                {
+                    using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+                    DefaultScriptExtensionBootstrapResult bootstrap =
+                        await DefaultScriptExtensionBootstrapService.Shared.EnsureInstalledAsync(timeout.Token);
+                    IReadOnlyList<InstalledExtensionRecord> installed =
+                        new ExtensionInstallationService().GetInstalled();
+                    bool officialInstalled = installed.Any(record =>
+                        string.Equals(
+                            record.Id,
+                            ExtensionMarketOfficialUserscriptPackageSource.ExtensionId,
+                            StringComparison.Ordinal));
+                    bool hasUserscript = new UserscriptCatalog().GetAll().Count > 0;
+                    return new GuideScriptPreparation(bootstrap, officialInstalled, hasUserscript);
+                });
+
+                if (preparation.Bootstrap.Failures.Count > 0)
+                {
+                    RuntimeLog.Warn(
+                        "Extensions",
+                        $"安装向导准备默认脚本失败：{string.Join("；", preparation.Bootstrap.Failures)}");
+                }
+                if (!preparation.HasUserscript)
+                {
+                    AppDialog.Error(
+                        owner,
+                        AppLanguage.Format(
+                            "安装扩展失败：{0}",
+                            AppLanguage.Get("扩展市场不可用")),
+                        AppLanguage.Get("安装扩展失败"));
+                    return;
+                }
+
+                IReadOnlyList<ConnectedClientInfo> connectedClients = _webServer?.GetConnectedClients() ?? [];
+                bool earlyOfficialScript = connectedClients.Any(OfficialUserscriptMigrationService.IsEarlyOfficialHeartbeat);
+                bool duplicateOfficialScripts = OfficialUserscriptMigrationService.HasConcurrentLegacyAndCurrentScripts(connectedClients);
+                if (duplicateOfficialScripts)
+                {
+                    AppDialog.Warning(
+                        owner,
+                        "检测到同一电脑正在同时运行新版和旧版订单联动脚本。Desktop 已自动忽略短时间内的重复订单，请在油猴中删除“快递助手 → 打包监控联动”或“订单备注播报插件”",
+                        "检测到重复脚本");
+                }
+                else if (earlyOfficialScript && !preparation.OfficialInstalled)
+                {
+                    AppDialog.Warning(
+                        owner,
+                        "检测到正在运行的早期订单联动脚本。安装新版扩展后，请在油猴中删除“快递助手 → 打包监控联动”或“订单备注播报插件”，避免重复推送订单",
+                        "需要迁移旧脚本");
+                }
+
+                if (_webServer == null || string.IsNullOrWhiteSpace(MonitorAccessAddress))
+                {
+                    ShowToast("局域网服务尚未就绪，暂时无法生成快递助手脚本", ToastSeverity.Warning);
+                    return;
+                }
+
+                if (!UserscriptGuideNavigation.TryOpen($"http://{MonitorAccessAddress}", out string navigationError))
+                {
+                    ShowToast($"打开快递助手联动安装向导失败：{navigationError}", ToastSeverity.Error);
+                    return;
+                }
+
+                UserscriptTargetState.MarkGuideOpened(
+                    Config,
+                    _webServer.GetRecordingDevices(MonitorAccessAddress, includeKnown: true));
+                RefreshUserscriptStatus();
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Extensions", $"安装向导自动准备脚本失败：{ex.Message}");
+                AppDialog.Error(
+                    owner,
+                    AppLanguage.Format("安装扩展失败：{0}", ex.Message),
+                    AppLanguage.Get("安装扩展失败"));
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _userscriptGuidePreparing, 0);
+            }
+        }
+
+        private sealed record GuideScriptPreparation(
+            DefaultScriptExtensionBootstrapResult Bootstrap,
+            bool OfficialInstalled,
+            bool HasUserscript);
 
         public void OpenExtensionMarket(System.Windows.Window owner)
         {

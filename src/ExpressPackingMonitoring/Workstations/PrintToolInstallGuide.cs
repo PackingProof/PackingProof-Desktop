@@ -311,7 +311,7 @@ internal static class PrintToolInstallGuide
     private static string BuildScriptLink(string scriptUrl)
     {
         return string.IsNullOrWhiteSpace(scriptUrl)
-            ? "<div class=\"warn\">尚未安装订单联动扩展，请先在 PackingProof Desktop 扩展市场安装</div>"
+            ? "<div class=\"warn\">订单联动脚本尚未就绪，请回到 PackingProof Desktop 再点一次“安装订单联动”</div>"
             : $"<a class=\"primary\" href=\"{WebUtility.HtmlEncode(scriptUrl)}\" target=\"_blank\" rel=\"noopener\">安装订单联动</a>";
     }
 
