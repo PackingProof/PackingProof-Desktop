@@ -12,6 +12,8 @@
         PreviewKeyDown="Window_PreviewKeyDown"
         Closing="Window_Closing">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+
         <Style TargetType="TextBox">
             <Setter Property="Padding" Value="8"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -149,6 +151,87 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <Style x:Key="PlaybackMetaTagStyle" TargetType="Border">
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="Padding" Value="5,0"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+
+        <Style x:Key="PlaybackRowStateBadgeStyle" TargetType="Border">
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Padding" Value="6,0"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="Background" Value="{DynamicResource BadgeReturnBg}"/>
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource BadgeReturnText}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RowBadgeTone}" Value="error">
+                    <Setter Property="Background" Value="{DynamicResource BadgeErrorBg}"/>
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource BadgeErrorText}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding RowBadgeTone}" Value="success">
+                    <Setter Property="Background" Value="{DynamicResource BadgePackBg}"/>
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource BadgePackText}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding RowBadgeTone}" Value="muted">
+                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource TextMuted}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 行操作只在悬浮、选中或键盘聚焦时出现，放在标题行尾的独立列里，不覆盖单号或标签。 -->
+        <Style x:Key="PlaybackRowMoreButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,-2,0,0"/>
+            <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="True"/>
+            <Setter Property="Opacity" Value="0"/>
+            <Setter Property="IsHitTestVisible" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource BorderDefault}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                    <Setter Property="Opacity" Value="1"/>
+                    <Setter Property="IsHitTestVisible" Value="True"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsKeyboardFocused, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="Opacity" Value="1"/>
+                    <Setter Property="IsHitTestVisible" Value="True"/>
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <!--
@@ -432,7 +515,7 @@
                 <ListView x:Name="VideoList" Grid.Row="1" FontSize="14" SelectionChanged="VideoList_SelectionChanged" BorderThickness="0" Background="{StaticResource TransparentBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
-                            <Setter Property="Margin" Value="0,0,0,8"/>
+                            <Setter Property="Margin" Value="0,0,0,5"/>
                             <Setter Property="Padding" Value="0"/>
                             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                             <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
@@ -474,7 +557,7 @@
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <Border x:Name="ModeStrip" Grid.Column="0" Margin="0,10,0,10" CornerRadius="0,4,4,0" Background="{DynamicResource AccentBlue}"/>
-                                                <ContentPresenter Grid.Column="1" Margin="12,10"/>
+                                                <ContentPresenter Grid.Column="1" Margin="12,5"/>
                                             </Grid>
                                         </Border>
                                         <ControlTemplate.Triggers>
@@ -500,58 +583,86 @@
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate>
-                            <!-- 右键菜单与悬浮提示在行容器的模板上，见上面的 ItemContainerStyle -->
                             <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Text="{Binding DisplayName}" FontWeight="Medium" TextTrimming="CharacterEllipsis">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsUnavailable}" Value="True">
-                                                        <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,3,0,0">
-                                        <TextBlock Text="{Binding Duration}" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,8,0"/>
-                                        <TextBlock Text="{Binding FileSize}" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,8,0"/>
-                                        <TextBlock Text="{Binding EncoderDisplay}" FontSize="11" Foreground="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
-                                        <TextBlock Text="{Binding SourceDisplay}" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,8,0"/>
-                                        <TextBlock Text="{Binding StopReason}" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,8,0"/>
-                                    </StackPanel>
-                                    <TextBlock Grid.Row="2" Text="{Binding StatusText}" FontSize="11" FontWeight="Bold" Margin="0,3,0,0">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Setter Property="Foreground" Value="{DynamicResource AccentRed}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsDeleted}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsMissing}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Setter Property="Foreground" Value="{DynamicResource AccentRed}"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsStoredOnHost}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsArchiveWarning}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Setter Property="Foreground" Value="{DynamicResource AccentRed}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="108"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding DisplayName}"
+                                                   FontWeight="Medium"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsUnavailable}" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding PrimaryMetaText}"
+                                                   Margin="8,0,0,0"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondary}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   TextAlignment="Right"/>
+                                    </Grid>
+                                    <Button Grid.Row="0"
+                                            Style="{StaticResource PlaybackRowMoreButtonStyle}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Top"
+                                            Panel.ZIndex="2"
+                                            ToolTip="{loc:Localized 更多}"
+                                            AutomationProperties.Name="{loc:Localized 更多}"
+                                            Click="VideoRowMoreButton_Click">
+                                        <Grid Width="14" Height="14">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Grid.Column="0" Width="3" Height="3" Fill="{DynamicResource TextSecondary}" HorizontalAlignment="Left"/>
+                                            <Ellipse Grid.Column="1" Width="3" Height="3" Fill="{DynamicResource TextSecondary}" HorizontalAlignment="Center"/>
+                                            <Ellipse Grid.Column="2" Width="3" Height="3" Fill="{DynamicResource TextSecondary}" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                    </Button>
+                                    <Grid Grid.Row="1" Margin="0,2,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="132"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0"
+                                                Style="{StaticResource PlaybackMetaTagStyle}"
+                                                HorizontalAlignment="Left">
+                                            <TextBlock Text="{Binding SourceTagText}"
+                                                       FontSize="11"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       MaxWidth="122"/>
+                                        </Border>
+                                        <Border Grid.Column="1"
+                                                Style="{StaticResource PlaybackRowStateBadgeStyle}"
+                                                HorizontalAlignment="Left"
+                                                Visibility="{Binding HasRowBadge, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="{Binding RowBadgeText}"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       MaxWidth="104"/>
+                                        </Border>
+                                    </Grid>
                                 </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>

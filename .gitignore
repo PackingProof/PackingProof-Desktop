@@ -70,4 +70,5 @@ tools/store-package.local.json
 TODO.md
 node_modules/
 TestResults/
+artifacts/
 .DS_Store

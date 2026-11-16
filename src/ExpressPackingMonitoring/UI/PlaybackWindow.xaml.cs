@@ -21,6 +21,33 @@ using Microsoft.Win32;
 
 namespace ExpressPackingMonitoring.UI
 {
+    internal static class PlaybackRowBadgePolicy
+    {
+        private static readonly string[] RoutineStopReasonMarkers =
+        [
+            "同码",
+            "连续录制",
+            "扫码切换",
+            "APP备份"
+        ];
+
+        public static string GetText(string? statusText, string? stopReason)
+        {
+            if (!string.IsNullOrWhiteSpace(statusText))
+                return statusText.Trim();
+
+            string reason = stopReason?.Trim() ?? "";
+            if (reason.Length == 0
+                || RoutineStopReasonMarkers.Any(marker =>
+                    reason.Contains(marker, StringComparison.OrdinalIgnoreCase)))
+            {
+                return "";
+            }
+
+            return reason;
+        }
+    }
+
     public class VideoItem
     {
         public string DisplayName { get; set; } = "";
@@ -107,6 +134,38 @@ namespace ExpressPackingMonitoring.UI
         }
 
         public bool IsUnavailable => IsDeleted || IsMissing || IsStoredOnHost;
+
+        public string RowBadgeText => PlaybackRowBadgePolicy.GetText(StatusText, StopReason);
+
+        public bool HasRowBadge => !string.IsNullOrWhiteSpace(RowBadgeText);
+
+        public string SourceTagText => string.IsNullOrWhiteSpace(SourceDisplay) ? "—" : SourceDisplay;
+
+        public string PrimaryMetaText
+        {
+            get
+            {
+                string text = string.Join(
+                    " · ",
+                    new[] { Duration, FileSize }.Where(value => !string.IsNullOrWhiteSpace(value)));
+                return text.Length > 0 ? text : "—";
+            }
+        }
+
+        public string RowBadgeTone
+        {
+            get
+            {
+                if (IsDeleted)
+                    return "muted";
+                if (IsStoredOnHost)
+                    return "success";
+                if (IsMissing || IsArchiveWarning)
+                    return "error";
+                return "reason";
+            }
+        }
+
     }
 
     public partial class PlaybackWindow : Window
@@ -328,6 +387,22 @@ namespace ExpressPackingMonitoring.UI
         private static VideoItem? GetContextMenuItem(object sender) =>
             (sender as FrameworkElement)?.DataContext as VideoItem;
 
+        private void VideoRowMoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button)
+                return;
+
+            var menu = (ContextMenu)FindResource("VideoRowContextMenu");
+            if (menu.IsOpen)
+                menu.IsOpen = false;
+            menu.PlacementTarget = button;
+            menu.Placement = PlacementMode.Bottom;
+            menu.HorizontalOffset = 0;
+            menu.VerticalOffset = 2;
+            menu.IsOpen = true;
+            e.Handled = true;
+        }
+
         private void CopyOrderId_Click(object sender, RoutedEventArgs e)
         {
             VideoItem? item = GetContextMenuItem(sender);
@@ -378,8 +453,13 @@ namespace ExpressPackingMonitoring.UI
         /// </summary>
         private void VideoRowContextMenu_Opened(object sender, RoutedEventArgs e)
         {
-            if ((sender as ContextMenu)?.PlacementTarget is not FrameworkElement row) return;
+            if ((sender as ContextMenu)?.PlacementTarget is not FrameworkElement placementTarget) return;
 
+            Border? row = FindContextMenuRow(placementTarget);
+            if (row == null) return;
+
+            if (placementTarget is Button moreButton)
+                ToolTipService.SetIsEnabled(moreButton, false);
             ToolTipService.SetIsEnabled(row, false);
             if (row.ToolTip is ToolTip tooltip)
                 tooltip.IsOpen = false;
@@ -387,8 +467,24 @@ namespace ExpressPackingMonitoring.UI
 
         private void VideoRowContextMenu_Closed(object sender, RoutedEventArgs e)
         {
-            if ((sender as ContextMenu)?.PlacementTarget is FrameworkElement row)
+            if ((sender as ContextMenu)?.PlacementTarget is not FrameworkElement placementTarget)
+                return;
+            if (FindContextMenuRow(placementTarget) is Border row)
                 ToolTipService.SetIsEnabled(row, true);
+            if (placementTarget is Button moreButton)
+                ToolTipService.SetIsEnabled(moreButton, true);
+        }
+
+        private static Border? FindContextMenuRow(DependencyObject? current)
+        {
+            while (current != null)
+            {
+                if (current is Border { ContextMenu: not null } row)
+                    return row;
+                current = VisualTreeHelper.GetParent(current);
+            }
+
+            return null;
         }
 
         /// <summary>剪贴板是全局独占资源，输入法、剪贴板管理器或其它程序正占用时

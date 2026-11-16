@@ -117,6 +117,58 @@ public sealed class PlaybackWindowTests
     }
 
     [Fact]
+    public void PlaybackRowMoreButton_IsHoverRevealedAndReusesRowMenu()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.xaml"));
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.xaml.cs"));
+
+        Assert.Contains("x:Key=\"PlaybackRowMoreButtonStyle\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<Setter Property=\"Opacity\" Value=\"0\"/>", xaml, StringComparison.Ordinal);
+        Assert.Contains("Binding=\"{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Click=\"VideoRowMoreButton_Click\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("(ContextMenu)FindResource(\"VideoRowContextMenu\")", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("menu.PlacementTarget = button;", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PlaybackTags_ExposeModeMetadataAndErrorState()
+    {
+        var item = new VideoItem
+        {
+            Mode = "退货",
+            Duration = "12秒",
+            FileSize = "18 MB",
+            VideoEncoder = "hevc_nvenc",
+            SourceDisplay = "手机 A",
+            StopReason = "手动",
+            StartTime = new DateTime(2026, 11, 17, 14, 32, 0),
+            IsMissing = true
+        };
+
+        Assert.Equal("12秒 · 18 MB", item.PrimaryMetaText);
+        Assert.Equal("手机 A", item.SourceTagText);
+        Assert.Equal(item.StatusText, item.RowBadgeText);
+        Assert.Equal("error", item.RowBadgeTone);
+
+        var sameCodeStop = new VideoItem { StopReason = "同码停录" };
+        Assert.False(sameCodeStop.HasRowBadge);
+
+        var manualStop = new VideoItem { StopReason = "手动" };
+        Assert.Equal("手动", PlaybackRowBadgePolicy.GetText("", manualStop.StopReason));
+
+        var timeout = new VideoItem { StopReason = "超时" };
+        Assert.Equal("超时", PlaybackRowBadgePolicy.GetText("", timeout.StopReason));
+    }
+
+    [Fact]
     public void WindowClose_KeepsNativePlayerReleaseOffUiThread()
     {
         string windowSource = File.ReadAllText(FindRepositoryFile(
