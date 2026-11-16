@@ -49,12 +49,9 @@ namespace ExpressPackingMonitoring.Audio
         private BlockingCollection<(string text, bool isWarning)>? _preGenQueue;
         private Thread? _preGenThread;
         private readonly object _preGenLock = new();
-        private readonly ManualResetEventSlim _speechProcessingGate = new(initialState: true);
         private readonly CancellationTokenSource _disposeCts = new();
-        private readonly object _speechStateLock = new();
         private readonly object _filePlaybackLock = new();
         private IWavePlayer? _currentFileWaveOut;
-        private volatile bool _pauseForRecordingRequested;
         private DateTime _lastCacheCleanupTime = DateTime.MinValue;
         private long _cacheBytesSinceCleanup;
         private int _criticalWarningCount;
@@ -83,44 +80,7 @@ namespace ExpressPackingMonitoring.Audio
             InitSpeechSynthesizer();
         }
 
-        public bool IsSpeechPaused => _pauseForRecordingRequested;
         public event Action<string>? PlaybackError;
-
-        public void PauseForRecording()
-        {
-            if (_isDisposed) return;
-
-            lock (_speechStateLock)
-            {
-                if (_pauseForRecordingRequested) return;
-                _pauseForRecordingRequested = true;
-                _speechProcessingGate.Reset(); // 只阻塞 AI 预生成线程
-            }
-
-            Debug.WriteLine("[SpeechService] 录制中，AI 语音生成已暂停，播放照常");
-        }
-
-        public void ResumeAfterRecording()
-        {
-            if (_isDisposed) return;
-
-            lock (_speechStateLock)
-            {
-                if (!_pauseForRecordingRequested) return;
-                _pauseForRecordingRequested = false;
-                _speechProcessingGate.Set(); // 恢复 AI 预生成线程
-            }
-
-            Debug.WriteLine("[SpeechService] 录制结束，AI 语音生成已恢复");
-        }
-
-        private void WaitWhilePaused()
-        {
-            while (!_isDisposed && _pauseForRecordingRequested)
-            {
-                _speechProcessingGate.Wait(250);
-            }
-        }
 
         private bool EnqueueSpeechRequest(SpeechRequest request)
         {
@@ -349,7 +309,6 @@ namespace ExpressPackingMonitoring.Audio
         {
             try
             {
-                WaitWhilePaused();
                 if (_isDisposed || _speechCancelRequested) return false;
 
                 GenerateEdgeTtsFile(text, isWarning, cachePath);
@@ -730,7 +689,6 @@ namespace ExpressPackingMonitoring.Audio
             {
                 foreach (var (text, isWarning) in _preGenQueue!.GetConsumingEnumerable())
                 {
-                    WaitWhilePaused();
                     if (_isDisposed) break;
                     try
                     {
@@ -1371,7 +1329,6 @@ namespace ExpressPackingMonitoring.Audio
             _isDisposed = true;
             _disposeCts.Cancel();
             StopCore();
-            _speechProcessingGate.Set();
             try { _preGenQueue?.CompleteAdding(); } catch { }
             bool preGenStopped = TryJoinThread(_preGenThread, 2000);
             try { _speechQueue?.CompleteAdding(); } catch { }
@@ -1414,7 +1371,6 @@ namespace ExpressPackingMonitoring.Audio
             _windowsTts = null;
             _speechQueue?.Dispose();
             _preGenQueue?.Dispose();
-            _speechProcessingGate.Dispose();
             _disposeCts.Dispose();
         }
     }

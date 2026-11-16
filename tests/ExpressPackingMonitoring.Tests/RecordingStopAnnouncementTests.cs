@@ -144,23 +144,6 @@ public sealed class RecordingStopAnnouncementTests
     }
 
     [Fact]
-    public void SameCodePostRollResumesSpeechAfterDeferredStop()
-    {
-        string postRoll = ExtractMethod(
-            ReadViewModelSource("MainViewModel.Scanner.cs"),
-            "private async Task CompleteSameCodePostRollAsync",
-            "private void LogBarcodeRecordingComparison");
-
-        int stop = postRoll.IndexOf(
-            "await InternalStopRecordingAsync(playCompletionBeep: false);",
-            StringComparison.Ordinal);
-        int resume = postRoll.IndexOf("ResumeSpeechWhenCameraIdle();", StringComparison.Ordinal);
-
-        Assert.True(stop >= 0, "收尾结束后必须真正停录");
-        Assert.True(resume > stop, "收尾停录后必须把语音生成从暂停状态恢复");
-    }
-
-    [Fact]
     public void BeepIsNotTriggeredByBarcodeRecognitionAlone()
     {
         string scanner = ReadViewModelSource("MainViewModel.Scanner.cs");

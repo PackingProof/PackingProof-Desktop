@@ -106,7 +106,10 @@ public sealed class VoiceSettingsPerLanguageTests
             Path.Combine("src", "ExpressPackingMonitoring", "ExpressPackingMonitoring.csproj"));
         string xaml = ReadProjectFile(Path.Combine("UI", "SettingsWindow.xaml"));
 
-        Assert.Contains("EdgeTTS.Framework", project, StringComparison.Ordinal);
+        Assert.Contains(
+            "<PackageReference Include=\"EdgeTTS.Framework\" Version=\"1.0.6\" />",
+            project,
+            StringComparison.Ordinal);
         Assert.Contains("EdgeNormalVoiceComboBox", xaml, StringComparison.Ordinal);
         Assert.Contains("EdgeWarningVoiceComboBox", xaml, StringComparison.Ordinal);
     }

@@ -657,14 +657,11 @@ namespace ExpressPackingMonitoring.ViewModels
                         progress?.Report("正在停止当前录像...");
                         _stopReason = "程序退出";
                         _stopOrigin = ScanStopOrigin.ApplicationExit;
-                        PauseSpeechForRecording();
                         await InternalStopRecordingAsync();
                     }
                 }
                 finally
                 {
-                    if (!IsRecording)
-                        ResumeSpeechWhenCameraIdle();
                     _recorderLock.Release();
                 }
 

@@ -841,7 +841,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 else
                 {
-                    PauseSpeechForRecording();
                     await InternalStopRecordingAsync();
                 }
                 if (mergeAfterStop)
@@ -855,8 +854,6 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             finally
             {
-                if (!IsRecording)
-                    ResumeSpeechWhenCameraIdle();
                 _recorderLock.Release();
             }
         }

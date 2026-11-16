@@ -59,7 +59,7 @@
     <ProjectReference Include="..\ExpressPackingMonitoring.Vision.Obb\ExpressPackingMonitoring.Vision.Obb.csproj"
                       Condition="'$(IncludeVisionObb)' == 'true'" />
     <PackageReference Include="AForge.Video" Version="2.2.5" />
-    <PackageReference Include="EdgeTTS.Framework" Version="1.0.5" />
+    <PackageReference Include="EdgeTTS.Framework" Version="1.0.6" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <PackageReference Include="AForge.Video.DirectShow" Version="2.2.5" />

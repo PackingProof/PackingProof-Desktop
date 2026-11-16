@@ -247,9 +247,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 PresentAlert,
                 _speechService.PlayAlert,
                 interruptAudio: _speechService.Stop,
-                preGenerate: (text, style) => _speechService.PreGenerateCache(text, style == AlertVoiceStyle.Warning),
-                pauseAudio: _speechService.PauseForRecording,
-                resumeAudio: _speechService.ResumeAfterRecording);
+                preGenerate: (text, style) => _speechService.PreGenerateCache(text, style == AlertVoiceStyle.Warning));
             foreach (DefaultSpeechPrompt prompt in DefaultSpeechCatalog.Prompts)
                 _speechService.PreGenerateCache(prompt.Text, prompt.VoiceStyle == AlertVoiceStyle.Warning);
             LogStartupStage("speech");
@@ -943,24 +941,6 @@ namespace ExpressPackingMonitoring.ViewModels
             Speak(CurrentMode == "发货" ? DefaultSpeechCatalog.SwitchToShipping : DefaultSpeechCatalog.SwitchToReturn);
         }
 
-        private void PauseSpeechForRecording() => _alertService?.PauseAudio();
-
-        private void ResumeSpeechWhenCameraIdle()
-        {
-            if (_alertService == null || _isDisposed) return;
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(800);
-                    if (_isDisposed || IsRecording || IsBusy) return;
-                    _alertService.ResumeAudio();
-                }
-                catch { }
-            });
-        }
-
         // ========================== 核心逻辑：手动开始录像 ==========================
         private async Task ToggleRecordingAsync(string auditEventId = null)
         {
@@ -1033,9 +1013,6 @@ namespace ExpressPackingMonitoring.ViewModels
                             repeatCount: 2);
                     }
 
-                    // 语音播报完成后再暂停，避免"开始录制"被延迟
-                    if (IsRecording)
-                        PauseSpeechForRecording();
                 }
             }
             catch (Exception ex)
@@ -1046,8 +1023,6 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             finally
             {
-                if (!IsRecording)
-                    ResumeSpeechWhenCameraIdle();
                 _recorderLock.Release();
             }
         }
@@ -1305,8 +1280,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 finally
                 {
-                    if (!IsRecording)
-                        ResumeSpeechWhenCameraIdle();
                     _recorderLock.Release();
                 }
                 return;
@@ -1348,7 +1321,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 _alertService?.InterruptAudio();
                 if (IsRecording)
                 {
-                    PauseSpeechForRecording();
                     RuntimeLog.Info("Recording", "连续扫码切换，暂缓音视频合成，等待 stop 或手动停止");
                     await InternalStopRecordingAsync();
                 }
@@ -1362,9 +1334,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 后续逐帧跟随时仍会更新；没有可用 OBB 时回退到固定取景框。
                 StartZoomForScan();
 
-                // 语音播报完成后再暂停，避免"开始录制"和订单信息被延迟
-                if (IsRecording)
-                    PauseSpeechForRecording();
             }
             catch (Exception ex)
             {
@@ -1374,8 +1343,6 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             finally
             {
-                if (!IsRecording)
-                    ResumeSpeechWhenCameraIdle();
                 _recorderLock.Release();
             }
         }
@@ -1444,10 +1411,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (ReferenceEquals(_sameCodePostRollCts, owner))
                     _sameCodePostRollCts = null;
                 owner.Dispose();
-                // 进入收尾时暂停了 AI 语音生成，而外面那次恢复播报看到的还是录制中会被跳过；
-                // 收尾真正停录后要自己补一次，否则语音生成会一直停在暂停状态。
-                if (!IsRecording)
-                    ResumeSpeechWhenCameraIdle();
             }
         }
 

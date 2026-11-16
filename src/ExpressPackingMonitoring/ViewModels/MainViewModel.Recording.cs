@@ -37,7 +37,6 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             _speechService?.PlayShortBeep();
             Speak(DefaultSpeechCatalog.StopRecording, cancelPrevious: false);
-            PauseSpeechForRecording();
         }
 
         /// <summary>

@@ -74,8 +74,6 @@ namespace ExpressPackingMonitoring.Services
         private readonly Action<AlertRequest> _playAudio;
         private readonly Action _interruptAudio;
         private readonly Action<string, AlertVoiceStyle> _preGenerate;
-        private readonly Action _pauseAudio;
-        private readonly Action _resumeAudio;
         private readonly Func<DateTime> _utcNow;
         private readonly Dictionary<string, DateTime> _deduplicationExpirations = new(StringComparer.Ordinal);
         private AlertPriority _activePriority = AlertPriority.Normal;
@@ -87,17 +85,13 @@ namespace ExpressPackingMonitoring.Services
             Action<AlertRequest> playAudio,
             Func<DateTime>? utcNow = null,
             Action? interruptAudio = null,
-            Action<string, AlertVoiceStyle>? preGenerate = null,
-            Action? pauseAudio = null,
-            Action? resumeAudio = null)
+            Action<string, AlertVoiceStyle>? preGenerate = null)
         {
             _present = present ?? throw new ArgumentNullException(nameof(present));
             _playAudio = playAudio ?? throw new ArgumentNullException(nameof(playAudio));
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
             _interruptAudio = interruptAudio ?? (() => { });
             _preGenerate = preGenerate ?? ((_, _) => { });
-            _pauseAudio = pauseAudio ?? (() => { });
-            _resumeAudio = resumeAudio ?? (() => { });
         }
 
         public AlertPublishResult Publish(AlertRequest request)
@@ -147,10 +141,6 @@ namespace ExpressPackingMonitoring.Services
             if (!string.IsNullOrWhiteSpace(text))
                 _preGenerate(text, voiceStyle);
         }
-
-        public void PauseAudio() => _pauseAudio();
-
-        public void ResumeAudio() => _resumeAudio();
 
         private void RemoveExpiredDeduplicationKeys(DateTime now)
         {
