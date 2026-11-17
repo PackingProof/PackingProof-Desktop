@@ -32,7 +32,7 @@
 ## 产物与发布校验
 
 - 核对 `/api/node-info` 公布的备份协议、enrollment、鉴权版本及双端最低版本与兼容策略代码一致，更新提示中的手机和电脑下载地址均可用
-- 提高任一客户端最低版本时，先发布并确认另一端已有兼容安装包，再发布启用新门禁的主机版本
+- 提高任一用户端最低版本时，先发布并确认另一端已有兼容安装包，再发布启用新门禁的主机版本
 - 完整包不包含配置、数据库、日志、录像和其他本机运行状态
 - 完整包必须包含 `app/tools/ffmpeg.exe`，并与 `tools/ffmpeg-baseline.json` 登记的任一兼容身份大小和 SHA256 一致。优先使用自建精简构建以减小包体积；本地产物缺失时允许使用按哈希校验下载的 Gyan essentials，不阻断第三方开发者出包。另用 `pwsh -NoProfile -File tools\ffmpeg-capability-check.ps1` 验证实际选中的二进制可在干净 PATH 启动且能力矩阵完整
 - 使用包内 FFmpeg 验证 H.264/H.265 软编码、三类显卡硬件探测、MKV 封装、MP4 转换、缩略图、Web 转码和剪辑；无可用 AV1 硬件编码器时必须明确回退 H.265
@@ -44,8 +44,9 @@
 - 默认脚本离线包只包含当前最新 PPEXT、不含外部适配器，合计不超过 1 MiB；`DefaultScriptExtensions.json` 的版本、大小和 SHA-256 与包内文件一致
 - 发布前把仓根 `Directory.Build.props` 的 `<Version>` 更新为本次版本（这是唯一的版本来源，工程文件不得再各自写 `<Version>`），并与 `vX.Y.Z` 标签、`update_vX.Y.Z.json` 保持一致
 - AppPatch 运行时稳定性核对：默认必须保持 `-AppRuntimeFrameworkVersion 10.0.13`，打包日志不得出现“检测到 .NET/WPF 运行时发生变化”；如确需升级应用运行时，必须改走完整包/Store 发布并重新评估补丁体积
-- 补丁基线：0.0.83、0.0.84 历史发布使用 `-PatchBaselineVersion 0.0.18`；**0.0.84 之后的下一个正式版（0.0.86）起统一使用 `-PatchBaselineVersion 0.0.84`**，0.0.85 从未正式发布，不单独作为基线版本；把 0.0.84 定成所有老装机必须经过的补丁基线。低于 0.0.84 的客户端会先通过 0.0.84 的 `update_v0.0.84.json` 与 AppPatch 自动升到基线，再继续升级到 0.0.86；只有中间基线包不可用时才提示完整安装包，因此 0.0.84 的 Release 与 AppPatch 必须保留。**主动强制完整包的标志位是 `patch_supported: false`**；`required_launcher_protocol` 只会先触发启动器更新，不是强制完整包。打包脚本会拒绝 0.0.86+ 使用更低的基线；`tools\打包脚本-增量.bat` 和 `tools\Publish-CleanPackage.ps1` 的默认补丁基线都必须是 `0.0.84`
+- 补丁基线：0.0.83、0.0.84 历史发布使用 `-PatchBaselineVersion 0.0.18`；**0.0.84 之后的下一个正式版（0.0.86）起统一使用 `-PatchBaselineVersion 0.0.84`**，0.0.85 从未正式发布，不单独作为基线版本；把 0.0.84 定成所有老装机必须经过的补丁基线。低于 0.0.84 的用户会先通过 0.0.84 的 `update_v0.0.84.json` 与 AppPatch 自动升到基线，再继续升级到 0.0.86；只有中间基线包不可用时才提示完整安装包，因此 0.0.84 的 Release 与 AppPatch 必须保留。**主动强制完整包的标志位是 `patch_supported: false`**；`required_launcher_protocol` 只会先触发启动器更新，不是强制完整包。打包脚本会拒绝 0.0.86+ 使用更低的基线；`tools\打包脚本-增量.bat` 和 `tools\Publish-CleanPackage.ps1` 的默认补丁基线都必须是 `0.0.84`
 - 0.0.81 迁移桥：v0.0.100 是正式基线锚点，额外附件 `PackingProof_AppPatch_v0.0.100_migration_from_v0.0.81.zip` 的基线必须是 `0.0.81`，清单必须使用 `download_source=gitee`，主程序必须关闭 CET 兼容标记；后一个正式版使用 `0.0.100` 基线。检查补丁不含 `tools/ffmpeg.exe`、`libvlc/` 或 `OpenCvSharpExtern.dll`，V11 模型随迁移包安装；v0.0.101 及以上普通用户不得收到这份跨运行时大包
+- 多段升级：确认每一跳都是真实可启动版本，更新 JSON、补丁内外部基线、哈希和安装后版本一致；禁止空补丁和伪版本。用真实旧启动器验证桥接版本可安装、可启动，并验证它能继续升级到最新版；不得为了迁移老用户而把最新版全局基线降到旧版本
 - 自包含发布形态核对：`app\` 有 `coreclr.dll`/`hostfxr.dll`、包根没有 `runtime\`、`app\runtime-seed\layout.json` 与布局清单逐文件一致；`pwsh -NoProfile -File tools\Test-RuntimeLayoutSeed.ps1` 全绿（含"框架依赖的探针带 DOTNET_ROOT 从落成的布局加载运行时"）
 - 升级时序字段核对：带 `root=runtime` 载荷的补丁必须声明 `required_launcher_protocol >= 2`；`launcher_package.required_app_protocol` 只在"新启动器需要更新的主程序"时才填
 - 清理列表核对：包内 `patch_manifest.json` 的 `deletes` 与 `tools\app-patch-retire-list.json`（累计退役清单）一致、不含白名单（`tts_cache` / `ffmpeg.exe` / `libvlc`）、不含主程序核心文件；**退役清单若有变化要随发布一起提交**；用 `pwsh -NoProfile -File tools\Test-UpgradeFromLegacyLauncher.ps1 -LegacyLauncherPath <新启动器> -PackageDir <产物目录> -SimulateSecondInstance` 验证"装完才启动 + 12 个旧文件确实清掉"

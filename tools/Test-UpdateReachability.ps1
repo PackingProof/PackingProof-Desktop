@@ -131,7 +131,7 @@ function Test-ReleaseAssets([string]$Platform, $Release) {
     if ($null -eq $Release) { return }
     $Manifest = @($Release.assets | Where-Object { $_.name -eq $ManifestName })
     if ($Manifest.Count -eq 0) {
-        Write-Fail "$Platform 的 $Tag 缺少 $ManifestName（老客户端会直接跳过这一版）"
+        Write-Fail "$Platform 的 $Tag 缺少 $ManifestName（老版本用户会直接跳过这一版）"
     }
     else {
         Write-Pass "$Platform 的 $Tag 带 $ManifestName"
@@ -154,7 +154,7 @@ if ($null -ne $GiteeManifest -and $null -ne $GithubManifest) {
         $Json = Invoke-RestMethod -Uri $Item.Manifest.browser_download_url -Headers $AnonymousHeaders -TimeoutSec 60
         $Package = $Json.patch_package
         if ($null -eq $Package -or -not $Package.url) {
-            Write-Fail "$($Item.Platform) 的清单没有 patch_package.url，老客户端无法增量更新"
+            Write-Fail "$($Item.Platform) 的清单没有 patch_package.url，老版本用户无法增量更新"
             continue
         }
         $HasGithub = [bool]$Package.github_url

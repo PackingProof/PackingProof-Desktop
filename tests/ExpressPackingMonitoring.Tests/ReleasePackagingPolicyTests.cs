@@ -526,6 +526,9 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("$DeclaredPatchUrl", reachabilityScript, StringComparison.Ordinal);
         Assert.Contains("0.0.81 历史迁移桥（0.0.100）", runtimeDocument, StringComparison.Ordinal);
         Assert.Contains("waybill-yolo11n-obb-v11", runtimeDocument, StringComparison.Ordinal);
+        Assert.Contains("### 多段升级与迁移桥接", runtimeDocument, StringComparison.Ordinal);
+        Assert.Contains("空包、无 `files` 的补丁", runtimeDocument, StringComparison.Ordinal);
+        Assert.Contains("patch_variants", runtimeDocument, StringComparison.Ordinal);
     }
 
     [Fact]
