@@ -226,6 +226,37 @@ public partial class MainViewModel
         _ = SendRecordingWorkstationHeartbeatAsync();
     }
 
+    private void QueueVideoDurationBackfill()
+    {
+        VideoDatabase? database = _db;
+        if (database == null)
+            return;
+
+        CancellationToken cancellationToken = _cts?.Token ?? CancellationToken.None;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var service = new VideoDurationBackfillService(database);
+                VideoDurationBackfillResult result =
+                    await service.RunOnceAsync(cancellationToken).ConfigureAwait(false);
+                if (result.Updated > 0)
+                {
+                    RuntimeLog.Info(
+                        "DurationBackfill",
+                        $"启动时长修复完成：updated={result.Updated}, missing={result.Missing}, failed={result.Failed}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("DurationBackfill", $"启动时长修复失败：{ex.Message}");
+            }
+        }, cancellationToken);
+    }
+
     private async Task SendRecordingWorkstationHeartbeatAsync()
     {
         try

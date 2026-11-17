@@ -1257,6 +1257,11 @@ namespace ExpressPackingMonitoring.UI
                 or VideoArchiveStatus.LocalDeleted
                 or VideoArchiveStatus.NasDeleted;
             string archiveStatusText = FormatArchiveStatusText(record);
+            double resolvedDurationSeconds = record.DurationSeconds;
+            if (resolvedDurationSeconds <= 0 && record.EndTime > record.StartTime)
+            {
+                resolvedDurationSeconds = (record.EndTime - record.StartTime).TotalSeconds;
+            }
             // 归档路径不创建 FileInfo，避免列表构建触碰 SMB；大小使用数据库记录值。
             FileInfo? info = (!deleted && !missing && !storedOnHost && localExists)
                 ? new FileInfo(localPath)
@@ -1272,7 +1277,7 @@ namespace ExpressPackingMonitoring.UI
                 RecordId = record.Id,
                 OrderId = record.OrderId,
                 Mode = record.Mode,
-                Duration = record.DurationSeconds > 0 ? $"{(int)record.DurationSeconds}s" : "",
+                Duration = resolvedDurationSeconds > 0 ? $"{(int)resolvedDurationSeconds}s" : "",
                 FileSize = (deleted || missing || storedOnHost || !localExists)
                     ? FormatFileSize(record.FileSizeBytes)
                     : FormatFileSize(info!.Length),
