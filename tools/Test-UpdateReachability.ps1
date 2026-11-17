@@ -126,23 +126,15 @@ if ($null -eq $GiteeRelease) { Write-Fail "Gitee 上没有 $Tag 这个 release" 
 if ($null -eq $GithubRelease) { Write-Fail "GitHub 上没有 $Tag 这个 release" } else { Write-Pass "GitHub 上存在 $Tag" }
 
 $ManifestName = "update_v$Version.json"
-$PatchName = "PackingProof_AppPatch_v$Version.zip"
 
 function Test-ReleaseAssets([string]$Platform, $Release) {
     if ($null -eq $Release) { return }
     $Manifest = @($Release.assets | Where-Object { $_.name -eq $ManifestName })
-    $Patch = @($Release.assets | Where-Object { $_.name -eq $PatchName })
     if ($Manifest.Count -eq 0) {
         Write-Fail "$Platform 的 $Tag 缺少 $ManifestName（老客户端会直接跳过这一版）"
     }
     else {
         Write-Pass "$Platform 的 $Tag 带 $ManifestName"
-    }
-    if ($Patch.Count -eq 0) {
-        Write-Fail "$Platform 的 $Tag 缺少 $PatchName（增量更新下不动）"
-    }
-    else {
-        Write-Pass "$Platform 的 $Tag 带 $PatchName"
     }
 }
 
@@ -173,8 +165,22 @@ if ($null -ne $GiteeManifest -and $null -ne $GithubManifest) {
         if (-not $HasGithub) {
             Write-Warn "$($Item.Platform) 的清单缺少 github_url，只剩 Gitee 一个下载入口"
         }
-        $PatchAsset = @($Item.Release.assets | Where-Object { $_.name -eq $PatchName })[0]
-        if ($null -ne $PatchAsset) {
+        $DeclaredPatchUrl = if ($Item.Platform -eq 'Gitee' -and $HasGitee) {
+            [string]$Package.gitee_url
+        }
+        elseif ($Item.Platform -eq 'GitHub' -and $HasGithub) {
+            [string]$Package.github_url
+        }
+        else {
+            [string]$Package.url
+        }
+        $PatchName = [System.IO.Path]::GetFileName(([uri]$DeclaredPatchUrl).AbsolutePath)
+        $PatchAsset = @($Item.Release.assets | Where-Object { $_.name -eq $PatchName }) | Select-Object -First 1
+        if ($null -eq $PatchAsset) {
+            Write-Fail "$($Item.Platform) 的清单声明补丁 $PatchName，但该 Release 没有这个附件"
+        }
+        else {
+            Write-Pass "$($Item.Platform) 的清单引用补丁 $PatchName"
             $PatchBytes = (Invoke-WebRequest -Uri $PatchAsset.browser_download_url -Headers $AnonymousHeaders -TimeoutSec 300).Content
             $Hash = [System.BitConverter]::ToString(
                 [System.Security.Cryptography.SHA256]::HashData([byte[]]$PatchBytes)).Replace('-', '').ToLowerInvariant()

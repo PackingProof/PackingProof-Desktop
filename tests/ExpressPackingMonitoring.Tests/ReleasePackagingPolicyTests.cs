@@ -503,6 +503,32 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void LegacyMigrationPackaging_UsesTheV100BridgeAndFollowsManagedRuntimePolicy()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string migrationScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "New-LegacyMigrationPackage.ps1"),
+            Encoding.UTF8);
+        string reachabilityScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Test-UpdateReachability.ps1"),
+            Encoding.UTF8);
+        string runtimeDocument = File.ReadAllText(
+            Path.Combine(repositoryRoot, "docs", "development", "RELEASE_AND_RUNTIME.md"),
+            Encoding.UTF8);
+
+        Assert.Contains("PortableExecutableCetPolicy", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("-ExcludeCompatibleRuntimes", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("$update.download_source = \"gitee\"", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("$update.full_download_page = $FullDownloadPage.Trim()", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("vision-model-baseline.json", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("$baselineModelMatchesTarget", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("Migration package repeats an unchanged visual model", migrationScript, StringComparison.Ordinal);
+        Assert.Contains("$DeclaredPatchUrl", reachabilityScript, StringComparison.Ordinal);
+        Assert.Contains("0.0.81 历史迁移桥（0.0.100）", runtimeDocument, StringComparison.Ordinal);
+        Assert.Contains("waybill-yolo11n-obb-v11", runtimeDocument, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Tests_IncludeVisionObbByDefaultAndCanExcludeIt()
     {
         string repositoryRoot = FindRepositoryRoot();
