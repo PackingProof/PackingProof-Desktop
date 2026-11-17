@@ -181,14 +181,20 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
+        public string CaptureTimeText
+        {
+            get => StartTime > DateTime.MinValue
+                ? StartTime.ToString("HH:mm:ss")
+                : "—";
+        }
+
         public string PrimaryMetaText
         {
             get
             {
-                string text = string.Join(
-                    " · ",
-                    new[] { Duration, FileSize }.Where(value => !string.IsNullOrWhiteSpace(value)));
-                return text.Length > 0 ? text : "—";
+                string duration = string.IsNullOrWhiteSpace(Duration) ? "—" : Duration;
+                string size = string.IsNullOrWhiteSpace(FileSize) ? "—" : FileSize;
+                return $"{duration} · {size}";
             }
         }
 
@@ -326,6 +332,11 @@ namespace ExpressPackingMonitoring.UI
             TimeLabel.Text = "正在加载列表...";
             _excludeUnavailableRecords = !showDeletedVideos;
             Loaded += PlaybackWindow_Loaded;
+            VideoList.AddHandler(
+                ScrollViewer.ScrollChangedEvent,
+                new ScrollChangedEventHandler((_, _) => UpdateStickyDateHeader()),
+                handledEventsToo: true);
+            VideoList.SizeChanged += (_, _) => UpdateStickyDateHeader();
             BtnImportVideos.Visibility = _videoImportService == null
                 ? Visibility.Collapsed
                 : Visibility.Visible;
@@ -1447,12 +1458,77 @@ namespace ExpressPackingMonitoring.UI
             var view = new ListCollectionView(_allVideos);
             view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(VideoItem.DateGroupKey)));
             VideoList.ItemsSource = view;
+            _ = Dispatcher.BeginInvoke(
+                UpdateStickyDateHeader,
+                DispatcherPriority.Background);
             int pageCount = GetPageCount();
             PageStatusText.Text = FormatPageStatus(_currentPage, pageCount, _totalVideos);
             BtnPreviousPage.IsEnabled = !_isLoadingVideos && _currentPage > 1;
             BtnNextPage.IsEnabled = !_isLoadingVideos && (_usingApproximatePaging ? _hasMoreVideoPages : pageCount > 0 && _currentPage < pageCount);
             UpdateExportOrderNumbersButtonState();
             UpdateLocateButtonState();
+        }
+
+        private void UpdateStickyDateHeader()
+        {
+            if (!IsLoaded || _isClosing)
+            {
+                StickyDateHeader.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            double headerHeight = StickyDateHeader.ActualHeight > 0
+                ? StickyDateHeader.ActualHeight
+                : 29;
+            GroupItem? activeGroup = null;
+            GroupItem? nextGroup = null;
+            double activeTop = 0;
+            foreach (GroupItem group in FindVisualChildren<GroupItem>(VideoList))
+            {
+                double top = group.TranslatePoint(new Point(0, 0), VideoList).Y;
+                if (top <= 0.5)
+                {
+                    activeGroup = group;
+                    activeTop = top;
+                }
+                else
+                {
+                    nextGroup = group;
+                    break;
+                }
+            }
+
+            if (activeGroup == null || activeTop >= 0)
+            {
+                StickyDateHeader.Visibility = Visibility.Collapsed;
+                StickyDateHeader.RenderTransform = new TranslateTransform();
+                return;
+            }
+
+            StickyDateHeaderText.Text =
+                (activeGroup.DataContext as CollectionViewGroup)?.Name?.ToString() ?? "";
+            StickyDateHeader.Visibility = Visibility.Visible;
+            double nextOffset = 0;
+            if (nextGroup != null)
+            {
+                double nextTop = nextGroup.TranslatePoint(new Point(0, 0), VideoList).Y;
+                nextOffset = Math.Min(0, nextTop - headerHeight);
+            }
+            StickyDateHeader.RenderTransform = new TranslateTransform(0, nextOffset);
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject root)
+            where T : DependencyObject
+        {
+            int count = VisualTreeHelper.GetChildrenCount(root);
+            for (int index = 0; index < count; index++)
+            {
+                DependencyObject child = VisualTreeHelper.GetChild(root, index);
+                if (child is T match)
+                    yield return match;
+                foreach (T descendant in FindVisualChildren<T>(child))
+                    yield return descendant;
+            }
         }
 
         /// <summary>

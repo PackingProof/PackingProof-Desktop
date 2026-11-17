@@ -153,6 +153,7 @@ public sealed class PlaybackWindowTests
             IsMissing = true
         };
 
+        Assert.Equal("14:32:00", item.CaptureTimeText);
         Assert.Equal("12秒 · 18 MB", item.PrimaryMetaText);
         Assert.Equal("手机 A", item.SourceTagText);
         Assert.Equal(item.StatusText, item.RowBadgeText);
@@ -221,6 +222,26 @@ public sealed class PlaybackWindowTests
         Assert.Contains("<ListView.GroupStyle>", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Key=\"PlaybackSourceTagStyle\"", xaml, StringComparison.Ordinal);
         Assert.Contains("HorizontalAlignment=\"Right\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PlaybackList_StickyDateHeaderTracksScrollAndNextGroup()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.xaml"));
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.xaml.cs"));
+
+        Assert.Contains("x:Name=\"StickyDateHeader\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ScrollViewer.ScrollChangedEvent", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("FindVisualChildren<GroupItem>", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("Math.Min(0, nextTop - headerHeight)", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -167,6 +167,9 @@
         <Style x:Key="PlaybackSourceTagStyle"
                TargetType="Border"
                BasedOn="{StaticResource PlaybackMetaTagStyle}">
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Padding" Value="6,0"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Background" Value="{DynamicResource SourceTag1Bg}"/>
             <Setter Property="TextElement.Foreground" Value="{DynamicResource SourceTag1Text}"/>
             <Style.Triggers>
@@ -541,7 +544,8 @@
                     </StackPanel>
                 </ScrollViewer>
 
-                <ListView x:Name="VideoList" Grid.Row="1" FontSize="14" SelectionChanged="VideoList_SelectionChanged" BorderThickness="0" Background="{StaticResource TransparentBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <Grid Grid.Row="1">
+                <ListView x:Name="VideoList" FontSize="14" SelectionChanged="VideoList_SelectionChanged" BorderThickness="0" Background="{StaticResource TransparentBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListView.GroupStyle>
                         <GroupStyle>
                             <GroupStyle.HeaderTemplate>
@@ -653,7 +657,6 @@
                                         </TextBlock>
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding PrimaryMetaText}"
-                                                   Margin="8,0,0,0"
                                                    FontSize="11"
                                                    Foreground="{DynamicResource TextSecondary}"
                                                    VerticalAlignment="Center"
@@ -681,8 +684,9 @@
                                     </Button>
                                     <Grid Grid.Row="1" Margin="0,2,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="132"/>
+                                            <ColumnDefinition Width="112"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="68"/>
                                         </Grid.ColumnDefinitions>
                                         <Border Grid.Column="0"
                                                 Style="{StaticResource PlaybackSourceTagStyle}"
@@ -691,9 +695,16 @@
                                                        FontSize="11"
                                                        TextTrimming="CharacterEllipsis"
                                                        VerticalAlignment="Center"
-                                                       MaxWidth="122"/>
+                                                       MaxWidth="100"/>
                                         </Border>
-                                        <Border Grid.Column="1"
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding CaptureTimeText}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondary}"
+                                                   TextAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <Border Grid.Column="2"
                                                 Style="{StaticResource PlaybackRowStateBadgeStyle}"
                                                 HorizontalAlignment="Right"
                                                 Visibility="{Binding HasRowBadge, Converter={StaticResource BoolToVisibility}}">
@@ -702,13 +713,33 @@
                                                        FontWeight="SemiBold"
                                                        TextTrimming="CharacterEllipsis"
                                                        VerticalAlignment="Center"
-                                                       MaxWidth="104"/>
+                                                       MaxWidth="64"/>
                                         </Border>
                                     </Grid>
                                 </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
+                <Border x:Name="StickyDateHeader"
+                        Height="29"
+                        VerticalAlignment="Top"
+                        Background="{DynamicResource PanelBackground}"
+                        BorderBrush="{DynamicResource BorderDefault}"
+                        BorderThickness="0,0,0,1"
+                        Padding="4,0,0,0"
+                        IsHitTestVisible="False"
+                        Panel.ZIndex="5"
+                        Visibility="Collapsed">
+                    <Border.RenderTransform>
+                        <TranslateTransform />
+                    </Border.RenderTransform>
+                    <TextBlock x:Name="StickyDateHeaderText"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextSecondary}"
+                               VerticalAlignment="Center"/>
+                </Border>
+                </Grid>
 
                 <Grid Grid.Row="2" Margin="0,10,0,0">
                     <Grid.RowDefinitions>
