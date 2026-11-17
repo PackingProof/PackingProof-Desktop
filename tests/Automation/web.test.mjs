@@ -338,6 +338,18 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     });
     await page.locator('#clipCloseBtn').click();
     assert.equal(await page.locator('body').evaluate(element => element.classList.contains('clip-open')), false);
+
+    const videoId = await article.evaluate(element => videoTipData.get(element)?.id);
+    assert.ok(Number.isInteger(videoId) && videoId > 0);
+    await page.goto(
+      `${baseUrl}?action=clip&videoId=${videoId}&orderId=AUTO_WEB_001&fileName=fixture.mp4&durationSec=2&videoCodec=h264`,
+      { waitUntil: 'networkidle' }
+    );
+    await assert.doesNotReject(() => page.locator('#clipOverlay.active').waitFor());
+    await page.waitForFunction(() => typeof clipState !== 'undefined' && clipState?.sourceReady === true);
+    assert.equal(await page.evaluate(() => Number(clipState?.video?.id)), videoId);
+    assert.equal(await page.evaluate(() => Number(clipState?.total)) > 0, true);
+    await page.locator('#clipCloseBtn').click();
     assert.deepEqual(pageErrors, [], '页面不应有未捕获的脚本异常');
   } finally {
     await browser.close();

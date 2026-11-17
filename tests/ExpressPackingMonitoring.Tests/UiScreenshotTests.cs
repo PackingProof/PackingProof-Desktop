@@ -167,11 +167,25 @@ public sealed class UiScreenshotTests
         TryCapture(
             "playback",
             outputDirectory,
-            () => new PlaybackWindow(Path.GetTempPath(), null, true, "本机"));
+            () => new PlaybackWindow(
+                Path.GetTempPath(),
+                null,
+                true,
+                "本机",
+                webClipUrlProvider: _ => Task.FromResult<string?>("http://127.0.0.1:5280/"))
+            {
+                Width = 1440,
+                Height = 760
+            });
         TryCapture(
             "playback-narrow",
             outputDirectory,
-            () => new PlaybackWindow(Path.GetTempPath(), null, true, "本机")
+            () => new PlaybackWindow(
+                Path.GetTempPath(),
+                null,
+                true,
+                "本机",
+                webClipUrlProvider: _ => Task.FromResult<string?>("http://127.0.0.1:5280/"))
             {
                 Width = 920,
                 Height = 700

@@ -280,6 +280,7 @@
     <Compile Include="UI\PlaybackTooltipBuilder.cs" />
     <Compile Include="UI\PlaybackReasonText.cs" />
     <Compile Include="UI\PlaybackMediaSource.cs" />
+    <Compile Include="UI\WebClipLaunchUrlBuilder.cs" />
     <Compile Include="UI\RecordingFilterState.cs" />
     <Compile Include="UI\RoundedClip.cs" />
     <Compile Include="UI\SectionCardSpacing.cs" />

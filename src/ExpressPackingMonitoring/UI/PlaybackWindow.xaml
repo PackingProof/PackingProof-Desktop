@@ -827,6 +827,7 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
                         <Button x:Name="BtnTogglePlay" Grid.Column="0" Height="32" Style="{StaticResource PrimaryButtonStyle}" Click="BtnTogglePlay_Click" ToolTip="{loc:Localized 播放（空格）}" Margin="0,0,15,0">
@@ -866,10 +867,31 @@
                             </StackPanel>
                         </Button>
 
-                        <Button x:Name="BtnLocateFile" Grid.Column="4" Height="32" Style="{StaticResource PrimaryButtonStyle}" Click="BtnLocateFile_Click" ToolTip="定位文件" Margin="8,0,0,0">
+                        <Button x:Name="BtnWebClip"
+                                Grid.Column="4"
+                                Height="32"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Click="BtnWebClip_Click"
+                                IsEnabled="False"
+                                ToolTip="{loc:Localized 在网页中剪辑当前录像}"
+                                AutomationProperties.Name="{loc:Localized 在网页中剪辑当前录像}"
+                                Margin="8,0,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Path x:Name="WebClipIcon"
+                                      Data="{StaticResource FluentCutIcon}"
+                                      Width="15"
+                                      Height="15"
+                                      Stretch="Uniform"
+                                      Fill="{StaticResource TextOnAccent}"
+                                      Margin="0,0,6,0"/>
+                                <TextBlock x:Name="WebClipText" Text="{loc:Localized 剪辑}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="BtnLocateFile" Grid.Column="5" Height="32" Style="{StaticResource PrimaryButtonStyle}" Click="BtnLocateFile_Click" ToolTip="定位文件" Margin="8,0,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <Path x:Name="LocateFileIcon" Data="{StaticResource FluentFolderIcon}" Width="15" Height="15" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,6,0"/>
-                                <TextBlock x:Name="LocateFileText" Text="定位文件"/>
+                                <TextBlock x:Name="LocateFileText" Text="{loc:Localized 打开目录}"/>
                             </StackPanel>
                         </Button>
                     </Grid>

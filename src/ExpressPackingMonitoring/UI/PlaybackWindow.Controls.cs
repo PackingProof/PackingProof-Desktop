@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Logging;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
@@ -14,6 +15,8 @@ namespace ExpressPackingMonitoring.UI;
 /// </summary>
 public partial class PlaybackWindow
 {
+    private bool _webClipOpening;
+
     private void BtnTogglePlay_Click(object sender, RoutedEventArgs e)
     {
         if (_mediaPlayer == null)
@@ -71,6 +74,48 @@ public partial class PlaybackWindow
         catch (Exception ex)
         {
             AppDialog.Error(this, $"无法打开文件管理器：{ex.Message}", "定位失败");
+        }
+    }
+
+    private async void BtnWebClip_Click(object sender, RoutedEventArgs e)
+    {
+        if (_webClipOpening
+            || _webClipUrlProvider == null
+            || VideoList.SelectedItem is not VideoItem video
+            || video.IsUnavailable
+            || video.RecordId <= 0)
+        {
+            return;
+        }
+
+        _webClipOpening = true;
+        UpdateLocateButtonState(video);
+        try
+        {
+            string? url = await _webClipUrlProvider(video);
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                ShowPlaybackToast(AppLanguage.Get("网页剪辑暂不可用"));
+                return;
+            }
+
+            await Task.Run(() =>
+            {
+                using Process? process = Process.Start(new ProcessStartInfo(url)
+                {
+                    UseShellExecute = true
+                });
+            });
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("Playback", "打开网页剪辑失败", ex);
+            ShowPlaybackToast(AppLanguage.Format("打开网页剪辑失败：{0}", ex.Message));
+        }
+        finally
+        {
+            _webClipOpening = false;
+            UpdateLocateButtonState();
         }
     }
 
@@ -275,9 +320,11 @@ public partial class PlaybackWindow
         Visibility textVisibility = iconOnly ? Visibility.Collapsed : Visibility.Visible;
         PlayStateText.Visibility = textVisibility;
         ScreenshotText.Visibility = textVisibility;
+        WebClipText.Visibility = textVisibility;
         LocateFileText.Visibility = textVisibility;
         PlayStateIcon.Margin = iconOnly ? new Thickness(0) : new Thickness(0, 0, 6, 0);
         ScreenshotIcon.Margin = iconOnly ? new Thickness(0) : new Thickness(0, 0, 6, 0);
+        WebClipIcon.Margin = iconOnly ? new Thickness(0) : new Thickness(0, 0, 6, 0);
         LocateFileIcon.Margin = iconOnly ? new Thickness(0) : new Thickness(0, 0, 6, 0);
         TimeLabel.MinWidth = iconOnly ? 0 : 110;
         // 只隐藏文字是不够的：基础按钮样式带 96px 最小宽度，按钮还是那么宽。
@@ -288,6 +335,7 @@ public partial class PlaybackWindow
         {
             BtnTogglePlay.Style = buttonStyle;
             BtnScreenshot.Style = buttonStyle;
+            BtnWebClip.Style = buttonStyle;
             BtnLocateFile.Style = buttonStyle;
         }
     }
@@ -296,5 +344,10 @@ public partial class PlaybackWindow
     {
         var current = video ?? VideoList.SelectedItem as VideoItem;
         BtnLocateFile.IsEnabled = current != null && !current.IsUnavailable;
+        BtnWebClip.IsEnabled = !_webClipOpening
+            && _webClipUrlProvider != null
+            && current != null
+            && !current.IsUnavailable
+            && current.RecordId > 0;
     }
 }

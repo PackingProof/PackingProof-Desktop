@@ -57,6 +57,7 @@ namespace ExpressPackingMonitoring.UI
         public string OrderId { get; set; } = "";
         public string Mode { get; set; } = "";
         public string Duration { get; set; } = "";
+        public double DurationSeconds { get; set; }
         public string FileSize { get; set; } = "";
         public string StopReason { get; set; } = "";
         public string VideoCodec { get; set; } = "";
@@ -233,6 +234,7 @@ namespace ExpressPackingMonitoring.UI
             string,
             CancellationToken,
             Task<MkvConversionResult>>? _prepareMkvForPlayback;
+        private readonly Func<VideoItem, Task<string?>>? _webClipUrlProvider;
         private string _lastImportFolder;
         private readonly DispatcherTimer _timer;
         private readonly DispatcherTimer _searchTimer;
@@ -281,14 +283,16 @@ namespace ExpressPackingMonitoring.UI
             VideoDatabase? db = null,
             bool showDeletedVideos = true,
             string localComputerName = "",
-            bool canDeleteRecords = false)
+            bool canDeleteRecords = false,
+            Func<VideoItem, Task<string?>>? webClipUrlProvider = null)
             : this(
                 folderPath,
                 db,
                 showDeletedVideos,
                 null,
                 localComputerName: localComputerName,
-                canDeleteRecords: canDeleteRecords)
+                canDeleteRecords: canDeleteRecords,
+                webClipUrlProvider: webClipUrlProvider)
         {
         }
 
@@ -307,7 +311,8 @@ namespace ExpressPackingMonitoring.UI
                 VideoItem,
                 string,
                 CancellationToken,
-                Task<MkvConversionResult>>? prepareMkvForPlayback = null)
+                Task<MkvConversionResult>>? prepareMkvForPlayback = null,
+            Func<VideoItem, Task<string?>>? webClipUrlProvider = null)
         {
             InitializeComponent();
             _folderPath = folderPath;
@@ -321,6 +326,10 @@ namespace ExpressPackingMonitoring.UI
             _saveImportFolder = saveImportFolder;
             _videosImported = videosImported;
             _prepareMkvForPlayback = prepareMkvForPlayback;
+            _webClipUrlProvider = webClipUrlProvider;
+            BtnWebClip.Visibility = _webClipUrlProvider == null
+                ? Visibility.Collapsed
+                : Visibility.Visible;
 
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
             _timer.Tick += Timer_Tick;
@@ -1286,6 +1295,7 @@ namespace ExpressPackingMonitoring.UI
                 OrderId = record.OrderId,
                 Mode = record.Mode,
                 Duration = resolvedDurationSeconds > 0 ? $"{(int)resolvedDurationSeconds}s" : "",
+                DurationSeconds = resolvedDurationSeconds,
                 FileSize = (deleted || missing || storedOnHost || !localExists)
                     ? FormatFileSize(record.FileSizeBytes)
                     : FormatFileSize(info!.Length),

@@ -1067,7 +1067,8 @@ namespace ExpressPackingMonitoring.Services
                     if (authorizedByQuery && path == "")
                     {
                         ctx.Response.StatusCode = 302;
-                        ctx.Response.RedirectLocation = "/";
+                        ctx.Response.RedirectLocation = BuildAuthorizedIndexRedirectLocation(
+                            ctx.Request.Url?.Query);
                         ctx.Response.OutputStream.Close();
                         return;
                     }
@@ -2808,6 +2809,41 @@ namespace ExpressPackingMonitoring.Services
                 Expires = DateTime.UtcNow.AddDays(30)
             };
             ctx.Response.SetCookie(cookie);
+        }
+
+        /// <summary>
+        /// 首次用查询密钥打开首页时，密钥会落下访问 Cookie；再跳到不带密钥的地址，
+        /// 避免密钥留在浏览器地址栏。深链接的其余参数必须原样保留，否则
+        /// 桌面回放的网页剪辑入口会被重定向成普通录像列表。
+        /// </summary>
+        internal static string BuildAuthorizedIndexRedirectLocation(string rawQuery)
+        {
+            if (string.IsNullOrWhiteSpace(rawQuery))
+                return "/";
+
+            string[] retained = rawQuery
+                .TrimStart('?')
+                .Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Where(part => !IsAccessKeyQueryParameter(part))
+                .ToArray();
+            return retained.Length == 0
+                ? "/"
+                : "/?" + string.Join("&", retained);
+        }
+
+        private static bool IsAccessKeyQueryParameter(string part)
+        {
+            int separator = part.IndexOf('=');
+            string name = separator >= 0 ? part[..separator] : part;
+            try
+            {
+                name = Uri.UnescapeDataString(name.Replace("+", " "));
+            }
+            catch (UriFormatException)
+            {
+                // 无效转义仍按原值判断；后续鉴权不会把它当作 key。
+            }
+            return string.Equals(name, "key", StringComparison.OrdinalIgnoreCase);
         }
 
         internal static bool AccessKeysEqual(string left, string right)

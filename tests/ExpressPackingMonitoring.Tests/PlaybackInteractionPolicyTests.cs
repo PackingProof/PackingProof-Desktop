@@ -114,6 +114,30 @@ public sealed class PlaybackInteractionPolicyTests
     }
 
     [Fact]
+    public void WebClipLaunchUrl_ContainsCurrentVideoAndPreservesAccessKey()
+    {
+        string url = WebClipLaunchUrlBuilder.Build(
+            "http://127.0.0.1:5280/?key=abc",
+            42,
+            "AB CD&1",
+            "录像 01.mp4",
+            12.5,
+            "h265");
+
+        Assert.StartsWith(
+            "http://127.0.0.1:5280/?key=abc&action=clip&videoId=42",
+            url,
+            StringComparison.Ordinal);
+        Assert.Contains("orderId=AB%20CD%261", url, StringComparison.Ordinal);
+        Assert.Contains(
+            "fileName=%E5%BD%95%E5%83%8F%2001.mp4",
+            url,
+            StringComparison.Ordinal);
+        Assert.Contains("durationSec=12.5", url, StringComparison.Ordinal);
+        Assert.EndsWith("videoCodec=h265", url, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PlaybackControlBar_ExposesCompactOriginalFrameScreenshot()
     {
         string xaml = ReadProjectFile(Path.Combine("UI", "PlaybackWindow.xaml"));
@@ -125,10 +149,18 @@ public sealed class PlaybackInteractionPolicyTests
             Path.Combine("UI", "PlaybackScreenshotDialog.xaml"));
         string dialogSource = ReadProjectFile(
             Path.Combine("UI", "PlaybackScreenshotDialog.xaml.cs"));
+        string mediaViewModel = ReadProjectFile(
+            Path.Combine("ViewModels", "MainViewModel.Media.cs"));
+        string webIndex = ReadProjectFile(Path.Combine("Web", "index.html"));
 
         Assert.Contains("x:Name=\"BtnScreenshot\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Style=\"{StaticResource PrimaryButtonStyle}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ScreenshotText\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BtnWebClip\"", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "Data=\"{StaticResource FluentCutIcon}\"",
+            xaml,
+            StringComparison.Ordinal);
         Assert.Contains(
             "Data=\"{StaticResource FluentPhotoCameraIcon}\"",
             xaml,
@@ -155,6 +187,8 @@ public sealed class PlaybackInteractionPolicyTests
             StringComparison.Ordinal);
         Assert.Contains("ScreenshotText.Visibility = textVisibility;", controlsSource, StringComparison.Ordinal);
         Assert.Contains("BtnScreenshot.Style = buttonStyle;", controlsSource, StringComparison.Ordinal);
+        Assert.Contains("WebClipText.Visibility = textVisibility;", controlsSource, StringComparison.Ordinal);
+        Assert.Contains("BtnWebClip.Style = buttonStyle;", controlsSource, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PreviewImage\"", dialogXaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PreviewFrame\"", dialogXaml, StringComparison.Ordinal);
         Assert.DoesNotContain("请选择复制到剪贴板或另存为", dialogXaml, StringComparison.Ordinal);
@@ -163,6 +197,16 @@ public sealed class PlaybackInteractionPolicyTests
         Assert.Contains("Content=\"{loc:Localized 复制到剪贴板}\"", dialogXaml, StringComparison.Ordinal);
         Assert.Contains("Width = size.WindowWidth;", dialogSource, StringComparison.Ordinal);
         Assert.Contains("PreviewFrame.Width = size.PreviewWidth;", dialogSource, StringComparison.Ordinal);
+        Assert.Contains(
+            "$" + "\"127.0.0.1:{Config.WebServerPort}\"",
+            mediaViewModel,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "webClipUrlProvider: WebServerModePolicy.ProvidesWebPlayback(webServerMode)",
+            mediaViewModel,
+            StringComparison.Ordinal);
+        Assert.Contains("function initClipDeepLink()", webIndex, StringComparison.Ordinal);
+        Assert.Contains("params.get('action')!=='clip'", webIndex, StringComparison.Ordinal);
     }
 
     private static string ReadProjectFile(string relativePath)

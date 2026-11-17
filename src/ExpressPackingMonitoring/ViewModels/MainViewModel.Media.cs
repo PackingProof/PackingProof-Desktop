@@ -7,6 +7,7 @@ using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Audio;
 using ExpressPackingMonitoring.Localization;
+using ExpressPackingMonitoring.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -25,7 +26,6 @@ using CommunityToolkit.Mvvm.Input;
 using OpenCvSharp;
 using AForge.Video;
 using AForge.Video.DirectShow;
-using ExpressPackingMonitoring.Services;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.ComponentModel;
@@ -75,6 +75,7 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 VideoFolderImportService importService = CreateVideoImportService(folderPath);
+                WebServerMode webServerMode = WebServerModePolicy.Resolve(Config.DeploymentPreset);
                 var playbackWindow = new PlaybackWindow(
                     folderPath,
                     _db,
@@ -98,7 +99,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     canDeleteRecords: DeploymentCapabilities
                         .ForPreset(Config.DeploymentPreset)
                         .CanDeleteRecordings,
-                    prepareMkvForPlayback: PreparePlaybackVideoAsync);
+                    prepareMkvForPlayback: PreparePlaybackVideoAsync,
+                    webClipUrlProvider: WebServerModePolicy.ProvidesWebPlayback(webServerMode)
+                        ? BuildWebClipUrlAsync
+                        : null);
                 // 先按最新那条录像把窗口尺寸定好，再显示：否则用户会先看到默认大小再跳一下。
                 await playbackWindow.PrepareInitialWindowSizeAsync();
                 _playbackWindow = playbackWindow;
@@ -117,6 +121,34 @@ namespace ExpressPackingMonitoring.ViewModels
                 RuntimeLog.Error("Playback", "打开回放窗口失败", ex);
                 AppDialog.Error(null, $"打开回放窗口失败：{ex.Message}", "回放错误");
             }
+        }
+
+        private async Task<string> BuildWebClipUrlAsync(VideoItem video)
+        {
+            WebServerMode mode = WebServerModePolicy.Resolve(Config.DeploymentPreset);
+            if (!WebServerModePolicy.ProvidesWebPlayback(mode)
+                || video.RecordId <= 0)
+            {
+                return null;
+            }
+
+            Task<bool> startupTask = _webServerStartupTask;
+            if (_webServer == null && startupTask != null)
+                await startupTask;
+            if (_webServer == null || _isDisposed)
+                return null;
+
+            string accessUrl = MobileConnectionService.BuildAccessUrl(
+                $"127.0.0.1:{Config.WebServerPort}",
+                Config.RequireWebAccessKey,
+                Config.WebAccessKey);
+            return WebClipLaunchUrlBuilder.Build(
+                accessUrl,
+                video.RecordId,
+                video.OrderId,
+                video.FileName,
+                video.DurationSeconds,
+                video.VideoCodec);
         }
 
         private static bool ActivateExistingWindow(System.Windows.Window window)

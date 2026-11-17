@@ -255,6 +255,74 @@ public sealed class MobileConnectionTests
     }
 
     [Fact]
+    public void AuthorizedIndexRedirect_RemovesAccessKeyAndPreservesDeepLink()
+    {
+        string location = WebServer.BuildAuthorizedIndexRedirectLocation(
+            "?key=secret&action=clip&videoId=42&orderId=AB%20CD&fileName=recording.mp4");
+
+        Assert.Equal(
+            "/?action=clip&videoId=42&orderId=AB%20CD&fileName=recording.mp4",
+            location);
+        Assert.DoesNotContain("secret", location, StringComparison.Ordinal);
+        Assert.Equal("/", WebServer.BuildAuthorizedIndexRedirectLocation("?key=secret"));
+        Assert.Equal("/", WebServer.BuildAuthorizedIndexRedirectLocation("?KEY=secret"));
+    }
+
+    [Fact]
+    public async Task ProtectedIndexRedirect_PreservesClipDeepLinkAndSetsAccessCookie()
+    {
+        string tempDirectory = Path.Combine(Path.GetTempPath(), $"epm-index-deep-link-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        int port = GetFreeTcpPort();
+        const string accessKey = "0123456789abcdef0123456789abcdef";
+
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                requireAccessKey: true,
+                accessKey: accessKey,
+                listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(tempDirectory, "state"));
+            server.Start();
+
+            using var handler = new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = true,
+                CookieContainer = new CookieContainer()
+            };
+            using var client = new HttpClient(handler) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+
+            using HttpResponseMessage response = await client.GetAsync(
+                $"/?key={accessKey}&action=clip&videoId=42&orderId=AUTO_WEB_001&fileName=fixture.mp4",
+                cancellationToken);
+
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal(
+                "/?action=clip&videoId=42&orderId=AUTO_WEB_001&fileName=fixture.mp4",
+                response.Headers.Location?.OriginalString);
+            Assert.Single(handler.CookieContainer.GetCookies(client.BaseAddress!));
+
+            using HttpResponseMessage redirected = await client.GetAsync(
+                response.Headers.Location,
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.OK, redirected.StatusCode);
+            Assert.Contains(
+                "function initClipDeepLink()",
+                await redirected.Content.ReadAsStringAsync(cancellationToken),
+                StringComparison.Ordinal);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDirectory, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
     public void MobileConnectionEndpointAlwaysRequiresAccessKeyWhenProtectionIsEnabled()
     {
         Assert.True(WebServer.RequiresAccessKey("/api/mobile-connection"));

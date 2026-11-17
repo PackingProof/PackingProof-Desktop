@@ -16,6 +16,9 @@
   <data name="暂停" xml:space="preserve"><value>一時停止</value></data>
   <data name="下载" xml:space="preserve"><value>ダウンロード</value></data>
   <data name="剪辑" xml:space="preserve"><value>切り抜き</value></data>
+  <data name="在网页中剪辑当前录像" xml:space="preserve"><value>Web プレーヤーでこの録画を切り抜く</value></data>
+  <data name="网页剪辑暂不可用" xml:space="preserve"><value>Web 切り抜きは現在利用できません</value></data>
+  <data name="打开网页剪辑失败：{0}" xml:space="preserve"><value>Web 切り抜きを開けませんでした: {0}</value></data>
   <data name="跟随系统" xml:space="preserve"><value>システムに従う</value></data>
   <data name="简体中文" xml:space="preserve"><value>簡体字中国語</value></data>
   <data name="日语" xml:space="preserve"><value>日本語</value></data>

@@ -8,8 +8,8 @@ public sealed class PlaybackControlBarPolicyTests
     /// <summary>窗口窄了按钮只留图标，把宽度让给进度条；宽了就恢复正常文字。</summary>
     [Theory]
     [InlineData(1000, false)]
-    [InlineData(700, false)]
-    [InlineData(699, true)]
+    [InlineData(820, false)]
+    [InlineData(819, true)]
     [InlineData(420, true)]
     [InlineData(0, false)]
     public void UseIconOnlyButtons_OnlyWhenControlBarIsNarrow(double width, bool expected)
