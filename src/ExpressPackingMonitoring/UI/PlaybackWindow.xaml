@@ -164,6 +164,35 @@
             <Setter Property="TextElement.Foreground" Value="{DynamicResource TextSecondary}"/>
         </Style>
 
+        <Style x:Key="PlaybackSourceTagStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource PlaybackMetaTagStyle}">
+            <Setter Property="Background" Value="{DynamicResource SourceTag1Bg}"/>
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource SourceTag1Text}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SourceColorIndex}" Value="2">
+                    <Setter Property="Background" Value="{DynamicResource SourceTag2Bg}"/>
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource SourceTag2Text}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SourceColorIndex}" Value="3">
+                    <Setter Property="Background" Value="{DynamicResource SourceTag3Bg}"/>
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource SourceTag3Text}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SourceColorIndex}" Value="4">
+                    <Setter Property="Background" Value="{DynamicResource SourceTag4Bg}"/>
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource SourceTag4Text}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SourceColorIndex}" Value="5">
+                    <Setter Property="Background" Value="{DynamicResource SourceTag5Bg}"/>
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource SourceTag5Text}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SourceColorIndex}" Value="6">
+                    <Setter Property="Background" Value="{DynamicResource SourceTag6Bg}"/>
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource SourceTag6Text}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="PlaybackRowStateBadgeStyle" TargetType="Border">
             <Setter Property="Height" Value="20"/>
             <Setter Property="Padding" Value="6,0"/>
@@ -513,6 +542,19 @@
                 </ScrollViewer>
 
                 <ListView x:Name="VideoList" Grid.Row="1" FontSize="14" SelectionChanged="VideoList_SelectionChanged" BorderThickness="0" Background="{StaticResource TransparentBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListView.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}"
+                                               Margin="4,6,0,5"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListView.GroupStyle>
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="Margin" Value="0,0,0,5"/>
@@ -643,7 +685,7 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Border Grid.Column="0"
-                                                Style="{StaticResource PlaybackMetaTagStyle}"
+                                                Style="{StaticResource PlaybackSourceTagStyle}"
                                                 HorizontalAlignment="Left">
                                             <TextBlock Text="{Binding SourceTagText}"
                                                        FontSize="11"
@@ -653,7 +695,7 @@
                                         </Border>
                                         <Border Grid.Column="1"
                                                 Style="{StaticResource PlaybackRowStateBadgeStyle}"
-                                                HorizontalAlignment="Left"
+                                                HorizontalAlignment="Right"
                                                 Visibility="{Binding HasRowBadge, Converter={StaticResource BoolToVisibility}}">
                                             <TextBlock Text="{Binding RowBadgeText}"
                                                        FontSize="11"

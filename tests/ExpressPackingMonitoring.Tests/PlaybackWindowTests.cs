@@ -168,6 +168,61 @@ public sealed class PlaybackWindowTests
         Assert.Equal("超时", PlaybackRowBadgePolicy.GetText("", timeout.StopReason));
     }
 
+    [Theory]
+    [InlineData("zh-Hans", "2026年11月17日")]
+    [InlineData("ja-JP", "2026年11月17日")]
+    [InlineData("en-US", "Nov 17, 2026")]
+    public void PlaybackDateGroup_FollowsCurrentLanguage(string culture, string expected)
+    {
+        CultureInfo original = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
+            var item = new VideoItem
+            {
+                StartTime = new DateTime(2026, 11, 17, 14, 32, 0)
+            };
+            Assert.Equal(expected, item.DateGroupKey);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = original;
+        }
+    }
+
+    [Fact]
+    public void PlaybackSourceColor_IsStablePerDevice()
+    {
+        var first = new VideoItem { SourceDeviceId = "device-a", SourceDisplay = "手机 A" };
+        var same = new VideoItem { SourceDeviceId = "device-a", SourceDisplay = "改名后的手机" };
+        var other = new VideoItem { SourceDeviceId = "device-b", SourceDisplay = "手机 B" };
+
+        Assert.Equal(first.SourceColorIndex, same.SourceColorIndex);
+        Assert.InRange(first.SourceColorIndex, 1, 6);
+        Assert.InRange(other.SourceColorIndex, 1, 6);
+        Assert.NotEqual(first.SourceColorIndex, other.SourceColorIndex);
+    }
+
+    [Fact]
+    public void PlaybackList_UsesDateGroupsAndSourceColorPalette()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.xaml"));
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.xaml.cs"));
+
+        Assert.Contains("PropertyGroupDescription(nameof(VideoItem.DateGroupKey))", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("<ListView.GroupStyle>", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"PlaybackSourceTagStyle\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("HorizontalAlignment=\"Right\"", xaml, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void WindowClose_KeepsNativePlayerReleaseOffUiThread()
     {

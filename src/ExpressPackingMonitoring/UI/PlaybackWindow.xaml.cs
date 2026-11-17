@@ -6,6 +6,7 @@ using ExpressPackingMonitoring.Services;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -13,6 +14,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -60,6 +62,7 @@ namespace ExpressPackingMonitoring.UI
         public string VideoCodec { get; set; } = "";
         public string VideoEncoder { get; set; } = "";
         public string SourceDisplay { get; set; } = "";
+        public string SourceDeviceId { get; set; } = "";
         public bool IsStoredOnHost { get; set; }
         public bool IsMissing { get; set; }
         public bool IsDeleted { get; set; }
@@ -140,6 +143,43 @@ namespace ExpressPackingMonitoring.UI
         public bool HasRowBadge => !string.IsNullOrWhiteSpace(RowBadgeText);
 
         public string SourceTagText => string.IsNullOrWhiteSpace(SourceDisplay) ? "—" : SourceDisplay;
+
+        public int SourceColorIndex
+        {
+            get
+            {
+                string key = string.IsNullOrWhiteSpace(SourceDeviceId)
+                    ? SourceDisplay
+                    : SourceDeviceId;
+                uint hash = 2166136261;
+                foreach (char value in key)
+                {
+                    hash ^= value;
+                    hash *= 16777619;
+                }
+                return (int)(hash % 6) + 1;
+            }
+        }
+
+        public string DateGroupKey
+        {
+            get
+            {
+                DateTime date = StartTime > DateTime.MinValue
+                    ? StartTime
+                    : File?.CreationTime ?? DateTime.MinValue;
+                if (date == DateTime.MinValue)
+                    return "—";
+
+                CultureInfo culture = CultureInfo.CurrentUICulture;
+                return string.Equals(
+                    culture.TwoLetterISOLanguageName,
+                    "en",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? date.ToString("MMM d, yyyy", culture)
+                    : date.ToString("yyyy年M月d日", culture);
+            }
+        }
 
         public string PrimaryMetaText
         {
@@ -1228,6 +1268,7 @@ namespace ExpressPackingMonitoring.UI
                 StopReason = PlaybackReasonText.StopReason(record.SourceType, record.StopReason),
                 VideoCodec = record.VideoCodec,
                 VideoEncoder = record.VideoEncoder,
+                SourceDeviceId = record.SourceDeviceId ?? "",
                 SourceDisplay = GetSourceDisplay(
                     record.SourceType,
                     record.SourceDeviceId,
@@ -1282,6 +1323,8 @@ namespace ExpressPackingMonitoring.UI
                         DisplayName = GetOrderDisplayName("", "", file.Name),
                         FullPath = file.FullName,
                         FileSize = FormatFileSize(file.Length),
+                        SourceDisplay = string.IsNullOrWhiteSpace(_computerName) ? "—" : _computerName,
+                        StartTime = file.CreationTime,
                         File = file
                     });
                 }
@@ -1401,7 +1444,9 @@ namespace ExpressPackingMonitoring.UI
 
         private void ShowCurrentPage()
         {
-            VideoList.ItemsSource = _allVideos;
+            var view = new ListCollectionView(_allVideos);
+            view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(VideoItem.DateGroupKey)));
+            VideoList.ItemsSource = view;
             int pageCount = GetPageCount();
             PageStatusText.Text = FormatPageStatus(_currentPage, pageCount, _totalVideos);
             BtnPreviousPage.IsEnabled = !_isLoadingVideos && _currentPage > 1;

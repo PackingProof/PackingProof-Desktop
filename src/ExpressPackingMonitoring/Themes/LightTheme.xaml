@@ -42,6 +42,18 @@
     <SolidColorBrush x:Key="BadgeReturnText" Color="{DynamicResource Amber600Color}"/>
     <SolidColorBrush x:Key="BadgeErrorBg" Color="{DynamicResource Red100Color}"/>
     <SolidColorBrush x:Key="BadgeErrorText" Color="{DynamicResource Red600Color}"/>
+    <SolidColorBrush x:Key="SourceTag1Bg" Color="#E6EFFC"/>
+    <SolidColorBrush x:Key="SourceTag1Text" Color="#295F9E"/>
+    <SolidColorBrush x:Key="SourceTag2Bg" Color="#F2EAFE"/>
+    <SolidColorBrush x:Key="SourceTag2Text" Color="#7047A3"/>
+    <SolidColorBrush x:Key="SourceTag3Bg" Color="#FFF0DC"/>
+    <SolidColorBrush x:Key="SourceTag3Text" Color="#9A5B10"/>
+    <SolidColorBrush x:Key="SourceTag4Bg" Color="#E5F6F2"/>
+    <SolidColorBrush x:Key="SourceTag4Text" Color="#137564"/>
+    <SolidColorBrush x:Key="SourceTag5Bg" Color="#FDE9EE"/>
+    <SolidColorBrush x:Key="SourceTag5Text" Color="#A23D59"/>
+    <SolidColorBrush x:Key="SourceTag6Bg" Color="#ECECF8"/>
+    <SolidColorBrush x:Key="SourceTag6Text" Color="#555B9E"/>
 
     <!-- Misc -->
     <SolidColorBrush x:Key="ToastBackground" Color="{DynamicResource ToastLightColor}"/>
