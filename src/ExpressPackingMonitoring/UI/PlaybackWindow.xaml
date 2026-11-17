@@ -196,6 +196,13 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="PlaybackSecondaryTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+
         <Style x:Key="PlaybackRowStateBadgeStyle" TargetType="Border">
             <Setter Property="Height" Value="20"/>
             <Setter Property="Padding" Value="6,0"/>
@@ -578,9 +585,9 @@
                                         -->
                                         <Border CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                                                 ContextMenu="{StaticResource VideoRowContextMenu}"
-                                                ToolTipService.InitialShowDelay="0"
-                                                ToolTipService.BetweenShowDelay="0"
-                                                ToolTipService.ShowDuration="60000">
+                                                ToolTipService.InitialShowDelay="300"
+                                                ToolTipService.BetweenShowDelay="100"
+                                                ToolTipService.ShowDuration="12000">
                                             <Border.ToolTip>
                                                 <!-- 内容按手机版卡片的排版生成（短信息并排、长文本单独一行），见 PlaybackTooltipPresenter -->
                                                 <ToolTip MaxWidth="560"
@@ -588,6 +595,9 @@
                                                          Background="{DynamicResource PanelBackground}"
                                                          BorderBrush="{DynamicResource BorderDefault}"
                                                          BorderThickness="1"
+                                                         Placement="Right"
+                                                         HorizontalOffset="12"
+                                                         VerticalOffset="0"
                                                          Padding="10">
                                                     <ToolTip.Effect>
                                                         <DropShadowEffect BlurRadius="10" Opacity="0.1"/>
@@ -657,10 +667,7 @@
                                         </TextBlock>
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding PrimaryMetaText}"
-                                                   FontSize="11"
-                                                   Foreground="{DynamicResource TextSecondary}"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"
+                                                   Style="{StaticResource PlaybackSecondaryTextStyle}"
                                                    TextAlignment="Right"/>
                                     </Grid>
                                     <Button Grid.Row="0"
@@ -684,9 +691,9 @@
                                     </Button>
                                     <Grid Grid.Row="1" Margin="0,2,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="112"/>
+                                            <ColumnDefinition Width="104"/>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="68"/>
+                                            <ColumnDefinition Width="76"/>
                                         </Grid.ColumnDefinitions>
                                         <Border Grid.Column="0"
                                                 Style="{StaticResource PlaybackSourceTagStyle}"
@@ -695,26 +702,23 @@
                                                        FontSize="11"
                                                        TextTrimming="CharacterEllipsis"
                                                        VerticalAlignment="Center"
-                                                       MaxWidth="100"/>
+                                                       MaxWidth="92"/>
                                         </Border>
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding CaptureTimeText}"
-                                                   FontSize="11"
-                                                   Foreground="{DynamicResource TextSecondary}"
-                                                   TextAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"/>
-                                        <Border Grid.Column="2"
+                                        <Border Grid.Column="1"
                                                 Style="{StaticResource PlaybackRowStateBadgeStyle}"
-                                                HorizontalAlignment="Right"
+                                                HorizontalAlignment="Center"
                                                 Visibility="{Binding HasRowBadge, Converter={StaticResource BoolToVisibility}}">
                                             <TextBlock Text="{Binding RowBadgeText}"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"
                                                        TextTrimming="CharacterEllipsis"
                                                        VerticalAlignment="Center"
-                                                       MaxWidth="64"/>
+                                                       MaxWidth="78"/>
                                         </Border>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding CaptureTimeText}"
+                                                   Style="{StaticResource PlaybackSecondaryTextStyle}"
+                                                   TextAlignment="Right"/>
                                     </Grid>
                                 </Grid>
                         </DataTemplate>
