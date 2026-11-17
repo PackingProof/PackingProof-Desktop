@@ -691,9 +691,9 @@
                                     </Button>
                                     <Grid Grid.Row="1" Margin="0,2,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="104"/>
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="76"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <Border Grid.Column="0"
                                                 Style="{StaticResource PlaybackSourceTagStyle}"
@@ -713,7 +713,7 @@
                                                        FontWeight="SemiBold"
                                                        TextTrimming="CharacterEllipsis"
                                                        VerticalAlignment="Center"
-                                                       MaxWidth="78"/>
+                                                       MaxWidth="136"/>
                                         </Border>
                                         <TextBlock Grid.Column="2"
                                                    Text="{Binding CaptureTimeText}"
