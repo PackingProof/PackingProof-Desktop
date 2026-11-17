@@ -148,7 +148,7 @@ public sealed class MenuThemeResourceTests
     {
         string xaml = ReadProjectFile(Path.Combine("UI", "PlaybackWindow.xaml"));
 
-        Assert.Contains("ToolTipService.InitialShowDelay=\"300\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ToolTipService.InitialShowDelay=\"0\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ToolTipService.ShowDuration=\"12000\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Placement=\"Right\"", xaml, StringComparison.Ordinal);
         Assert.Contains("HorizontalOffset=\"12\"", xaml, StringComparison.Ordinal);

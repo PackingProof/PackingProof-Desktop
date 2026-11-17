@@ -585,8 +585,8 @@
                                         -->
                                         <Border CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                                                 ContextMenu="{StaticResource VideoRowContextMenu}"
-                                                ToolTipService.InitialShowDelay="300"
-                                                ToolTipService.BetweenShowDelay="100"
+                                                ToolTipService.InitialShowDelay="0"
+                                                ToolTipService.BetweenShowDelay="0"
                                                 ToolTipService.ShowDuration="12000">
                                             <Border.ToolTip>
                                                 <!-- 内容按手机版卡片的排版生成（短信息并排、长文本单独一行），见 PlaybackTooltipPresenter -->
