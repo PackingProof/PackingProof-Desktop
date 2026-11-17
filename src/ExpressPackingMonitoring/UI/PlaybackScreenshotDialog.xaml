@@ -60,7 +60,7 @@
                     MaxHeight="250"
                     HorizontalAlignment="Center"
                     CornerRadius="10"
-                    Background="Transparent"
+                    Background="{StaticResource TransparentBrush}"
                     BorderBrush="{DynamicResource BorderDefault}"
                     BorderThickness="1">
                 <Grid ui:RoundedClip.Radius="9" ClipToBounds="True">

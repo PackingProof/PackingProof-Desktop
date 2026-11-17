@@ -38,6 +38,30 @@
     <Color x:Key="Amber900Color">#FF78350F</Color>
     <Color x:Key="Purple500Color">#FF8B5CF6</Color>
     <Color x:Key="Cyan600Color">#FF0EA5E9</Color>
+    <Color x:Key="SourceTag1BgDarkColor">#FF172F52</Color>
+    <Color x:Key="SourceTag1TextDarkColor">#FF93C5FD</Color>
+    <Color x:Key="SourceTag2BgDarkColor">#FF33254B</Color>
+    <Color x:Key="SourceTag2TextDarkColor">#FFD0ADFF</Color>
+    <Color x:Key="SourceTag3BgDarkColor">#FF3B2B14</Color>
+    <Color x:Key="SourceTag3TextDarkColor">#FFFBBF24</Color>
+    <Color x:Key="SourceTag4BgDarkColor">#FF123C36</Color>
+    <Color x:Key="SourceTag4TextDarkColor">#FF6EE7D0</Color>
+    <Color x:Key="SourceTag5BgDarkColor">#FF45212D</Color>
+    <Color x:Key="SourceTag5TextDarkColor">#FFF9A8BD</Color>
+    <Color x:Key="SourceTag6BgDarkColor">#FF292947</Color>
+    <Color x:Key="SourceTag6TextDarkColor">#FFB8BAF8</Color>
+    <Color x:Key="SourceTag1BgLightColor">#FFE6EFFC</Color>
+    <Color x:Key="SourceTag1TextLightColor">#FF295F9E</Color>
+    <Color x:Key="SourceTag2BgLightColor">#FFF2EAFE</Color>
+    <Color x:Key="SourceTag2TextLightColor">#FF7047A3</Color>
+    <Color x:Key="SourceTag3BgLightColor">#FFFFF0DC</Color>
+    <Color x:Key="SourceTag3TextLightColor">#FF9A5B10</Color>
+    <Color x:Key="SourceTag4BgLightColor">#FFE5F6F2</Color>
+    <Color x:Key="SourceTag4TextLightColor">#FF137564</Color>
+    <Color x:Key="SourceTag5BgLightColor">#FFFDE9EE</Color>
+    <Color x:Key="SourceTag5TextLightColor">#FFA23D59</Color>
+    <Color x:Key="SourceTag6BgLightColor">#FFECECF8</Color>
+    <Color x:Key="SourceTag6TextLightColor">#FF555B9E</Color>
 
     <!-- Invariant UI, media, and camera overlay colors -->
     <Color x:Key="ToastLightColor">#CC0F172A</Color>

@@ -29,6 +29,7 @@ public sealed class WindowConstructionTests
     private static readonly string[] CoveredByOtherTests =
     [
         "ExpressPackingMonitoring.UI.PlaybackWindow",  // PlaybackWindowRenderTests
+        "ExpressPackingMonitoring.UI.PlaybackScreenshotDialog", // PlaybackWindowRenderTests / UiScreenshotTests
         "ExpressPackingMonitoring.UI.SettingsWindow"   // SettingsWindowRenderTests
     ];
 

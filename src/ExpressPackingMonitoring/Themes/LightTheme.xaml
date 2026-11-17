@@ -42,18 +42,18 @@
     <SolidColorBrush x:Key="BadgeReturnText" Color="{DynamicResource Amber600Color}"/>
     <SolidColorBrush x:Key="BadgeErrorBg" Color="{DynamicResource Red100Color}"/>
     <SolidColorBrush x:Key="BadgeErrorText" Color="{DynamicResource Red600Color}"/>
-    <SolidColorBrush x:Key="SourceTag1Bg" Color="#E6EFFC"/>
-    <SolidColorBrush x:Key="SourceTag1Text" Color="#295F9E"/>
-    <SolidColorBrush x:Key="SourceTag2Bg" Color="#F2EAFE"/>
-    <SolidColorBrush x:Key="SourceTag2Text" Color="#7047A3"/>
-    <SolidColorBrush x:Key="SourceTag3Bg" Color="#FFF0DC"/>
-    <SolidColorBrush x:Key="SourceTag3Text" Color="#9A5B10"/>
-    <SolidColorBrush x:Key="SourceTag4Bg" Color="#E5F6F2"/>
-    <SolidColorBrush x:Key="SourceTag4Text" Color="#137564"/>
-    <SolidColorBrush x:Key="SourceTag5Bg" Color="#FDE9EE"/>
-    <SolidColorBrush x:Key="SourceTag5Text" Color="#A23D59"/>
-    <SolidColorBrush x:Key="SourceTag6Bg" Color="#ECECF8"/>
-    <SolidColorBrush x:Key="SourceTag6Text" Color="#555B9E"/>
+    <SolidColorBrush x:Key="SourceTag1Bg" Color="{DynamicResource SourceTag1BgLightColor}"/>
+    <SolidColorBrush x:Key="SourceTag1Text" Color="{DynamicResource SourceTag1TextLightColor}"/>
+    <SolidColorBrush x:Key="SourceTag2Bg" Color="{DynamicResource SourceTag2BgLightColor}"/>
+    <SolidColorBrush x:Key="SourceTag2Text" Color="{DynamicResource SourceTag2TextLightColor}"/>
+    <SolidColorBrush x:Key="SourceTag3Bg" Color="{DynamicResource SourceTag3BgLightColor}"/>
+    <SolidColorBrush x:Key="SourceTag3Text" Color="{DynamicResource SourceTag3TextLightColor}"/>
+    <SolidColorBrush x:Key="SourceTag4Bg" Color="{DynamicResource SourceTag4BgLightColor}"/>
+    <SolidColorBrush x:Key="SourceTag4Text" Color="{DynamicResource SourceTag4TextLightColor}"/>
+    <SolidColorBrush x:Key="SourceTag5Bg" Color="{DynamicResource SourceTag5BgLightColor}"/>
+    <SolidColorBrush x:Key="SourceTag5Text" Color="{DynamicResource SourceTag5TextLightColor}"/>
+    <SolidColorBrush x:Key="SourceTag6Bg" Color="{DynamicResource SourceTag6BgLightColor}"/>
+    <SolidColorBrush x:Key="SourceTag6Text" Color="{DynamicResource SourceTag6TextLightColor}"/>
 
     <!-- Misc -->
     <SolidColorBrush x:Key="ToastBackground" Color="{DynamicResource ToastLightColor}"/>
