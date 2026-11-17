@@ -795,18 +795,19 @@ public sealed class ConfigurationAndScannerTests
     }
 
     [Theory]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, true)]
-    public void ShouldRepairLanAccessAtStartup_RequiresEnabledService(
-        bool setupCompleted,
-        bool webServerEnabled,
+    [InlineData("", false)]
+    [InlineData(DeploymentPresets.RecordingHost, true)]
+    [InlineData(DeploymentPresets.MobileBackupHost, true)]
+    [InlineData(DeploymentPresets.RecordingWorkstation, true)]
+    [InlineData(DeploymentPresets.ViewerClient, false)]
+    public void ShouldRepairLanAccessAtStartup_FollowsDeploymentRole(
+        string deploymentPreset,
         bool expected)
     {
         var config = new AppConfig
         {
-            FirstUseWizardCompleted = setupCompleted,
-            EnableWebServer = webServerEnabled
+            FirstUseWizardCompleted = true,
+            DeploymentPreset = deploymentPreset
         };
 
         Assert.Equal(expected, MainViewModel.ShouldRepairLanAccessAtStartup(config));
@@ -815,7 +816,10 @@ public sealed class ConfigurationAndScannerTests
     [Fact]
     public void ShouldRepairLanAccessAtStartup_TemporaryAutomationCanSuppressSystemChange()
     {
-        var config = new AppConfig { EnableWebServer = true };
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingHost
+        };
 
         Assert.False(MainViewModel.ShouldRepairLanAccessAtStartup(config, allowLanAccessSetup: false));
     }
@@ -825,8 +829,7 @@ public sealed class ConfigurationAndScannerTests
     {
         var config = new AppConfig
         {
-            DeploymentPreset = DeploymentPresets.RecordingWorkstation,
-            EnableWebServer = false
+            DeploymentPreset = DeploymentPresets.RecordingWorkstation
         };
 
         Assert.True(MainViewModel.ShouldRepairLanAccessAtStartup(config));
@@ -898,18 +901,26 @@ public sealed class ConfigurationAndScannerTests
     }
 
     [Fact]
-    public void NormalizeAfterLoad_PreservesDisabledLanServiceForHost()
+    public void NormalizeAfterLoad_IgnoresLegacyDisabledWebServerFlagForHost()
     {
-        var config = new AppConfig
-        {
-            DeploymentPreset = DeploymentPresets.RecordingHost,
-            DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion,
-            EnableWebServer = false
-        };
+        const string json = """
+            {
+              "DeploymentPreset": "RecordingHost",
+              "DeploymentSchemaVersion": 1,
+              "EnableWebServer": false
+            }
+            """;
+        AppConfig config = JsonSerializer.Deserialize<AppConfig>(json)!;
 
         AppConfig.NormalizeAfterLoad(config);
 
-        Assert.False(config.EnableWebServer);
+        Assert.Equal(
+            WebServerMode.FullPlayback,
+            WebServerModePolicy.Resolve(config.DeploymentPreset));
+        Assert.DoesNotContain(
+            "EnableWebServer",
+            JsonSerializer.Serialize(config),
+            StringComparison.Ordinal);
     }
 
     [Fact]

@@ -454,7 +454,6 @@ namespace ExpressPackingMonitoring.Config
         public string LastExtensionAutoUpdateCheck { get; set; } = "";
 
         // 局域网 Web 服务
-        public bool EnableWebServer { get; set; } = true;
         public int WebServerPort { get; set; } = 5280;
         public int TranscodeCacheMaxMB { get; set; } = 1024;  // 转码缓存上限(MB)，超出后按时间清理最旧的
         public bool RequireWebAccessKey { get; set; } = true;
@@ -587,12 +586,6 @@ namespace ExpressPackingMonitoring.Config
                     changed = true;
                 }
 
-                if (!DeploymentCapabilities.ForPreset(normalizedPreset).CanRunWebServer
-                    && config.EnableWebServer)
-                {
-                    config.EnableWebServer = false;
-                    changed = true;
-                }
             }
             else
             {
@@ -1894,7 +1887,8 @@ namespace ExpressPackingMonitoring.Config
         {
             return config != null
                 && config.FirstUseWizardCompleted
-                && config.EnableWebServer
+                && WebServerModePolicy.ProvidesWebPlayback(
+                    WebServerModePolicy.Resolve(config.DeploymentPreset))
                 && config.MobileConnectionSetupVersion < CurrentMobileConnectionSetupVersion;
         }
 

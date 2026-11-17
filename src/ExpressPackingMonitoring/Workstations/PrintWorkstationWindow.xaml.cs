@@ -949,9 +949,6 @@ public partial class PrintWorkstationWindow : Window
                             .IsRecordingDevice
                                 ? WorkstationRoles.CameraMonitor
                                 : "";
-                        config.EnableWebServer = DeploymentCapabilities
-                            .ForPreset(window.SelectedPreset)
-                            .CanRunWebServer;
                     },
                     out AppConfig savedConfig,
                     out string error))
@@ -965,7 +962,6 @@ public partial class PrintWorkstationWindow : Window
 
             _config.DeploymentPreset = savedConfig.DeploymentPreset;
             _config.WorkstationRole = savedConfig.WorkstationRole;
-            _config.EnableWebServer = savedConfig.EnableWebServer;
             return true;
         });
     }
@@ -1019,7 +1015,6 @@ public partial class PrintWorkstationWindow : Window
                     config.DeploymentPreset = DeploymentPresets.MobileBackupHost;
                     config.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
                     config.WorkstationRole = WorkstationRoles.PrintStation;
-                    config.EnableWebServer = true;
                     AppConfig.MarkDeploymentSetupCompleted(config);
                 },
                 out AppConfig savedConfig,
@@ -1031,7 +1026,6 @@ public partial class PrintWorkstationWindow : Window
         _config.DeploymentPreset = savedConfig.DeploymentPreset;
         _config.DeploymentSchemaVersion = savedConfig.DeploymentSchemaVersion;
         _config.WorkstationRole = savedConfig.WorkstationRole;
-        _config.EnableWebServer = savedConfig.EnableWebServer;
         _config.FirstUseWizardCompleted = savedConfig.FirstUseWizardCompleted;
         _config.DeploymentSetupVersion = savedConfig.DeploymentSetupVersion;
         _config.RecordingSetupVersion = savedConfig.RecordingSetupVersion;

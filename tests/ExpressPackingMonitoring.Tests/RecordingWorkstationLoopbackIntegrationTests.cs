@@ -228,7 +228,6 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
             DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion,
             NodeId = nodeId,
             NodeName = "回环保存主机",
-            EnableWebServer = true,
             WebServerPort = port,
             RequireWebAccessKey = false,
             WebAccessKey = accessKey,
@@ -250,7 +249,6 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
             NodeId = nodeId,
             NodeName = "回环录制工位",
             RecordingWorkstationActivatedAtUtc = DateTime.UtcNow.AddMinutes(-1),
-            EnableWebServer = true,
             WebServerPort = port,
             StorageLocations = [new StorageLocation { Path = storagePath }]
         };

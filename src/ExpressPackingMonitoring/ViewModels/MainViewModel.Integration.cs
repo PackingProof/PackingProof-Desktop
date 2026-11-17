@@ -45,7 +45,9 @@ namespace ExpressPackingMonitoring.ViewModels
             ExtensionRuntime newExtensionRuntime = null;
             try
             {
-                bool orderReceiverOnly = IsRecordingWorkstation;
+                WebServerMode webServerMode =
+                    WebServerModePolicy.Resolve(Config.DeploymentPreset);
+                bool orderReceiverOnly = webServerMode == WebServerMode.OrderReceiverOnly;
                 Interlocked.Increment(ref _workstationAddressRefreshVersion);
                 WebServer previousServer = _webServer;
                 _webServer = null;
@@ -54,7 +56,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _extensionRuntime = null;
                 try { previousExtensionRuntime?.Dispose(); } catch { }
 
-                if ((!Config.EnableWebServer && !orderReceiverOnly) || _db == null || _isDisposed)
+                if (!WebServerModePolicy.ShouldStart(webServerMode) || _db == null || _isDisposed)
                 {
                     MonitorAccessAddress = "";
                     WorkstationPrintStatusText = "未连接";
@@ -70,7 +72,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 int port = Config.WebServerPort;
                 int cacheMaxMb = Config.TranscodeCacheMaxMB;
                 bool enableOrderInfoLog = Config.EnableOrderInfoLog;
-                bool requireAccessKey = !orderReceiverOnly && Config.RequireWebAccessKey;
+                bool requireAccessKey =
+                    WebServerModePolicy.ProvidesWebPlayback(webServerMode)
+                    && Config.RequireWebAccessKey;
                 string accessKey = Config.WebAccessKey;
 
                 newServer = await Task.Run(() =>
@@ -451,19 +455,12 @@ namespace ExpressPackingMonitoring.ViewModels
 
         public async void ShowMobileConnection(System.Windows.Window owner = null)
         {
-            if (ShouldEnableWebServerForMobileConnection(Config))
+            if (_webServer == null
+                && WebServerModePolicy.ProvidesWebPlayback(
+                    WebServerModePolicy.Resolve(Config.DeploymentPreset)))
             {
-                Config.EnableWebServer = true;
-                if (!SaveConfig(notifyUser: false))
-                {
-                    Config.EnableWebServer = false;
-                    ShowToast("设备连接服务启用失败，请检查配置文件权限", ToastSeverity.Error);
-                }
-                else
-                {
-                    ShowToast("正在启动设备连接服务...", ToastSeverity.Information);
-                    await RestartWebServerAsync(allowAccessSetup: true);
-                }
+                ShowToast("正在启动设备连接服务...", ToastSeverity.Information);
+                await RestartWebServerAsync(allowAccessSetup: true);
             }
 
             string unavailableMessage = GetMobileConnectionUnavailableMessage();
@@ -534,14 +531,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 message);
         }
 
-        internal static bool ShouldEnableWebServerForMobileConnection(AppConfig config) =>
-            config != null
-            && !config.EnableWebServer
-            && string.Equals(
-                config.DeploymentPreset,
-                DeploymentPresets.RecordingHost,
-                StringComparison.OrdinalIgnoreCase);
-
         public void CopyMobileConnectionUrl()
         {
             if (!TryGetMobileConnectionUrl(out string url))
@@ -594,7 +583,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool TryGetMobileConnectionUrl(out string url)
         {
             url = "";
-            return Config.EnableWebServer
+            return WebServerModePolicy.ProvidesWebPlayback(
+                    WebServerModePolicy.Resolve(Config.DeploymentPreset))
                 && _webServer != null
                 && MobileConnectionService.TryBuildUsableAccessUrl(
                     MonitorAccessAddress,
@@ -605,8 +595,11 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private string GetMobileConnectionUnavailableMessage()
         {
-            if (!Config.EnableWebServer)
-                return "局域网查看尚未开启，请先在设置中启用";
+            if (!WebServerModePolicy.ProvidesWebPlayback(
+                    WebServerModePolicy.Resolve(Config.DeploymentPreset)))
+            {
+                return "当前工位用途不提供网页回放";
+            }
             if (_webServer == null)
                 return "局域网服务暂时不可用，请检查端口、权限或防火墙设置";
             if (!MobileConnectionService.TryBuildUsableAccessUrl(
@@ -661,9 +654,6 @@ namespace ExpressPackingMonitoring.ViewModels
                         : selector.SelectedPreset == DeploymentPresets.MobileBackupHost
                             ? WorkstationRoles.PrintStation
                             : "";
-                nextConfig.EnableWebServer = DeploymentCapabilities
-                    .ForPreset(selector.SelectedPreset)
-                    .CanRunWebServer;
                 await RunPurposeSwitchAsync(nextConfig);
             }
         }

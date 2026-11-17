@@ -6,6 +6,21 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class DeploymentPresetTests
 {
+    [Theory]
+    [InlineData(DeploymentPresets.RecordingHost, 2)]
+    [InlineData(DeploymentPresets.MobileBackupHost, 2)]
+    [InlineData(DeploymentPresets.RecordingWorkstation, 1)]
+    [InlineData(DeploymentPresets.ViewerClient, 0)]
+    [InlineData("", 0)]
+    public void WebServerMode_FollowsDeploymentPreset(
+        string preset,
+        int expected)
+    {
+        Assert.Equal(
+            (WebServerMode)expected,
+            WebServerModePolicy.Resolve(preset));
+    }
+
     [Fact]
     public void CameraMonitorMigratesToRecordingHostWithoutChangingUserData()
     {
@@ -63,18 +78,19 @@ public sealed class DeploymentPresetTests
     }
 
     [Fact]
-    public void ViewerClientNeverEnablesWebServerDuringNormalization()
+    public void ViewerClientNeverProvidesWebPlayback()
     {
         var config = new AppConfig
         {
             DeploymentPreset = DeploymentPresets.ViewerClient,
-            DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion,
-            EnableWebServer = true
+            DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion
         };
 
         AppConfig.NormalizeAfterLoad(config);
 
-        Assert.False(config.EnableWebServer);
+        Assert.Equal(
+            WebServerMode.Disabled,
+            WebServerModePolicy.Resolve(config.DeploymentPreset));
     }
 
     [Theory]
@@ -329,8 +345,7 @@ public sealed class DeploymentPresetTests
         {
             DeploymentPreset = targetPreset,
             DeploymentSchemaVersion = 0,
-            WorkstationRole = "stale",
-            EnableWebServer = !expectedWebServer
+            WorkstationRole = "stale"
         };
 
         SettingsWindow.ApplyDeploymentPurposeBeforeSave(
@@ -341,7 +356,10 @@ public sealed class DeploymentPresetTests
         Assert.Equal(targetPreset, config.DeploymentPreset);
         Assert.Equal(DeploymentPresets.CurrentSchemaVersion, config.DeploymentSchemaVersion);
         Assert.Equal(expectedRole, config.WorkstationRole);
-        Assert.Equal(expectedWebServer, config.EnableWebServer);
+        Assert.Equal(
+            expectedWebServer,
+            WebServerModePolicy.ProvidesWebPlayback(
+                WebServerModePolicy.Resolve(config.DeploymentPreset)));
     }
 
     [Fact]
@@ -354,7 +372,6 @@ public sealed class DeploymentPresetTests
             DeploymentPreset = DeploymentPresets.RecordingWorkstation,
             DeploymentSchemaVersion = 0,
             WorkstationRole = "",
-            EnableWebServer = true,
             StorageLocations =
             [
                 new StorageLocation { Path = existingCache, Priority = 0 }
@@ -367,7 +384,9 @@ public sealed class DeploymentPresetTests
             activatedAt);
 
         Assert.Equal(WorkstationRoles.CameraMonitor, config.WorkstationRole);
-        Assert.False(config.EnableWebServer);
+        Assert.Equal(
+            WebServerMode.OrderReceiverOnly,
+            WebServerModePolicy.Resolve(config.DeploymentPreset));
         Assert.Equal(activatedAt, config.RecordingWorkstationActivatedAtUtc);
         Assert.Equal(existingCache, Assert.Single(config.StorageLocations).Path);
     }

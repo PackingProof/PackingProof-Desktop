@@ -99,7 +99,6 @@ public partial class ViewerClientWindow : Window
                     config.WorkstationRole = _bindingOnly
                         ? WorkstationRoles.CameraMonitor
                         : "";
-                    config.EnableWebServer = false;
                 },
                 out _,
                 out _);
@@ -429,7 +428,6 @@ public partial class ViewerClientWindow : Window
                     config.WorkstationRole = _bindingOnly
                         ? WorkstationRoles.CameraMonitor
                         : "";
-                    config.EnableWebServer = false;
                     config.LastKnownHostNodeId = node.NodeId;
                     config.LastKnownHostNodeName = node.NodeName;
                     config.LastKnownHostAddress = node.Address;
@@ -795,9 +793,6 @@ public partial class ViewerClientWindow : Window
                             : selector.SelectedPreset == DeploymentPresets.MobileBackupHost
                                 ? WorkstationRoles.PrintStation
                                 : "";
-                    config.EnableWebServer = DeploymentCapabilities
-                        .ForPreset(selector.SelectedPreset)
-                        .CanRunWebServer;
                 },
                 out AppConfig savedConfig,
                 out string error))
@@ -811,7 +806,6 @@ public partial class ViewerClientWindow : Window
         _config.DeploymentPreset = savedConfig.DeploymentPreset;
         _config.DeploymentSchemaVersion = savedConfig.DeploymentSchemaVersion;
         _config.WorkstationRole = savedConfig.WorkstationRole;
-        _config.EnableWebServer = savedConfig.EnableWebServer;
         ApplicationRestart.RestartAfterPurposeChange(this);
     }
 
@@ -828,7 +822,6 @@ public partial class ViewerClientWindow : Window
                     config.WorkstationRole = _bindingOnly
                         ? WorkstationRoles.CameraMonitor
                         : "";
-                    config.EnableWebServer = false;
                     config.LastKnownHostNodeId = node.NodeId;
                     config.LastKnownHostNodeName = node.NodeName;
                     config.LastKnownHostAddress = node.Address;
@@ -843,7 +836,6 @@ public partial class ViewerClientWindow : Window
         _config.DeploymentPreset = saved.DeploymentPreset;
         _config.DeploymentSchemaVersion = saved.DeploymentSchemaVersion;
         _config.WorkstationRole = saved.WorkstationRole;
-        _config.EnableWebServer = saved.EnableWebServer;
         _config.LastKnownHostNodeId = saved.LastKnownHostNodeId;
         _config.LastKnownHostNodeName = saved.LastKnownHostNodeName;
         _config.LastKnownHostAddress = saved.LastKnownHostAddress;

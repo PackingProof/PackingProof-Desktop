@@ -1100,7 +1100,6 @@ public sealed class RecordingTransferTests
             LastKnownHostBackupAuthVersion = BackupRequestAuthentication.CurrentVersion,
             BackupConnectionSchemaVersion = AppConfig.CurrentBackupConnectionSchemaVersion,
             RecordingWorkstationActivatedAtUtc = DateTime.UtcNow.AddDays(-1),
-            EnableWebServer = false,
             StorageLocations = [new StorageLocation { Path = directory }]
         };
         AppConfig.NormalizeAfterLoad(config);

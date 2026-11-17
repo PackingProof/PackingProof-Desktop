@@ -46,6 +46,34 @@ public static class DeploymentPresets
     };
 }
 
+public enum WebServerMode
+{
+    Disabled,
+    OrderReceiverOnly,
+    FullPlayback
+}
+
+/// <summary>
+/// Web 服务是否运行由工位用途决定，不再让用户保存一个可能与角色冲突的开关。
+/// </summary>
+public static class WebServerModePolicy
+{
+    public static WebServerMode Resolve(string? deploymentPreset) =>
+        DeploymentPresets.Normalize(deploymentPreset) switch
+        {
+            DeploymentPresets.RecordingHost => WebServerMode.FullPlayback,
+            DeploymentPresets.MobileBackupHost => WebServerMode.FullPlayback,
+            DeploymentPresets.RecordingWorkstation => WebServerMode.OrderReceiverOnly,
+            _ => WebServerMode.Disabled
+        };
+
+    public static bool ShouldStart(WebServerMode mode) =>
+        mode != WebServerMode.Disabled;
+
+    public static bool ProvidesWebPlayback(WebServerMode mode) =>
+        mode == WebServerMode.FullPlayback;
+}
+
 public sealed class DeploymentCapabilities
 {
     private DeploymentCapabilities(

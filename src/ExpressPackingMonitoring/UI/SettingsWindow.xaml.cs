@@ -1970,8 +1970,6 @@ namespace ExpressPackingMonitoring.UI
                 : normalizedPreset == DeploymentPresets.MobileBackupHost
                     ? WorkstationRoles.PrintStation
                     : "";
-            config.EnableWebServer = capabilities.CanRunWebServer;
-
             if (normalizedPreset == DeploymentPresets.RecordingWorkstation)
             {
                 config.RecordingWorkstationActivatedAtUtc = activatedAtUtc;

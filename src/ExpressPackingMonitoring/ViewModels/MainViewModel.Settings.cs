@@ -214,8 +214,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         Config.DeploymentPreset,
                         nextConfig.DeploymentPreset,
                         StringComparison.OrdinalIgnoreCase);
-                    bool webServerChanged = Config.EnableWebServer != nextConfig.EnableWebServer
-                        || Config.WebServerPort != nextConfig.WebServerPort
+                    WebServerMode nextWebServerMode =
+                        WebServerModePolicy.Resolve(nextConfig.DeploymentPreset);
+                    bool webServerChanged = Config.WebServerPort != nextConfig.WebServerPort
                         || Config.TranscodeCacheMaxMB != nextConfig.TranscodeCacheMaxMB
                         || Config.EnableOrderInfoLog != nextConfig.EnableOrderInfoLog
                         || Config.RequireWebAccessKey != nextConfig.RequireWebAccessKey
@@ -228,7 +229,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     bool computerNicknameChanged =
                         !string.Equals(Config.NodeName, nextConfig.NodeName, StringComparison.Ordinal)
                         || Config.NodeNameCustomized != nextConfig.NodeNameCustomized;
-                    bool webServerNeedsRecovery = nextConfig.EnableWebServer && _webServer == null;
+                    bool webServerNeedsRecovery =
+                        WebServerModePolicy.ShouldStart(nextWebServerMode)
+                        && _webServer == null;
 
                     if (workstationChanged)
                         return await RunPurposeSwitchAsync(nextConfig);
@@ -283,7 +286,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (webServerShouldApply)
                     {
                         ShowToast("正在应用局域网服务设置...", ToastSeverity.Information);
-                        webServerApplied = await RestartWebServerAsync(allowAccessSetup: Config.EnableWebServer);
+                        webServerApplied = await RestartWebServerAsync(
+                            allowAccessSetup: WebServerModePolicy.ShouldStart(
+                                WebServerModePolicy.Resolve(Config.DeploymentPreset)));
                     }
                     else if (!webServerChanged && !webServerNeedsRecovery)
                     {
@@ -402,7 +407,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 ResetCameraBarcodeRecognition();
                 ApplyGlobalKeyboardConfig();
 
-                if (Config.EnableWebServer)
+                if (WebServerModePolicy.ShouldStart(
+                        WebServerModePolicy.Resolve(Config.DeploymentPreset)))
                 {
                     ShowToast("正在应用局域网服务设置...", ToastSeverity.Information);
                     bool webServerReady = await RestartWebServerAsync(allowAccessSetup: true);

@@ -179,9 +179,6 @@ namespace ExpressPackingMonitoring
                             preserveExistingLocation: config.FirstUseWizardCompleted);
                     }
                     draft.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
-                    draft.EnableWebServer = DeploymentCapabilities
-                        .ForPreset(selector.SelectedPreset)
-                        .CanRunWebServer;
                     draft.WorkstationRole = selector.SelectedPreset switch
                     {
                         DeploymentPresets.RecordingHost => WorkstationRoles.CameraMonitor,
@@ -390,9 +387,6 @@ namespace ExpressPackingMonitoring
                                 preserveExistingLocation: current.FirstUseWizardCompleted);
                         }
                         current.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
-                        current.EnableWebServer = DeploymentCapabilities
-                            .ForPreset(preset)
-                            .CanRunWebServer;
                         current.WorkstationRole = preset switch
                         {
                             DeploymentPresets.RecordingHost => WorkstationRoles.CameraMonitor,
@@ -405,7 +399,6 @@ namespace ExpressPackingMonitoring
             {
                 config.DeploymentPreset = savedConfig.DeploymentPreset;
                 config.DeploymentSchemaVersion = savedConfig.DeploymentSchemaVersion;
-                config.EnableWebServer = savedConfig.EnableWebServer;
                 config.WorkstationRole = savedConfig.WorkstationRole;
                 return true;
             }

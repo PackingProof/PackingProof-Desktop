@@ -15,21 +15,6 @@ namespace ExpressPackingMonitoring.Tests;
 [Collection("Web server tests")]
 public sealed class MobileConnectionTests
 {
-    [Fact]
-    public void RecordingHostMobileConnectionRepairsDisabledWebServer()
-    {
-        Assert.True(MainViewModel.ShouldEnableWebServerForMobileConnection(new AppConfig
-        {
-            DeploymentPreset = DeploymentPresets.RecordingHost,
-            EnableWebServer = false
-        }));
-        Assert.False(MainViewModel.ShouldEnableWebServerForMobileConnection(new AppConfig
-        {
-            DeploymentPreset = DeploymentPresets.ViewerClient,
-            EnableWebServer = false
-        }));
-    }
-
     [Theory]
     [InlineData(false, "", "http://192.168.1.20:5280")]
     [InlineData(false, "abc 123", "http://192.168.1.20:5280/?key=abc%20123")]
@@ -140,7 +125,7 @@ public sealed class MobileConnectionTests
         var config = new AppConfig
         {
             FirstUseWizardCompleted = true,
-            EnableWebServer = true,
+            DeploymentPreset = DeploymentPresets.RecordingHost,
             MobileConnectionSetupVersion = 0,
             EnableGlobalKeyboard = false,
             RequireWebAccessKey = true
@@ -159,7 +144,10 @@ public sealed class MobileConnectionTests
     [Fact]
     public void FirstUseDefaultsLeaveMobilePromptPendingUntilQrWasShown()
     {
-        var config = new AppConfig { EnableWebServer = true };
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingHost
+        };
 
         AppConfig.ApplyFirstUseDefaults(config);
 
@@ -174,13 +162,13 @@ public sealed class MobileConnectionTests
         var current = new AppConfig
         {
             FirstUseWizardCompleted = true,
-            EnableWebServer = true,
+            DeploymentPreset = DeploymentPresets.RecordingHost,
             MobileConnectionSetupVersion = 0
         };
         var saveCandidate = new AppConfig
         {
             FirstUseWizardCompleted = current.FirstUseWizardCompleted,
-            EnableWebServer = current.EnableWebServer,
+            DeploymentPreset = current.DeploymentPreset,
             MobileConnectionSetupVersion = current.MobileConnectionSetupVersion
         };
 
@@ -192,22 +180,25 @@ public sealed class MobileConnectionTests
     }
 
     [Theory]
-    [InlineData(false, true, 0)]
-    [InlineData(true, false, 0)]
-    [InlineData(true, true, 1)]
-    public void PromptRequiresCompletedWizardEnabledServerAndOldVersion(
+    [InlineData("", true, 0, false)]
+    [InlineData(DeploymentPresets.ViewerClient, true, 0, false)]
+    [InlineData(DeploymentPresets.RecordingHost, false, 0, false)]
+    [InlineData(DeploymentPresets.RecordingHost, true, 1, false)]
+    [InlineData(DeploymentPresets.RecordingHost, true, 0, true)]
+    public void PromptRequiresCompletedWizardWebPlaybackRoleAndOldVersion(
+        string deploymentPreset,
         bool firstUseCompleted,
-        bool webServerEnabled,
-        int setupVersion)
+        int setupVersion,
+        bool expected)
     {
         var config = new AppConfig
         {
             FirstUseWizardCompleted = firstUseCompleted,
-            EnableWebServer = webServerEnabled,
+            DeploymentPreset = deploymentPreset,
             MobileConnectionSetupVersion = setupVersion
         };
 
-        Assert.False(AppConfig.ShouldPromptMobileConnection(config));
+        Assert.Equal(expected, AppConfig.ShouldPromptMobileConnection(config));
     }
 
     [Fact]

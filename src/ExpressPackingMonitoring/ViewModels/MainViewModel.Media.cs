@@ -600,11 +600,8 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             if (config == null || !allowLanAccessSetup)
                 return false;
-            return config.EnableWebServer
-                || string.Equals(
-                    config.DeploymentPreset,
-                    DeploymentPresets.RecordingWorkstation,
-                    StringComparison.OrdinalIgnoreCase);
+            return WebServerModePolicy.ShouldStart(
+                WebServerModePolicy.Resolve(config.DeploymentPreset));
         }
 
         private async Task RecoverOrphanedMkvAsync()

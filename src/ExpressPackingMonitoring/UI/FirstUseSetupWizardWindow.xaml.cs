@@ -138,10 +138,6 @@ public partial class FirstUseSetupWizardWindow : Window
         configuredConfig.DeploymentPreset = recordingPreset;
         configuredConfig.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
         configuredConfig.WorkstationRole = WorkstationRoles.CameraMonitor;
-        configuredConfig.EnableWebServer = DeploymentCapabilities
-            .ForPreset(recordingPreset)
-            .CanRunWebServer;
-
         var wizard = new FirstUseSetupWizardWindow(configuredConfig, allowSkip: false);
         if (owner != null)
             wizard.Owner = owner;
