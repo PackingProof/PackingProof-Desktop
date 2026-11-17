@@ -9,7 +9,7 @@ public sealed class PlaybackControlBarPolicyTests
     [Theory]
     [InlineData(1000, false)]
     [InlineData(700, false)]
-    [InlineData(619, true)]
+    [InlineData(699, true)]
     [InlineData(420, true)]
     [InlineData(0, false)]
     public void UseIconOnlyButtons_OnlyWhenControlBarIsNarrow(double width, bool expected)

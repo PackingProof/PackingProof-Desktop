@@ -1857,4 +1857,17 @@
   <data name="请把刚生成的样本包作为附件发送" xml:space="preserve"><value>请把刚生成的样本包作为附件发送</value></data>
   <data name="没能写入剪贴板，请手动记录反馈邮箱：{0}" xml:space="preserve"><value>没能写入剪贴板，请手动记录反馈邮箱：{0}</value></data>
   <data name="样本包生成失败：{0}" xml:space="preserve"><value>样本包生成失败：{0}</value></data>
+  <data name="播放（空格）" xml:space="preserve"><value>播放（空格）</value></data>
+  <data name="暂停（空格）" xml:space="preserve"><value>暂停（空格）</value></data>
+  <data name="截图" xml:space="preserve"><value>截图</value></data>
+  <data name="截图保存" xml:space="preserve"><value>截图保存</value></data>
+  <data name="截图（Ctrl+S）" xml:space="preserve"><value>截图（Ctrl+S）</value></data>
+  <data name="复制到剪贴板" xml:space="preserve"><value>复制到剪贴板</value></data>
+  <data name="另存为" xml:space="preserve"><value>另存为</value></data>
+  <data name="保存截图" xml:space="preserve"><value>保存截图</value></data>
+  <data name="PNG 图片 (*.png)|*.png" xml:space="preserve"><value>PNG 图片 (*.png)|*.png</value></data>
+  <data name="截图已复制到剪贴板" xml:space="preserve"><value>截图已复制到剪贴板</value></data>
+  <data name="截图已保存：{0}" xml:space="preserve"><value>截图已保存：{0}</value></data>
+  <data name="未能保存当前画面" xml:space="preserve"><value>未能保存当前画面</value></data>
+  <data name="截图失败：{0}" xml:space="preserve"><value>截图失败：{0}</value></data>
 </root>

@@ -1855,4 +1855,17 @@ Continue? After packaging, send the archive to {0}</value></data>
   <data name="请把刚生成的样本包作为附件发送" xml:space="preserve"><value>Send the generated sample package as an attachment</value></data>
   <data name="没能写入剪贴板，请手动记录反馈邮箱：{0}" xml:space="preserve"><value>Could not write to the clipboard. Copy the feedback email manually: {0}</value></data>
   <data name="样本包生成失败：{0}" xml:space="preserve"><value>Could not create the sample package: {0}</value></data>
+  <data name="播放（空格）" xml:space="preserve"><value>Play (Space)</value></data>
+  <data name="暂停（空格）" xml:space="preserve"><value>Pause (Space)</value></data>
+  <data name="截图" xml:space="preserve"><value>Screenshot</value></data>
+  <data name="截图保存" xml:space="preserve"><value>Save screenshot</value></data>
+  <data name="截图（Ctrl+S）" xml:space="preserve"><value>Screenshot (Ctrl+S)</value></data>
+  <data name="复制到剪贴板" xml:space="preserve"><value>Copy to clipboard</value></data>
+  <data name="另存为" xml:space="preserve"><value>Save as</value></data>
+  <data name="保存截图" xml:space="preserve"><value>Save screenshot</value></data>
+  <data name="PNG 图片 (*.png)|*.png" xml:space="preserve"><value>PNG image (*.png)|*.png</value></data>
+  <data name="截图已复制到剪贴板" xml:space="preserve"><value>Screenshot copied to the clipboard</value></data>
+  <data name="截图已保存：{0}" xml:space="preserve"><value>Screenshot saved: {0}</value></data>
+  <data name="未能保存当前画面" xml:space="preserve"><value>Could not capture the current frame</value></data>
+  <data name="截图失败：{0}" xml:space="preserve"><value>Screenshot failed: {0}</value></data>
 </root>

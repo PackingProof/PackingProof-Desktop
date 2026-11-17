@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using ExpressPackingMonitoring.UI;
 using System.Reflection;
 using Xunit;
@@ -116,6 +118,74 @@ public sealed class PlaybackWindowRenderTests
             _ = showCover.Invoke(window, ["请选择录像开始播放"]);
             Assert.Equal(Visibility.Collapsed, progress.Visibility);
             Assert.Equal(Visibility.Visible, icon.Visibility);
+        });
+    }
+
+    [Fact]
+    public void ScreenshotThumbnail_DecodesARealPng()
+    {
+        RunOnStaThread(() =>
+        {
+            string path = Path.Combine(
+                Path.GetTempPath(),
+                "packingproof-screenshot-thumbnail-" + Guid.NewGuid().ToString("N") + ".png");
+            try
+            {
+                byte[] pixels = new byte[640 * 360 * 4];
+                BitmapSource source = BitmapSource.Create(
+                    640,
+                    360,
+                    96,
+                    96,
+                    PixelFormats.Bgra32,
+                    null,
+                    pixels,
+                    640 * 4);
+                source.Freeze();
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(source));
+                using (FileStream stream = File.Create(path))
+                    encoder.Save(stream);
+
+                MethodInfo loadThumbnail = Assert.IsAssignableFrom<MethodInfo>(
+                    typeof(PlaybackWindow).GetMethod(
+                        "LoadScreenshotThumbnail",
+                        BindingFlags.Static | BindingFlags.NonPublic));
+                var thumbnail = Assert.IsAssignableFrom<BitmapSource>(
+                    loadThumbnail.Invoke(null, [path]));
+                Assert.Equal(440, thumbnail.PixelWidth);
+                Assert.True(thumbnail.IsFrozen);
+            }
+            finally
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
+        });
+    }
+
+    [Fact]
+    public void ScreenshotDialog_PortraitSizesPreviewToTheImage()
+    {
+        RunOnStaThread(() =>
+        {
+            BitmapSource preview = BitmapSource.Create(
+                360,
+                640,
+                96,
+                96,
+                PixelFormats.Bgra32,
+                null,
+                new byte[360 * 640 * 4],
+                360 * 4);
+            preview.Freeze();
+
+            var dialog = new PlaybackScreenshotDialog(preview);
+            Assert.Equal(380, dialog.Width);
+            Assert.Equal(135, dialog.PreviewFrame.Width);
+            Assert.Equal(240, dialog.PreviewFrame.Height);
+            Assert.Equal(135, dialog.PreviewImage.Width);
+            Assert.Equal(240, dialog.PreviewImage.Height);
         });
     }
 }

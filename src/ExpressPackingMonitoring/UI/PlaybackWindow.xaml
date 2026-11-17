@@ -826,9 +826,10 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Button x:Name="BtnTogglePlay" Grid.Column="0" Height="32" Style="{StaticResource PrimaryButtonStyle}" Click="BtnTogglePlay_Click" ToolTip="播放" Margin="0,0,15,0">
+                        <Button x:Name="BtnTogglePlay" Grid.Column="0" Height="32" Style="{StaticResource PrimaryButtonStyle}" Click="BtnTogglePlay_Click" ToolTip="{loc:Localized 播放（空格）}" Margin="0,0,15,0">
                             <StackPanel Orientation="Horizontal">
                                 <Path x:Name="PlayStateIcon" Data="{StaticResource FluentPlayIcon}" Width="15" Height="15" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,6,0"/>
                                 <TextBlock x:Name="PlayStateText" Text="播放"/>
@@ -844,7 +845,28 @@
 
                         <TextBlock x:Name="TimeLabel" Grid.Column="2" MinWidth="110" Text="00:00 / 00:00" Foreground="{StaticResource TextOnAccent}" VerticalAlignment="Center" Margin="15,0,0,0" FontFamily="Consolas"/>
 
-                        <Button x:Name="BtnLocateFile" Grid.Column="3" Height="32" Style="{StaticResource PrimaryButtonStyle}" Click="BtnLocateFile_Click" ToolTip="定位文件" Margin="15,0,0,0">
+                        <Button x:Name="BtnScreenshot"
+                                Grid.Column="3"
+                                Height="32"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Click="BtnScreenshot_Click"
+                                IsEnabled="False"
+                                ToolTip="{loc:Localized 截图（Ctrl+S）}"
+                                AutomationProperties.Name="{loc:Localized 截图（Ctrl+S）}"
+                                Margin="12,0,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Path x:Name="ScreenshotIcon"
+                                      Data="{StaticResource FluentPhotoCameraIcon}"
+                                      Width="15"
+                                      Height="15"
+                                      Stretch="Uniform"
+                                      Fill="{StaticResource TextOnAccent}"
+                                      Margin="0,0,6,0"/>
+                                <TextBlock x:Name="ScreenshotText" Text="{loc:Localized 截图}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="BtnLocateFile" Grid.Column="4" Height="32" Style="{StaticResource PrimaryButtonStyle}" Click="BtnLocateFile_Click" ToolTip="定位文件" Margin="8,0,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <Path x:Name="LocateFileIcon" Data="{StaticResource FluentFolderIcon}" Width="15" Height="15" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,6,0"/>
                                 <TextBlock x:Name="LocateFileText" Text="定位文件"/>

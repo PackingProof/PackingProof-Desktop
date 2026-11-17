@@ -164,7 +164,66 @@ public sealed class UiScreenshotTests
             () => new MobileConnectionWindow(
                 "http://192.168.1.250:5280/?key=1a8cb7fe",
                 accessProtected: true));
+        TryCapture(
+            "playback",
+            outputDirectory,
+            () => new PlaybackWindow(Path.GetTempPath(), null, true, "本机"));
+        TryCapture(
+            "playback-narrow",
+            outputDirectory,
+            () => new PlaybackWindow(Path.GetTempPath(), null, true, "本机")
+            {
+                Width = 920,
+                Height = 700
+            });
+        TryCapture(
+            "screenshot-dialog",
+            outputDirectory,
+            () => new PlaybackScreenshotDialog(CreateScreenshotDialogPreview(640, 360))
+            {
+                SizeToContent = SizeToContent.Manual,
+                Height = 420
+            });
+        TryCapture(
+            "screenshot-dialog-portrait",
+            outputDirectory,
+            () => new PlaybackScreenshotDialog(CreateScreenshotDialogPreview(360, 640))
+            {
+                SizeToContent = SizeToContent.Manual,
+                Height = 420
+            });
         // 扩展市场构造时会去拉远端目录，截图时容易被网络重试卡住，先跳过。
+    }
+
+    private static BitmapSource CreateScreenshotDialogPreview(int width, int height)
+    {
+        var visual = new DrawingVisual();
+        using (DrawingContext context = visual.RenderOpen())
+        {
+            var background = new LinearGradientBrush(
+                Color.FromRgb(25, 36, 55),
+                Color.FromRgb(51, 72, 103),
+                new Point(0, 0),
+                new Point(1, 1));
+            context.DrawRectangle(background, null, new Rect(0, 0, width, height));
+            context.DrawRectangle(
+                new SolidColorBrush(Color.FromArgb(80, 255, 255, 255)),
+                null,
+                new Rect(width * 0.12, height * 0.16, width * 0.76, height * 0.68));
+            context.DrawRectangle(
+                new SolidColorBrush(Color.FromRgb(59, 130, 246)),
+                null,
+                new Rect(width * 0.18, height * 0.26, width * 0.30, 12));
+            context.DrawRectangle(
+                new SolidColorBrush(Color.FromArgb(120, 255, 255, 255)),
+                null,
+                new Rect(width * 0.18, height * 0.36, width * 0.48, 8));
+        }
+
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        bitmap.Freeze();
+        return bitmap;
     }
 
     private static void TryCapture(string name, string outputDirectory, Func<Window> factory)

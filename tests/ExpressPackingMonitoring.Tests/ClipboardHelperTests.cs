@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using ExpressPackingMonitoring.Services;
 using Xunit;
 
@@ -140,6 +142,37 @@ public sealed class ClipboardHelperTests
         }
 
         Assert.Skip("剪贴板被其他进程占用或改写，读不到刚写入的测试文本，跳过本次验证");
+    }
+
+    [Fact]
+    public void CreateDibBytes_UsesAlignedTopDownBgr24Pixels()
+    {
+        const int width = 3;
+        const int height = 2;
+        const int sourceStride = width * 3;
+        byte[] pixels = new byte[sourceStride * height];
+        for (int index = 0; index < pixels.Length; index++)
+            pixels[index] = (byte)index;
+        BitmapSource source = BitmapSource.Create(
+            width,
+            height,
+            96,
+            96,
+            PixelFormats.Bgr24,
+            null,
+            pixels,
+            sourceStride);
+        source.Freeze();
+
+        byte[] dib = ClipboardHelper.CreateDibBytes(source);
+
+        Assert.Equal(40 + 24, dib.Length);
+        Assert.Equal(40, BitConverter.ToInt32(dib, 0));
+        Assert.Equal(width, BitConverter.ToInt32(dib, 4));
+        Assert.Equal(-height, BitConverter.ToInt32(dib, 8));
+        Assert.Equal(1, BitConverter.ToInt16(dib, 12));
+        Assert.Equal(24, BitConverter.ToInt16(dib, 14));
+        Assert.Equal(24, BitConverter.ToInt32(dib, 20));
     }
 
     /// <summary>WPF 读剪贴板要求 STA：这里自己起一个 STA 线程读回来。</summary>

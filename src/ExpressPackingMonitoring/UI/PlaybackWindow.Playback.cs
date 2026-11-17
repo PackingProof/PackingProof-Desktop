@@ -118,6 +118,7 @@ public partial class PlaybackWindow
         player.EncounteredError -= MediaPlayer_EncounteredError;
         player.Vout -= MediaPlayer_Vout;
         player.Paused -= MediaPlayer_Paused;
+        player.SnapshotTaken -= MediaPlayer_SnapshotTaken;
     }
 
     /// <summary>
@@ -312,6 +313,8 @@ public partial class PlaybackWindow
         CancelAwaitingFirstFrame();
         _timer.Stop();
         UpdatePlayState(false);
+        _screenshotSourceReady = false;
+        UpdateScreenshotButtonState();
 
         if (player != null)
             DetachPlaybackMediaPlayerEvents(player);

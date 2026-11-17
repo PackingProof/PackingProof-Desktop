@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using ExpressPackingMonitoring.Logging;
 
 namespace ExpressPackingMonitoring.Services;
@@ -27,6 +30,7 @@ internal static class ClipboardHelper
     private static readonly TimeSpan BusyLogThrottle = TimeSpan.FromMinutes(1);
 
     private const uint CF_TEXT = 1;
+    private const uint CF_DIB = 8;
     private const uint CF_UNICODETEXT = 13;
     private const uint GMEM_MOVEABLE = 0x0002;
 
@@ -66,6 +70,23 @@ internal static class ClipboardHelper
         LogBusyOnce(error);
         QueueBackgroundRetry(text, onCopied, onFailed);
         return false;
+    }
+
+    /// <summary>
+    /// 把视频截图以 CF_DIB 写入剪贴板。位图转换和剪贴板争用重试都在后台线程，
+    /// 避免 WPF OLE 剪贴板在 UI 线程上等待约 1 秒。
+    /// </summary>
+    internal static async Task CopyImageAsync(
+        BitmapSource image,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        byte[] dib = await Task.Run(
+            () => CreateDibBytes(image),
+            cancellationToken);
+        await Task.Run(
+            () => WriteClipboardBytesWithRetry(CF_DIB, dib, cancellationToken),
+            cancellationToken);
     }
 
     /// <summary>
@@ -127,6 +148,108 @@ internal static class ClipboardHelper
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// CF_DIB 的像素必须四字节对齐。BGR24 没有透明度歧义，粘贴到聊天工具、
+    /// 画图和 Office 时比直接塞 WPF BitmapSource 更稳定。
+    /// </summary>
+    internal static byte[] CreateDibBytes(BitmapSource image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        BitmapSource pixelsSource = image.Format == PixelFormats.Bgr24
+            ? image
+            : new FormatConvertedBitmap(image, PixelFormats.Bgr24, null, 0);
+        if (pixelsSource.CanFreeze)
+            pixelsSource.Freeze();
+
+        int width = pixelsSource.PixelWidth;
+        int height = pixelsSource.PixelHeight;
+        if (width <= 0 || height <= 0)
+            throw new InvalidOperationException("截图尺寸无效");
+
+        int stride = checked(((width * 3) + 3) & ~3);
+        byte[] pixels = new byte[checked(stride * height)];
+        pixelsSource.CopyPixels(pixels, stride, 0);
+
+        using var stream = new MemoryStream(40 + pixels.Length);
+        using var writer = new BinaryWriter(stream);
+        writer.Write(40);
+        writer.Write(width);
+        writer.Write(-height);
+        writer.Write((short)1);
+        writer.Write((short)24);
+        writer.Write(0);
+        writer.Write(pixels.Length);
+        writer.Write(0);
+        writer.Write(0);
+        writer.Write(0);
+        writer.Write(0);
+        writer.Write(pixels);
+        writer.Flush();
+        return stream.ToArray();
+    }
+
+    private static void WriteClipboardBytesWithRetry(
+        uint format,
+        byte[] bytes,
+        CancellationToken cancellationToken)
+    {
+        Exception lastError = new TimeoutException("剪贴板一直被别的程序占用");
+        DateTime deadline = DateTime.UtcNow + BackgroundRetryWindow;
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (TryWriteClipboardBytes(format, bytes, out lastError))
+                return;
+            Thread.Sleep(BackgroundRetryInterval);
+        }
+
+        throw new InvalidOperationException(lastError.Message, lastError);
+    }
+
+    private static bool TryWriteClipboardBytes(uint format, byte[] bytes, out Exception error)
+    {
+        error = null!;
+        if (!OpenClipboard(IntPtr.Zero))
+        {
+            int code = Marshal.GetLastWin32Error();
+            error = new COMException($"OpenClipboard 失败 (0x{code:X8})", code);
+            return false;
+        }
+
+        IntPtr handle = IntPtr.Zero;
+        try
+        {
+            if (!EmptyClipboard())
+            {
+                int code = Marshal.GetLastWin32Error();
+                error = new COMException($"EmptyClipboard 失败 (0x{code:X8})", code);
+                return false;
+            }
+
+            handle = AllocateClipboardMemory(bytes);
+            if (SetClipboardData(format, handle) == IntPtr.Zero)
+            {
+                int code = Marshal.GetLastWin32Error();
+                error = new COMException($"SetClipboardData 失败 (0x{code:X8})", code);
+                return false;
+            }
+
+            handle = IntPtr.Zero;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex;
+            return false;
+        }
+        finally
+        {
+            if (handle != IntPtr.Zero)
+                GlobalFree(handle);
+            CloseClipboard();
+        }
     }
 
     /// <summary>空闲时的快路径：一次 Win32 写入；被占用时失败也是瞬时，不会像 OLE 那样耗掉约 1 秒。</summary>

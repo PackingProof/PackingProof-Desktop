@@ -27,6 +27,8 @@ public partial class PlaybackWindow
         UpdatePlayState(false);
         BtnTogglePlay.IsEnabled = false;
         TimelineSlider.IsEnabled = false;
+        _screenshotSourceReady = false;
+        UpdateScreenshotButtonState();
         ShowPlaybackPreparing(AppLanguage.Get("正在准备视频..."));
         PlaybackMediaSource? mediaSource = null;
 
@@ -121,6 +123,11 @@ public partial class PlaybackWindow
             CancelAwaitingFirstFrame();
             ShowPlaybackCover(GetPlaybackFailureMessage());
             UpdatePlayState(false);
+            if (IsPlaybackRequestCurrent(requestVersion, video))
+            {
+                _screenshotSourceReady = false;
+                UpdateScreenshotButtonState();
+            }
             if (!_isClosing)
             {
                 RuntimeLog.Warn(

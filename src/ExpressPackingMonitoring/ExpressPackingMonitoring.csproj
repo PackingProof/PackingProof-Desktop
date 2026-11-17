@@ -310,6 +310,10 @@
     <Compile Include="UI\NotificationVisuals.cs" />
     <Compile Include="UI\PlaybackWindow.xaml.cs" />
     <Compile Include="UI\PlaybackWindow.Playback.cs" />
+    <Compile Include="UI\PlaybackWindow.Controls.cs" />
+    <Compile Include="UI\PlaybackInteractionPolicy.cs" />
+    <Compile Include="UI\PlaybackScreenshotDialog.xaml.cs" />
+    <Compile Include="UI\PlaybackWindow.Screenshot.cs" />
     <Compile Include="UI\PlaybackWindowFitPolicy.cs" />
     <Compile Include="UI\PlaybackControlBarPolicy.cs" />
     <Compile Include="UI\OrderNumberExportProgressDialog.xaml.cs" />

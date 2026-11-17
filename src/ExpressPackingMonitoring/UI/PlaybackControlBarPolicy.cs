@@ -6,10 +6,10 @@ namespace ExpressPackingMonitoring.UI;
 internal static class PlaybackControlBarPolicy
 {
     /// <summary>
-    /// 低于这个宽度就切换成纯图标：图标+文字的两个按钮约占 200px，进度条最少要 120px，
-    /// 时间标签约 130px，再加左右内边距，600 上下已经是进度条开始被挤扁的点。
+    /// 低于这个宽度就切换成纯图标：三个带文字的按钮、时间标签和进度条最小宽度加起来，
+    /// 700 上下已经是进度条开始被挤扁的点。
     /// </summary>
-    internal const double IconOnlyWidth = 620;
+    internal const double IconOnlyWidth = 700;
 
     internal static bool UseIconOnlyButtons(double availableWidth) =>
         availableWidth > 0 && availableWidth < IconOnlyWidth;

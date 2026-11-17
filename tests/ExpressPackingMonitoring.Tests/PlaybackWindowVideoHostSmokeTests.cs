@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using ExpressPackingMonitoring.UI;
 using LibVLCSharp.Shared;
@@ -94,6 +95,9 @@ public sealed class PlaybackWindowVideoHostSmokeTests
 
     private static void ExerciseEmbeddedPlayback(string videoPath)
     {
+        string snapshotPath = Path.Combine(
+            Path.GetDirectoryName(videoPath)!,
+            "回放截图-冒烟.png");
         var application = new Application
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown
@@ -116,6 +120,20 @@ public sealed class PlaybackWindowVideoHostSmokeTests
         media.AddOption(":start-paused");
         DispatcherTimer? revealFallback = null;
         bool firstFrameSignalReceived = false;
+        bool playbackUnpaused = false;
+        bool snapshotRequested = false;
+        Stopwatch? snapshotRequestWait = null;
+        int snapshotTaken = 0;
+        player.SnapshotTaken += (_, args) =>
+        {
+            if (string.Equals(
+                    Path.GetFullPath(args.Filename),
+                    Path.GetFullPath(snapshotPath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                Volatile.Write(ref snapshotTaken, 1);
+            }
+        };
 
         window.ContentRendered += (_, _) =>
         {
@@ -172,14 +190,49 @@ public sealed class PlaybackWindowVideoHostSmokeTests
                     if (waitStarted.Elapsed < TimeSpan.FromSeconds(1))
                         return;
 
-                    timer.Stop();
-                    revealFallback?.Stop();
                     Assert.True(firstFrameSignalReceived, "普通 H.264 视频应由 Vout 或 Paused 通知首帧就绪，而不是依赖超时兜底");
                     string[] titles = GetVisibleWindowTitlesForCurrentProcess();
                     Assert.Contains(titles, title => title.Contains("PackingProof playback smoke", StringComparison.Ordinal));
                     Assert.DoesNotContain(titles, title => title.Contains("LibVLCSharp.WPF", StringComparison.Ordinal));
                     Assert.DoesNotContain(titles, title => title.Contains("VLC (Direct3D11 output)", StringComparison.Ordinal));
 
+                    if (!playbackUnpaused)
+                    {
+                        player.SetPause(false);
+                        playbackUnpaused = true;
+                    }
+                    if (!snapshotRequested)
+                    {
+                        if (player.TakeSnapshot(0, snapshotPath, 0, 0))
+                        {
+                            snapshotRequested = true;
+                            snapshotRequestWait = Stopwatch.StartNew();
+                        }
+                        else if (waitStarted.Elapsed >= TimeSpan.FromSeconds(6))
+                        {
+                            throw new TimeoutException("LibVLC 尚未准备好输出截图");
+                        }
+                        return;
+                    }
+                    if (Volatile.Read(ref snapshotTaken) == 0)
+                    {
+                        if (snapshotRequestWait!.Elapsed < TimeSpan.FromSeconds(5))
+                            return;
+                        throw new TimeoutException("等待 LibVLC 输出截图文件超时");
+                    }
+
+                    using (FileStream snapshot = File.OpenRead(snapshotPath))
+                    {
+                        var decoder = new PngBitmapDecoder(
+                            snapshot,
+                            BitmapCreateOptions.PreservePixelFormat,
+                            BitmapCacheOption.OnLoad);
+                        Assert.Equal(640, decoder.Frames[0].PixelWidth);
+                        Assert.Equal(360, decoder.Frames[0].PixelHeight);
+                    }
+
+                    timer.Stop();
+                    revealFallback?.Stop();
                     host.Detach(player);
                     window.Close();
                     Assert.False(window.IsVisible);

@@ -1855,4 +1855,17 @@
   <data name="请把刚生成的样本包作为附件发送" xml:space="preserve"><value>作成したサンプル パッケージを添付して送信してください</value></data>
   <data name="没能写入剪贴板，请手动记录反馈邮箱：{0}" xml:space="preserve"><value>クリップボードに書き込めませんでした。フィードバック メールを手動で控えてください: {0}</value></data>
   <data name="样本包生成失败：{0}" xml:space="preserve"><value>サンプル パッケージを作成できませんでした: {0}</value></data>
+  <data name="播放（空格）" xml:space="preserve"><value>再生（スペース）</value></data>
+  <data name="暂停（空格）" xml:space="preserve"><value>一時停止（スペース）</value></data>
+  <data name="截图" xml:space="preserve"><value>スクリーンショット</value></data>
+  <data name="截图保存" xml:space="preserve"><value>スクリーンショットを保存</value></data>
+  <data name="截图（Ctrl+S）" xml:space="preserve"><value>スクリーンショット（Ctrl+S）</value></data>
+  <data name="复制到剪贴板" xml:space="preserve"><value>クリップボードにコピー</value></data>
+  <data name="另存为" xml:space="preserve"><value>名前を付けて保存</value></data>
+  <data name="保存截图" xml:space="preserve"><value>スクリーンショットを保存</value></data>
+  <data name="PNG 图片 (*.png)|*.png" xml:space="preserve"><value>PNG 画像 (*.png)|*.png</value></data>
+  <data name="截图已复制到剪贴板" xml:space="preserve"><value>スクリーンショットをクリップボードにコピーしました</value></data>
+  <data name="截图已保存：{0}" xml:space="preserve"><value>スクリーンショットを保存しました: {0}</value></data>
+  <data name="未能保存当前画面" xml:space="preserve"><value>現在の画面を保存できませんでした</value></data>
+  <data name="截图失败：{0}" xml:space="preserve"><value>スクリーンショットを保存できませんでした: {0}</value></data>
 </root>
