@@ -306,6 +306,10 @@ namespace ExpressPackingMonitoring.ViewModels
         private CancellationTokenSource _cameraBarcodeFeedbackCts;
         private readonly CameraPairingQrFrameDecoder _cameraPairingQrDecoder = new();
         private readonly object _cameraPairingQrLock = new();
+        private readonly object _runtimeInitializationLock = new();
+        private Task _runtimeInitializationTask;
+        private int _runtimeInitialized;
+        internal bool IsRuntimeInitialized => Volatile.Read(ref _runtimeInitialized) != 0;
         private TaskCompletionSource<string> _cameraPairingQrScan;
         private int _cameraPairingQrDecodeBusy;
 

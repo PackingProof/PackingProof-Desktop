@@ -285,6 +285,38 @@ public sealed class UiResponsivenessArchitectureTests
         Assert.Contains("LogResourceHealthIfDue(", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void DatabaseAndRuntimeServicesStartAfterTheMainWindowIsShown()
+    {
+        string viewModel = ReadProjectFile(
+            "ViewModels",
+            "MainViewModel.Scanner.cs");
+        string mainWindow = ReadProjectFile(
+            "UI",
+            "MainWindow.xaml.cs");
+
+        int constructorIndex = viewModel.IndexOf(
+            "public MainViewModel()",
+            StringComparison.Ordinal);
+        int runtimeMethodIndex = viewModel.IndexOf(
+            "private async Task InitializeRuntimeCoreAsync()",
+            StringComparison.Ordinal);
+        Assert.True(constructorIndex >= 0);
+        Assert.True(runtimeMethodIndex > constructorIndex);
+
+        string constructor = viewModel[constructorIndex..runtimeMethodIndex];
+        Assert.DoesNotContain("InitDatabase();", constructor, StringComparison.Ordinal);
+        Assert.DoesNotContain("InitializeSystem();", constructor, StringComparison.Ordinal);
+        Assert.Contains("await Task.Yield();", viewModel[runtimeMethodIndex..], StringComparison.Ordinal);
+        Assert.Contains("await Task.Run(InitDatabase);", viewModel[runtimeMethodIndex..], StringComparison.Ordinal);
+        Assert.Contains("InitializeRecordingTransfers();", viewModel[runtimeMethodIndex..], StringComparison.Ordinal);
+        Assert.Contains("InitializeSystem();", viewModel[runtimeMethodIndex..], StringComparison.Ordinal);
+        Assert.Contains(
+            "await runtimeViewModel.EnsureRuntimeInitializedAsync();",
+            mainWindow,
+            StringComparison.Ordinal);
+    }
+
     private static string ReadProjectFile(params string[] relativePathParts) =>
         File.ReadAllText(
             Path.Combine(

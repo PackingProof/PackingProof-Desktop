@@ -152,10 +152,15 @@ namespace ExpressPackingMonitoring.UI
             InitializeComponent();
             StatsBarBorder.SizeChanged += (_, _) => UpdateStatsBarVisibility();
             TopBarBorder.SizeChanged += (_, _) => UpdateTopBarCompactState();
-            Loaded += (_, _) =>
+            Loaded += async (_, _) =>
             {
                 UpdateStatsBarVisibility();
                 UpdateTopBarCompactState();
+                if (DataContext is MainViewModel runtimeViewModel)
+                {
+                    await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                    await runtimeViewModel.EnsureRuntimeInitializedAsync();
+                }
             };
             DpiChanged += (_, _) =>
                 (DataContext as MainViewModel)?.RefreshBarcodesForDpiChange();

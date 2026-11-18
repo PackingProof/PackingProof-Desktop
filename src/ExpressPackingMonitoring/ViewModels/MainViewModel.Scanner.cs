@@ -226,11 +226,6 @@ namespace ExpressPackingMonitoring.ViewModels
                     _isEncoderDetectRunning = false;
                 }
             });
-            InitDatabase();
-            LogStartupStage("database");
-            InitializeRecordingTransfers();
-            RefreshTodayStats();
-            RestoreRecentScanRecords();
             _speechService = new SpeechService
             {
                 EnableSoundPrompt = Config.EnableSoundPrompt,
@@ -264,13 +259,75 @@ namespace ExpressPackingMonitoring.ViewModels
             SwitchWorkstationCommand = new RelayCommand(SwitchWorkstation);
             ClearScanInputCommand = new RelayCommand(() => ScanInputText = "");
             ClearSearchCommand = new RelayCommand(() => LogSearchText = "");
-            InitializeSystem();
-            LogStartupStage("system");
             StartUiHeartbeat();
             RefreshBarcodes();
             PrimeCommandBarcodeImages();
-            InitGlobalKeyboardHook();
-            LogStartupStage("ready");
+            IsBusy = true;
+            BusyText = "正在加载后台数据";
+            LogStartupStage("shell-ready");
+        }
+
+        /// <summary>
+        /// 主窗口显示后才初始化数据库、统计、传输、摄像头和网页服务。
+        /// 数据库打开和历史积压扫描可能耗时十几秒，不能阻塞首屏。
+        /// </summary>
+        internal Task EnsureRuntimeInitializedAsync()
+        {
+            lock (_runtimeInitializationLock)
+            {
+                return _runtimeInitializationTask ??= InitializeRuntimeCoreAsync();
+            }
+        }
+
+        private async Task InitializeRuntimeCoreAsync()
+        {
+            await Task.Yield();
+            RuntimeLog.Info("StartupTrace", "runtime-background-start");
+            string databaseError = "";
+            try
+            {
+                databaseError = await Task.Run(InitDatabase);
+                RuntimeLog.Info("StartupTrace", "runtime-background-database-ready");
+            }
+            catch (Exception ex)
+            {
+                databaseError = ex.Message;
+                RuntimeLog.Error("StartupTrace", "Runtime database initialization failed", ex);
+            }
+
+            await ApplyOnUiThreadAsync(() =>
+            {
+                if (_isDisposed)
+                {
+                    DisposeLateInitializedRuntimeServices();
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(databaseError))
+                {
+                    AppDialog.Error(
+                        null,
+                        $"数据库初始化失败，部分功能将不可用：{databaseError}",
+                        "启动警告");
+                }
+
+                InitializeRecordingTransfers();
+                RefreshTodayStats();
+                RestoreRecentScanRecords();
+                InitializeSystem();
+                InitGlobalKeyboardHook();
+                Volatile.Write(ref _runtimeInitialized, 1);
+                IsBusy = false;
+                BusyText = "";
+                RuntimeLog.Info("StartupTrace", "runtime-background-ready");
+            });
+        }
+
+        private void DisposeLateInitializedRuntimeServices()
+        {
+            try { _archiveService?.Dispose(); } catch { }
+            try { _scanAudit?.Dispose(); } catch { }
+            try { _db?.Dispose(); } catch { }
         }
 
         /// <summary>启动时预生成一次指令条码图片，用户点"打开所在位置"时目录里已经有文件</summary>
@@ -891,7 +948,7 @@ namespace ExpressPackingMonitoring.ViewModels
             return roots;
         }
 
-        private void InitDatabase()
+        private string InitDatabase()
         {
             try
             {
@@ -923,12 +980,15 @@ namespace ExpressPackingMonitoring.ViewModels
                 _nasCircularCleanup = new NasCircularCleanupService(_db);
                 RefreshArchiveBackupSummary();
                 StartDeviceFolderMigration();
+                return "";
             }
             catch (Exception ex)
             {
                 _archiveService = null;
                 _nasCircularCleanup = null;
-                AppDialog.Error(null, $"数据库初始化失败，部分功能将不可用：{ex.Message}", "启动警告");
+                try { _db?.Dispose(); } catch { }
+                _db = null;
+                return ex.Message;
             }
         }
 
@@ -945,7 +1005,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private async Task ToggleRecordingAsync(string auditEventId = null)
         {
             await NotifyUserActivityAsync();
-            if (IsBusy || _isDisposed || _shutdownRequested) return;
+            if (!IsRuntimeInitialized || IsBusy || _isDisposed || _shutdownRequested) return;
             if (!await _recorderLock.WaitAsync(0)) return;
 
             try
