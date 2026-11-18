@@ -90,6 +90,33 @@ public sealed class RootLauncherStartupTests
         Assert.Contains("PortableExecutableCetPolicy.TryDisableCetCompatibility(appPath", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RootLauncherTimeoutDoesNotMisreportMissingRuntimes()
+    {
+        string source = File.ReadAllText(
+            Path.Combine(FindRepositoryRoot(), "src", "ExpressPackingMonitoring.Launcher", "Program.cs"));
+
+        Assert.Contains(
+            "private const int StartupWindowTimeoutMs = 30000;",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ShowStartupFailureMessage(baseDir, state, reason, exitCode, reportPath);",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "bool startupTimedOut = state == StartupState.Timeout && !exitCode.HasValue;",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("启动较慢", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "进程仍存活时只是窗口尚未出现，不能根据系统目录里个别 DLL 缺失推断运行库故障。",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("startupTimedOut ? InfoIcon : ErrorIcon", source, StringComparison.Ordinal);
+        Assert.Contains("if (!exitCode.HasValue)", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

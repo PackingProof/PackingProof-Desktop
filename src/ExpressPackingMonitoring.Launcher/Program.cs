@@ -43,7 +43,7 @@ internal static class Program
     private const uint ErrorIcon = 0x00000010;
     private const uint YesNoButtons = 0x00000004;
     private const uint DialogTimeoutMs = 60000;
-    private const int StartupWindowTimeoutMs = 12000;
+    private const int StartupWindowTimeoutMs = 30000;
     private const int StartupPollIntervalMs = 200;
     private const string VcRuntimeDownloadUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe";
     private const string CrashDumpDirectoryName = "dumps";
@@ -1254,7 +1254,7 @@ internal static class Program
             exitCode,
             startupElapsed);
         WriteLog(reason + "；诊断文件=" + reportPath);
-        ShowStartupFailureMessage(baseDir, reason, exitCode, reportPath);
+        ShowStartupFailureMessage(baseDir, state, reason, exitCode, reportPath);
         return 1;
     }
 
@@ -1553,12 +1553,21 @@ internal static class Program
 
     private static void ShowStartupFailureMessage(
         string baseDir,
+        StartupState state,
         string reason,
         int? exitCode,
         string reportPath)
     {
+        bool offerVcRuntimeDownload = ShouldOfferVcRuntimeDownload(baseDir, exitCode);
+        bool startupTimedOut = state == StartupState.Timeout && !exitCode.HasValue;
         var text = new StringBuilder();
-        text.AppendLine(_useChinese ? "主程序没有成功打开。" : "The application did not open successfully.");
+        text.AppendLine(startupTimedOut
+            ? (_useChinese
+                ? "主程序仍在启动，但超过预期时间还没有显示窗口。"
+                : "The application is still starting, but its window did not appear in time.")
+            : (_useChinese
+                ? "主程序没有成功打开。"
+                : "The application did not open successfully."));
         text.AppendLine(reason);
         if (exitCode.HasValue)
         {
@@ -1589,17 +1598,23 @@ internal static class Program
                 : "This Windows version is below .NET 10's supported Windows 10 1607.");
         }
 
-        text.AppendLine();
-        text.AppendLine(_useChinese
-            ? "如果诊断文件里的“VC++ / UCRT 运行库”有缺失，或“原生依赖加载检查”有失败，请先安装 Microsoft Visual C++ 2015-2022 x64 运行库后重试。"
-            : "If the diagnostic shows missing VC++/UCRT runtimes or failed native library loads, install Microsoft Visual C++ 2015-2022 x64 Runtime and try again.");
+        if (offerVcRuntimeDownload)
+        {
+            text.AppendLine();
+            text.AppendLine(_useChinese
+                ? "检测到明确的 DLL 加载问题。请先安装 Microsoft Visual C++ 2015-2022 x64 运行库后重试。"
+                : "A DLL loading problem was detected. Install Microsoft Visual C++ 2015-2022 x64 Runtime and try again.");
+        }
         text.AppendLine(AppendDiagnosticHint("", reportPath).Trim());
 
         string content = text.ToString().Trim();
-        if (ShouldOfferVcRuntimeDownload(baseDir, exitCode))
+        string title = startupTimedOut
+            ? (_useChinese ? "启动较慢" : "Startup is taking longer than expected")
+            : (_useChinese ? "启动失败" : "Startup failed");
+        if (offerVcRuntimeDownload)
         {
             bool openDownload = ShowQuestion(
-                _useChinese ? "启动失败" : "Startup failed",
+                title,
                 content
                 + Environment.NewLine
                 + Environment.NewLine
@@ -1613,9 +1628,9 @@ internal static class Program
         else
         {
             ShowMessage(
-                _useChinese ? "启动失败" : "Startup failed",
+                title,
                 content,
-                ErrorIcon);
+                startupTimedOut ? InfoIcon : ErrorIcon);
         }
 
         OpenDiagnosticFolder(reportPath);
@@ -1623,6 +1638,11 @@ internal static class Program
 
     private static bool ShouldOfferVcRuntimeDownload(string baseDir, int? exitCode)
     {
+        // 进程仍存活时只是窗口尚未出现，不能根据系统目录里个别 DLL 缺失推断运行库故障。
+        // 应用在 app\ 中自带 VC++ 运行库，且 .NET/原生库可能已经成功加载。
+        if (!exitCode.HasValue)
+            return false;
+
         if (exitCode is int code
             && (code == unchecked((int)0xC0000135)
                 || code == unchecked((int)0xC000007B)))
