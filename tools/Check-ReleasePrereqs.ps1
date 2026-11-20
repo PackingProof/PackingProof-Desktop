@@ -159,15 +159,15 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot ".env")) {
     Write-Ok ".env 存在"
 }
 else {
-    Write-Warn ".env 不存在；Gitee 发布令牌会退回读取本机 .gitee\apikey.txt"
+    Write-Warn ".env 不存在；Gitee 发布仍只读取 PackingProof-Release-Bot token 文件"
 }
 
 Write-Host ""
 Write-Host "== 发布渠道登录态 =="
 if (Get-Command gh -ErrorAction SilentlyContinue) {
-    $githubTokenSource = Import-GitHubReleaseTokenFromEnvFile -RepoRoot $repoRoot
+    $githubTokenSource = Import-GitHubReleaseAppInstallationToken
     if (-not $githubTokenSource) {
-        Write-Fail "缺少 GitHub 发布机器人令牌：请在 .env 配置 GITHUB_RELEASE_TOKEN"
+        Write-Fail "GitHub 发布必须使用 PackingProof Release Bot GitHub App；个人 gh 登录态和普通令牌不会用于远端写入"
     }
     elseif (Test-GitHubReleaseAuthentication -Repository "PackingProof/PackingProof-Desktop" -RepoRoot $repoRoot) {
         Write-Ok "GitHub 发布机器人令牌可用（来源：$githubTokenSource）"
@@ -180,19 +180,18 @@ else {
     Write-Fail "未安装 gh，GitHub Release 无法创建"
 }
 
-# Gitee 令牌固定来自 .env；`gitee auth status` 在令牌失效时仍返回 0，
+# Gitee 令牌固定来自机器人 token 文件；`gitee auth status` 在令牌失效时仍返回 0，
 # 所以这里做一次真实只读调用，避免到发布那一刻才发现认证不可用。
 if (Get-Command gitee -ErrorAction SilentlyContinue) {
-    $giteeTokenSource = Import-GiteeTokenFromEnvFile -RepoRoot $repoRoot
-    $giteeTokenLabel = if ($giteeTokenSource) { $giteeTokenSource } else { "gitee CLI 登录态" }
-    if (Test-GiteeAuthentication -Repository "PackingProof/PackingProof-Desktop" -RepoRoot $repoRoot) {
-        Write-Ok "gitee 令牌可用（来源：$giteeTokenLabel）"
+    $giteeTokenSource = Import-GiteeReleaseBotToken
+    if (-not $giteeTokenSource) {
+        Write-Fail "Gitee 发布必须使用 PackingProof-Release-Bot token 文件；个人 gitee 登录态不会用于远端写入"
     }
-    elseif ($giteeTokenSource) {
-        Write-Fail "gitee 令牌不可用（来源：$giteeTokenLabel），请核对 .env 的 GITEE_TOKEN"
+    elseif (Test-GiteeAuthentication -Repository "PackingProof/PackingProof-Desktop" -RepoRoot $repoRoot) {
+        Write-Ok "Gitee 发布机器人令牌可用（来源：$giteeTokenSource）"
     }
     else {
-    Write-Fail "gitee 不可用：.env 里没有 GITEE_RELEASE_TOKEN / GITEE_TOKEN，gitee CLI 登录态也不可用"
+        Write-Fail "Gitee 发布机器人令牌不可用（来源：$giteeTokenSource）"
     }
 }
 else {
@@ -299,4 +298,4 @@ if ($blockers.Count -gt 0) {
 
 Write-Host ""
 Write-Host "本机发布前置条件齐备"
-Write-Host "下一步：合并 PR 并创建版本标签，再运行 pwsh -NoProfile -File tools\Prepare-Release.ps1 -Version <X.Y.Z>"
+Write-Host "下一步：用发布机器人直推 main 并创建版本标签，再运行 pwsh -NoProfile -File tools\Prepare-Release.ps1 -Version <X.Y.Z>"

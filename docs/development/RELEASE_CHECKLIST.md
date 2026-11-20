@@ -18,8 +18,8 @@
 
 ## 自动化门禁
 
-- PR CI 已覆盖开发分支的 Debug 构建、单元测试和 Web 验收；除非本地无法访问 CI，否则合并前不要重复运行 `Test-CI.ps1`
-- 合并并创建 `vX.Y.Z` 标签后，只运行一次 `pwsh -NoProfile -File tools/Prepare-Release.ps1 -Version <X.Y.Z>`；该脚本执行发布自动验收并以 `-SkipFullTest` 出包，禁止再单独运行 `Test-Release-Automated.ps1` 或重复全量测试
+- 默认流程不创建 PR；发布提交由发布机器人直推远端 `main`。开发期可用 `Test-CI.ps1` 自检，但正式发布门禁由 `Prepare-Release.ps1` 统一执行一次
+- 机器人直推 `main` 并创建 `vX.Y.Z` 标签后，只运行一次 `pwsh -NoProfile -File tools/Prepare-Release.ps1 -Version <X.Y.Z>`；该脚本执行发布自动验收并以 `-SkipFullTest` 出包，禁止再单独运行 `Test-Release-Automated.ps1` 或重复全量测试
 - 运行 `pwsh -NoProfile -File tools/Check-ReleasePrereqs.ps1`：工作区、标签与版本一致性、启动器基线指纹、发布渠道登录态与工具链一次看清；启动器逻辑输入变化必须先重建基线，不要等到打包才拦
 - 确认 `tools\store-package.local.json` 是 Partner Center 的真实身份，且 `makeappx`、`makepri`、`signtool` 可用；Store MSIX 是正式发布必跑项，不是可选旁路
 - 确认隔离 WPF 启停、userscript 并发/延时/多监控端和 Web 播放/剪辑界面自动验收全部通过
@@ -44,13 +44,13 @@
 - 默认脚本离线包只包含当前最新 PPEXT、不含外部适配器，合计不超过 1 MiB；`DefaultScriptExtensions.json` 的版本、大小和 SHA-256 与包内文件一致
 - 发布前把仓根 `Directory.Build.props` 的 `<Version>` 更新为本次版本（这是唯一的版本来源，工程文件不得再各自写 `<Version>`），并与 `vX.Y.Z` 标签、`update_vX.Y.Z.json` 保持一致
 - AppPatch 运行时稳定性核对：默认必须保持 `-AppRuntimeFrameworkVersion 10.0.13`，打包日志不得出现“检测到 .NET/WPF 运行时发生变化”；如确需升级应用运行时，必须改走完整包/Store 发布并重新评估补丁体积
-- 补丁基线：0.0.83、0.0.84 历史发布使用 `-PatchBaselineVersion 0.0.18`；**0.0.84 之后的下一个正式版（0.0.86）起统一使用 `-PatchBaselineVersion 0.0.84`**，0.0.85 从未正式发布，不单独作为基线版本；把 0.0.84 定成所有老装机必须经过的补丁基线。低于 0.0.84 的用户会先通过 0.0.84 的 `update_v0.0.84.json` 与 AppPatch 自动升到基线，再继续升级到 0.0.86；只有中间基线包不可用时才提示完整安装包，因此 0.0.84 的 Release 与 AppPatch 必须保留。**主动强制完整包的标志位是 `patch_supported: false`**；`required_launcher_protocol` 只会先触发启动器更新，不是强制完整包。打包脚本会拒绝 0.0.86+ 使用更低的基线；`tools\打包脚本-增量.bat` 和 `tools\Publish-CleanPackage.ps1` 的默认补丁基线都必须是 `0.0.84`
+- 补丁基线：0.0.83、0.0.84 历史发布使用 `-PatchBaselineVersion 0.0.18`，0.0.86~0.0.99 使用 `0.0.84`；**0.0.101 及以后统一使用 `-PatchBaselineVersion 0.0.100`**。v0.0.100 是从 0.0.81 累计的正式迁移锚点，0.0.84、0.0.100 的 Release 与 AppPatch 必须保留。**主动强制完整包的标志位是 `patch_supported: false`**；`required_launcher_protocol` 只会先触发启动器更新，不是强制完整包。打包脚本会拒绝 0.0.101+ 使用更低的基线；`tools\打包脚本-增量.bat`、`tools\Prepare-Release.ps1` 和 `tools\Publish-CleanPackage.ps1` 的默认补丁基线必须同步为 `0.0.100`
 - 0.0.81 迁移桥：v0.0.100 是正式基线锚点，正式附件 `PackingProof_AppPatch_v0.0.100.zip` 的基线必须是 `0.0.81`，清单必须使用 `download_source=gitee`，主程序必须关闭 CET 兼容标记；后一个正式版使用 `0.0.100` 基线。检查补丁不含 `tools/ffmpeg.exe`、`libvlc/` 或 `OpenCvSharpExtern.dll`，V11 模型随迁移包安装；v0.0.101 及以上普通用户不得收到这份跨运行时大包
 - 多段升级：确认每一跳都是真实可启动版本，更新 JSON、补丁内外部基线、哈希和安装后版本一致；禁止空补丁和伪版本。用真实旧启动器验证桥接版本可安装、可启动，并验证它能继续升级到最新版；不得为了迁移老用户而把最新版全局基线降到旧版本
 - 自包含发布形态核对：`app\` 有 `coreclr.dll`/`hostfxr.dll`、包根没有 `runtime\`、`app\runtime-seed\layout.json` 与布局清单逐文件一致；`pwsh -NoProfile -File tools\Test-RuntimeLayoutSeed.ps1` 全绿（含"框架依赖的探针带 DOTNET_ROOT 从落成的布局加载运行时"）
 - 升级时序字段核对：带 `root=runtime` 载荷的补丁必须声明 `required_launcher_protocol >= 2`；`launcher_package.required_app_protocol` 只在"新启动器需要更新的主程序"时才填
 - 清理列表核对：包内 `patch_manifest.json` 的 `deletes` 与 `tools\app-patch-retire-list.json`（累计退役清单）一致、不含白名单（`tts_cache` / `ffmpeg.exe` / `libvlc`）、不含主程序核心文件；**退役清单若有变化要随发布一起提交**；用 `pwsh -NoProfile -File tools\Test-UpgradeFromLegacyLauncher.ps1 -LegacyLauncherPath <新启动器> -PackageDir <产物目录> -SimulateSecondInstance` 验证"装完才启动 + 12 个旧文件确实清掉"
-- 发布流程顺序：改动经 PR CI 与合并门禁通过并合并到主干 → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 用 `Prepare-Release.ps1` 在标签提交上完成一次发布自动验收和出包（含 Store `.msixupload`）→ 推送标签到 GitHub 与 Gitee → 创建并同步 Release（含 Mac 侧上传的 macOS DMG）→ 将同版本 Store `.msixupload` 提交 Partner Center。Gitee 安装包按完整 Setup 是否严格小于 100MB 分流：小于时直接上传完整 Setup，达到时才使用商店桥接安装器；禁止普通 `main` push 触发发布包工作流
+- 发布流程顺序：完成本地全量门禁并保持工作区干净 → 本地主线快进到发布提交 → 用 `Push-ReleaseBot.ps1` 机器人直推 GitHub 与 Gitee 的 `main` → 在同一提交上创建本地 `vX.Y.Z` 标签 → 用 `Prepare-Release.ps1` 完成一次发布自动验收和出包（含 Store `.msixupload`）→ 用 `Push-ReleaseBot.ps1 -Kind tag` 推送标签 → 创建并同步 Release（含 Mac 侧上传的 macOS DMG）→ 将同版本 Store `.msixupload` 提交 Partner Center。Gitee 安装包按完整 Setup 是否严格小于 100MB 分流；普通 `main` push 不得触发发布包工作流
 - 发布笔记按 `RELEASE_NOTES_TEMPLATE.md` 填写：更新内容三类齐全、《问题修复》只写上一正式版就存在的缺陷（本版自己引入又修掉的不写）、下载与更新说明与实际上传资产一致（含 Gitee 实际使用的完整 Setup 或 no-runtime 安装向导、Microsoft Store `.msixupload`、macOS DMG，且不写已不存在的免安装整包）、且与 `update_vX.Y.Z.json` 的标题和说明同步
 - 预览版本必须在 GitHub 与 Gitee 上将 Release 标记为 prerelease，发布笔记正文首行注明“预览版”；正式版本不得标记 prerelease
 - 更新日志范围：预览版只写本预览版增量内容；正式版必须汇总上一个正式版以来（含中间所有预览版）的全部更新内容

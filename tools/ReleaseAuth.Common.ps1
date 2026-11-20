@@ -155,9 +155,6 @@ function Test-GitHubReleaseAuthentication {
     )
 
     if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN)) {
-        $null = Import-GitHubReleaseTokenFromEnvFile -RepoRoot $RepoRoot
-    }
-    if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN)) {
         return $false
     }
 
@@ -167,4 +164,54 @@ function Test-GitHubReleaseAuthentication {
             "$pushPermission".Trim(),
             "true",
             [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Enable-ReleaseBotGitTransport {
+    param([Parameter(Mandatory = $true)][string[]]$Platforms)
+
+    $configs = [System.Collections.Generic.List[object]]::new()
+    if ($Platforms -contains "github") {
+        $githubSource = Import-GitHubReleaseAppInstallationToken
+        if ([string]::IsNullOrWhiteSpace($githubSource)) {
+            throw "GitHub 远端写入必须使用 PackingProof Release Bot 的 GitHub App token；个人 gh 登录态和普通 GITHUB_TOKEN 不会用于推送"
+        }
+        $githubToken = [Uri]::EscapeDataString($env:GH_TOKEN)
+        $configs.Add(@{
+            Key = "url.https://x-access-token:$githubToken@github.com/.insteadOf"
+            Value = "https://github.com/"
+        })
+    }
+    if ($Platforms -contains "gitee") {
+        $giteeSource = Import-GiteeReleaseBotToken
+        if ([string]::IsNullOrWhiteSpace($giteeSource)) {
+            throw "Gitee 远端写入必须使用 PackingProof-Release-Bot token 文件；个人 gitee 登录态和普通 .env token 不会用于推送"
+        }
+        $giteeUsername = $env:PACKINGPROOF_GITEE_RELEASE_BOT_USERNAME
+        if ([string]::IsNullOrWhiteSpace($giteeUsername)) {
+            $giteeUsername = "PackingProof-Release-Bot"
+        }
+        $giteeUser = [Uri]::EscapeDataString($giteeUsername.Trim())
+        $giteeToken = [Uri]::EscapeDataString($env:GITEE_TOKEN)
+        $configs.Add(@{
+            Key = "url.https://$giteeUser`:$giteeToken@gitee.com/.insteadOf"
+            Value = "https://gitee.com/"
+        })
+    }
+
+    [Environment]::SetEnvironmentVariable(
+        "GIT_CONFIG_COUNT",
+        [string]$configs.Count,
+        [EnvironmentVariableTarget]::Process)
+    for ($index = 0; $index -lt $configs.Count; $index++) {
+        [Environment]::SetEnvironmentVariable(
+            "GIT_CONFIG_KEY_$index",
+            [string]$configs[$index].Key,
+            [EnvironmentVariableTarget]::Process)
+        [Environment]::SetEnvironmentVariable(
+            "GIT_CONFIG_VALUE_$index",
+            [string]$configs[$index].Value,
+            [EnvironmentVariableTarget]::Process)
+    }
+    # 本地 pre-push hook 只放行经过本函数配置机器人认证的推送。
+    $env:PACKINGPROOF_RELEASE_BOT = "1"
 }

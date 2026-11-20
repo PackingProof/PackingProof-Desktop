@@ -1,10 +1,12 @@
-# 把当前分支作为 PR 提交到远程。默认 Gitee 和 GitHub 两边都提，合并后再把主干对齐到同一个提交。
+# 可选的 PR 提交工具；默认发布不使用 PR，而是用 Push-ReleaseBot.ps1 直推 main。
+# 仅当用户明确要求 PR 时使用。默认 Gitee 和 GitHub 两边都提，合并后再把主干对齐到同一个提交。
 #
 #   pwsh -NoProfile -File tools\Submit-ChangePr.ps1 -Title "<PR 标题>" [-BodyFile <markdown>] `
 #       [-Target gitee|github|both] [-Base main] [-Merge] [-Approve] [-Confirmed] [-NoSync] [-Force] [-DryRun]
 #
 # 约定（与 AGENTS.md、docs/development/RELEASE_AND_RUNTIME.md 一致）：
-# - 不直接向 main 推送提交，一律走 PR；合并用快进（fast-forward）：提交原样保留，
+# - 默认发布走 Push-ReleaseBot.ps1 直推 main；本脚本只在明确要求 PR 时使用；合并用快进：
+#   提交原样保留，
 #   不改写 SHA、不做 merge 提交、不 squash
 # - 默认目标是 both：Gitee 和 GitHub 各提一个 PR，两边都合并，最后把主干对齐到同一个提交；
 #   想只提一边时，仓库根目录 .env 里写 PR_TARGET_HOST=gitee|github，
@@ -41,7 +43,6 @@ Set-Location $repoRoot
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
 . (Join-Path $PSScriptRoot "ReleaseAuth.Common.ps1")
-$null = Import-GitHubReleaseTokenFromEnvFile -RepoRoot $repoRoot
 
 $defaultTarget = "both"
 
@@ -365,12 +366,15 @@ if (-not $Confirmed -and -not $DryRun) {
     throw "提交 PR 前需要人工确认：确认无误后加 -Confirmed 再来一次（只看计划可以用 -DryRun）"
 }
 
+if (-not $DryRun) {
+    Enable-ReleaseBotGitTransport -Platforms $targets
+}
+
 $created = @()
 foreach ($platform in $targets) {
     if ($platform -eq "gitee") {
         $slug = $GiteeRepository
         $remoteName = $GiteeRemote
-        $null = Import-GiteeTokenFromEnvFile -RepoRoot $repoRoot
     }
     else {
         $slug = $GithubRepository

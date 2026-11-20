@@ -58,7 +58,7 @@ pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 ## 本地环境与安全边界
 
 - 日常构建和测试优先使用本机或局域网编译机，不依赖 GitHub CI。机器地址、账号和连接方式只保存在本机笔记，禁止提交或推送。
-- 发布认证使用独立发布账号：GitHub 优先使用组织级 App `PackingProof Release Bot`（本机配置目录 `C:\Users\Administrator\.config\PackingProof\github-apps\packingproof-release-bot`，运行时动态换取 installation token），可由 `.env` 的 `GITHUB_RELEASE_TOKEN` 显式覆盖；Gitee 使用独立账号 `PackingProof-Release-Bot`，令牌默认取仓库外 `C:\Users\Administrator\.config\PackingProof\gitee-release-bot\token.txt`，再回退 `.env` 的 `GITEE_RELEASE_TOKEN`/`GITEE_TOKEN` 和旧 apikey 文件。不得要求用户手工上传发布资产。`.env` 已被 Git 忽略，禁止提交 token、App 私钥或安装令牌。
+- 所有远端写操作必须使用独立机器人：GitHub 只能使用组织级 App `PackingProof Release Bot`（配置目录位于 `%USERPROFILE%\.config\PackingProof\github-apps\packingproof-release-bot`，运行时动态换取 installation token）；Gitee 只能使用 `PackingProof-Release-Bot` 的仓库外 token 文件 `%USERPROFILE%\.config\PackingProof\gitee-release-bot\token.txt`。禁止使用个人 `gh` / `gitee` 登录态、个人 HTTPS 凭据、`.env` 普通令牌或个人身份推送分支、删除 tag、创建/合并 PR、创建 Release 或上传附件。`.env` 已被 Git 忽略，禁止提交 token、App 私钥或安装令牌。
 - Mac 负责 iOS/Xcode 与 macOS 保存主机（`tools/Publish-MacHost.sh`、`tools/Publish-MacRelease.sh`）；Windows 负责桌面端构建与测试。双机同步优先 rebase，禁止为同步制造本地 merge 提交。
 - 不提交配置、数据库、日志、缓存、录像、`.env`、证书、签名材料、密钥或其他本机状态。运行时数据属于 `%LOCALAPPDATA%\ExpressPackingMonitoring\`。
 - 本机工具链固定为 .NET 10 SDK（`global.json` 钉在 10.0.404，`tools\Build-SharedRuntimeLayout.ps1` 等脚本按它取运行时）。.NET 10 的 `minimumMSBuildVersion` 是 18.0.0，所以 IDE 必须是 Visual Studio 2026（18.x）；用 VS 2022 打开解决方案会报"未能正确加载解决方案中的一个或多个项目"，命令行 `dotnet` 构建与发布脚本不受影响，别去改 `.sln` 或回退 TFM 掩盖它。
@@ -101,7 +101,8 @@ pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 ## 测试与验证
 
 - 每次改动至少运行 `dotnet build ExpressPackingMonitoring.sln -c Debug` 和与改动直接相关的回归测试（`dotnet test tests/ExpressPackingMonitoring.Tests/ExpressPackingMonitoring.Tests.csproj -c Debug --filter ...`）。全量 `dotnet test` 只在版本提交/发版前运行，或改动跨模块、关键路径（更新/自更新/打包、录像/存储/删除、扩展 API 授权、Web 协议）时运行；同一代码状态已经跑过全量且未再改动时不要重复跑。
-- 正式发布先合并 PR 并在合并后的提交上创建版本标签，再运行 `tools\Prepare-Release.ps1`。该脚本只执行一次发布自动验收，并以 `-SkipFullTest` 出包；不要再先跑 `Test-CI.ps1`、`Test-Release-Automated.ps1` 又让打包脚本重复跑全量测试。PR CI 已通过时，本机不重复跑 `Test-CI.ps1`。
+- 正式发布先把发布提交以快进方式对齐到本地 `main`，使用 `tools\Push-ReleaseBot.ps1 -Kind branch -Name main -Confirmed` 直推 GitHub/Gitee，再在同一个提交上创建版本标签并运行 `tools\Prepare-Release.ps1`。该脚本只执行一次发布自动验收，并以 `-SkipFullTest` 出包；不要再先跑 `Test-CI.ps1`、`Test-Release-Automated.ps1` 又让打包脚本重复跑全量测试。
+- 补丁基线版本是发布链路的一项同步配置：当迁移锚点或正式基线变化时，必须在同一次改动中同步 `tools\打包脚本-增量.bat`、`tools\Publish-CleanPackage.ps1`、`tools\Prepare-Release.ps1`、发布专题文档和对应守卫测试；禁止只改批处理或单个默认参数，`ReleasePackagingPolicyTests` 必须通过。
 - 单一界面、文案或局部逻辑的小改动按上一条执行即可，不要求每次微调都跑全量；但不得跳过构建和对应回归测试。
 - 录像、Web 播放、TTS、打包或 FFmpeg 变更还要验证受影响的实际流程；油猴解析使用 `Test/HTML/` 样本。
 - 测试环境缺少依赖或生成文件时，优先使用原始仓库或局域网编译环境。任何未完成的验证及原因都必须明确报告。
@@ -113,12 +114,10 @@ pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 - 修改或提交前按需检查 `git status` 和 `git diff`。每个独立功能、修复、重构、文档或维护任务分别提交，不 squash，不把无关改动放进同一提交。
 - 同一功能连续完善时，只有此前提交由当前代理创建、尚未推送或被他人依赖，且中间没有其他提交，才可 amend；否则创建新提交。
 - 分支整合优先 rebase，保持直线历史。已共享分支不得随意 rebase；merge 只用于共享功能分支、发布/长期分支或平台强制场景。
-- 除仅更新发布版本号的 chore 提交外，改动一律通过远程 PR 合并到主干，禁止直接向 `main` 推送提交。发布准备阶段可以单独提交只修改 `Directory.Build.props` 中 `<Version>` 的 chore 到 `main`，但不得同时夹带代码、配置、测试或文档修改。
-- 提交 PR 必须人工确认：先把分支、目标平台、PR 标题与改动范围报给用户，得到明确同意后才能推送分支、创建 PR 与合并（`tools\Submit-ChangePr.ps1` 不加 `-Confirmed` 只打印计划并拒绝执行）。
-- PR 提到哪个平台按问题来源定：我们自己发现的 **bug**，先在 GitHub 开 issue，再提 PR 并在 PR 说明里关联那个 issue；性能、功能、工具、文档这类**不是 bug** 的改动直接提 PR，不必为了留痕再补一个 issue。别人在某平台提的 issue，就把 PR 提到那个平台（Gitee 的 issue 交 Gitee PR，GitHub 的交 GitHub PR）。PR 默认 Gitee 和 GitHub 两边都提。
-- 合并后把主干对齐到同一个提交。PR 目标可通过仓库根目录 `.env` 的 `PR_TARGET_HOST`（`gitee` / `github` / `both`，默认 `both`）配置，命令行 `-Target` 优先；统一用 `tools\Submit-ChangePr.ps1` 提交。
-- PR 提到哪个平台按问题来源决定：自己发现的 bug 默认提 Gitee；别人在某个平台提的 issue，PR 就提到那个平台（在 Gitee 提的 issue 提 Gitee PR，在 GitHub 提的 issue 提 GitHub PR）。
-- PR 合并使用快进（fast-forward），提交原样保留，不改写 SHA、不做 merge 提交、不 squash；发布标签必须打在已合并到主干的提交上。
+- 默认发布不再强制创建 PR。发布提交先在本地形成直线历史并快进对齐 `main`，再由发布机器人直接推送到 GitHub/Gitee；禁止 force push、历史改写和非快进覆盖。
+- 远端直推统一使用 `tools\Push-ReleaseBot.ps1`，默认目标为两边，可用 `.env` 的 `RELEASE_PUSH_TARGET` 或命令行 `-Target` 限定。脚本必须先打印提交与目标，人工确认后加 `-Confirmed`；不加时拒绝执行。
+- 禁止直接运行 `git push`（包括 `--delete` 删除远端分支或 tag）以及直接调用 `gh` / `gitee` 做远端写入；仓库 `core.hooksPath` 指向 `tools\git-hooks` 时，pre-push 只放行机器人包装脚本设置的 `PACKINGPROOF_RELEASE_BOT=1`。远端写入身份验证失败必须停止，不得回退到个人认证。
+- 发布标签必须打在已经通过机器人同步到远端 `main` 的同一个提交上；标签也使用 `Push-ReleaseBot.ps1 -Kind tag -Confirmed` 推送，不创建 PR。
 - 提交格式为 `<type>: <简洁主题>`，通常使用中文；正文需要时用一两句说明修改内容与原因，保持简洁、不罗列实现细节。提交前检查 staged diff。
 - 提交信息不得包含个人身份、设备信息、绝对本机路径、账号、内部 URL、令牌、密钥、证书或签名材料。
-- Pull Request 应包含摘要、验证步骤、关联问题；UI、播放或打包变更附截图或录像。
+- 发布说明或可选的变更记录应包含摘要、验证步骤和已知风险；UI、播放或打包变更附截图、录像或产物校验结果。

@@ -1029,18 +1029,25 @@ public sealed class ReleasePackagingPolicyTests
         string incrementalPackageScript = File.ReadAllText(
             Path.Combine(repositoryRoot, "tools", "打包脚本-增量.bat"),
             Encoding.UTF8);
+        string prepareReleaseScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Prepare-Release.ps1"),
+            Encoding.UTF8);
+        string agentRules = File.ReadAllText(
+            Path.Combine(repositoryRoot, "AGENTS.md"),
+            Encoding.UTF8);
 
-        Assert.Contains("0.0.86 及以后正式版的补丁基线不得低于 0.0.84", publishScript, StringComparison.Ordinal);
-        Assert.Contains("[string]$PatchBaselineVersion = \"0.0.84\"", publishScript, StringComparison.Ordinal);
-        Assert.Contains("set \"BASELINE_VERSION=0.0.84\"", incrementalPackageScript, StringComparison.Ordinal);
-        Assert.Contains("0.0.84 之后的下一个正式版（本次 0.0.86）起统一使用 `-PatchBaselineVersion 0.0.84`", runtimeDocument, StringComparison.Ordinal);
-        Assert.Contains("0.0.84 之后的下一个正式版（0.0.86）起统一使用 `-PatchBaselineVersion 0.0.84`", checklist, StringComparison.Ordinal);
-        Assert.Contains("默认补丁基线都必须是 `0.0.84`", runtimeDocument, StringComparison.Ordinal);
-        Assert.Contains("默认补丁基线都必须是 `0.0.84`", checklist, StringComparison.Ordinal);
+        Assert.Contains("0.0.101 及以后正式版的补丁基线不得低于 0.0.100", publishScript, StringComparison.Ordinal);
+        Assert.Contains("[string]$PatchBaselineVersion = \"0.0.100\"", publishScript, StringComparison.Ordinal);
+        Assert.Contains("[string]$PatchBaselineVersion = \"0.0.100\"", prepareReleaseScript, StringComparison.Ordinal);
+        Assert.Contains("set \"BASELINE_VERSION=0.0.100\"", incrementalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("从 0.0.101 起固定为 `0.0.100`", runtimeDocument, StringComparison.Ordinal);
+        Assert.Contains("0.0.101 及以后统一使用 `-PatchBaselineVersion 0.0.100`", checklist, StringComparison.Ordinal);
+        Assert.Contains("默认补丁基线必须同步为 `0.0.100`", runtimeDocument, StringComparison.Ordinal);
+        Assert.Contains("默认补丁基线必须同步为 `0.0.100`", checklist, StringComparison.Ordinal);
+        Assert.Contains("补丁基线版本是发布链路的一项同步配置", agentRules, StringComparison.Ordinal);
         Assert.Contains("0.0.85 从未正式发布", runtimeDocument, StringComparison.Ordinal);
-        Assert.Contains("会沿 baseline 链查找 0.0.84", runtimeDocument, StringComparison.Ordinal);
-        Assert.Contains("0.0.84 的 Release", runtimeDocument, StringComparison.Ordinal);
-        Assert.Contains("会先通过 0.0.84 的 `update_v0.0.84.json`", checklist, StringComparison.Ordinal);
+        Assert.Contains("0.0.84、0.0.100 的 Release", runtimeDocument, StringComparison.Ordinal);
+        Assert.Contains("0.0.100 的 Release", runtimeDocument, StringComparison.Ordinal);
         Assert.Contains("`patch_supported: false`", runtimeDocument, StringComparison.Ordinal);
         Assert.Contains("`patch_supported: false`", checklist, StringComparison.Ordinal);
         Assert.DoesNotContain("从下一版（0.0.84）起改成", checklist, StringComparison.Ordinal);
@@ -1048,11 +1055,14 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
-    public void ChangePrSubmitter_DefaultsToBothPlatformsAndStaysConfigurable()
+    public void ReleaseBotPusher_DefaultsToBothPlatformsAndRequiresConfirmation()
     {
         string repositoryRoot = FindRepositoryRoot();
-        string submitter = File.ReadAllText(
-            Path.Combine(repositoryRoot, "tools", "Submit-ChangePr.ps1"),
+        string pusher = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Push-ReleaseBot.ps1"),
+            Encoding.UTF8);
+        string auth = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "ReleaseAuth.Common.ps1"),
             Encoding.UTF8);
         string releaseDocument = File.ReadAllText(
             Path.Combine(repositoryRoot, "docs", "development", "RELEASE_AND_RUNTIME.md"),
@@ -1061,31 +1071,25 @@ public sealed class ReleasePackagingPolicyTests
             Path.Combine(repositoryRoot, "AGENTS.md"),
             Encoding.UTF8);
 
-        // 改动默认走 PR；只有发布准备阶段仅更新版本号的 chore 可以直接提交 main。
-        // 我们自己发现的 bug 先在 GitHub 开 issue，再提 PR 并在说明里关联；
-        // 性能、功能、工具、文档这类不是 bug 的改动直接提 PR，不必为了留痕再补 issue。
-        // PR 默认 Gitee 和 GitHub 两边都提，合并用快进（提交原样保留）；提交前必须人工确认。
-        // 脚本默认值和规范必须同步，避免流程说一套、脚本做另一套。
-        Assert.Contains("$defaultTarget = \"both\"", submitter, StringComparison.Ordinal);
-        Assert.Contains("-Confirmed", submitter, StringComparison.Ordinal);
-        Assert.Contains("提交 PR 前需要人工确认", submitter, StringComparison.Ordinal);
-        Assert.Contains("快进", submitter, StringComparison.Ordinal);
-        Assert.Contains("PR_TARGET_HOST", submitter, StringComparison.Ordinal);
-        Assert.Contains("Submit-ChangePr.ps1", submitter, StringComparison.Ordinal);
-        Assert.Contains("PR_TARGET_HOST", releaseDocument, StringComparison.Ordinal);
-        Assert.Contains("Submit-ChangePr.ps1", releaseDocument, StringComparison.Ordinal);
-        Assert.Contains("不加 `-Confirmed` 只打印计划并拒绝执行", releaseDocument, StringComparison.Ordinal);
-        Assert.Contains("提交 PR 必须人工确认", agentGuide, StringComparison.Ordinal);
-        Assert.Contains("PR 默认 Gitee 和 GitHub 两边都提", agentGuide, StringComparison.Ordinal);
-        Assert.Contains("PR 合并使用快进", agentGuide, StringComparison.Ordinal);
-        Assert.Contains("发布准备阶段仅更新 `Directory.Build.props` 版本号", releaseDocument, StringComparison.Ordinal);
-        Assert.Contains("不得夹带代码、配置、测试或文档修改", releaseDocument, StringComparison.Ordinal);
-        Assert.Contains("发布准备阶段可以单独提交", agentGuide, StringComparison.Ordinal);
-        Assert.Contains("先在 GitHub 开 issue", releaseDocument, StringComparison.Ordinal);
-        Assert.Contains("先在 GitHub 开 issue", agentGuide, StringComparison.Ordinal);
-        Assert.Contains("别人在某平台提的 issue", agentGuide, StringComparison.Ordinal);
-        Assert.Contains("不是 bug", agentGuide, StringComparison.Ordinal);
-        Assert.Contains("不是 bug", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("$value = \"both\"", pusher, StringComparison.Ordinal);
+        Assert.Contains("-Confirmed", pusher, StringComparison.Ordinal);
+        Assert.Contains("远端直推属于发布写操作", pusher, StringComparison.Ordinal);
+        Assert.Contains("merge-base --is-ancestor", pusher, StringComparison.Ordinal);
+        Assert.Contains("RELEASE_PUSH_TARGET", pusher, StringComparison.Ordinal);
+        Assert.Contains("Enable-ReleaseBotGitTransport", pusher, StringComparison.Ordinal);
+        Assert.DoesNotContain("return if", pusher, StringComparison.Ordinal);
+        Assert.Contains("Import-GitHubReleaseAppInstallationToken", auth, StringComparison.Ordinal);
+        Assert.Contains("Import-GiteeReleaseBotToken", auth, StringComparison.Ordinal);
+        Assert.Contains("url.https://x-access-token:", auth, StringComparison.Ordinal);
+        Assert.Contains("url.https://$giteeUser", auth, StringComparison.Ordinal);
+        Assert.Contains("PACKINGPROOF_RELEASE_BOT = \"1\"", auth, StringComparison.Ordinal);
+        Assert.DoesNotContain("--force", pusher, StringComparison.Ordinal);
+        Assert.Contains("Push-ReleaseBot.ps1", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("默认发布不再创建 PR", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("强制创建 PR", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("远端直推统一使用 `tools\\Push-ReleaseBot.ps1`", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("禁止直接运行 `git push`", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("发布标签必须打在", agentGuide, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1150,6 +1154,18 @@ public sealed class ReleasePackagingPolicyTests
         string publish = File.ReadAllText(
             Path.Combine(repositoryRoot, "tools", "Publish-Releases.ps1"),
             Encoding.UTF8);
+        string releaseDocument = File.ReadAllText(
+            Path.Combine(repositoryRoot, "docs", "development", "RELEASE_AND_RUNTIME.md"),
+            Encoding.UTF8);
+        string agentGuide = File.ReadAllText(
+            Path.Combine(repositoryRoot, "AGENTS.md"),
+            Encoding.UTF8);
+        string noRuntime = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Publish-NoRuntimePackage.ps1"),
+            Encoding.UTF8);
+        string prePushHook = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "git-hooks", "pre-push"),
+            Encoding.UTF8);
 
         Assert.Contains("\"GITHUB_RELEASE_TOKEN\"", releaseAuth, StringComparison.Ordinal);
         Assert.Contains("packingproof-release-bot", releaseAuth, StringComparison.Ordinal);
@@ -1157,12 +1173,22 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("access_tokens", releaseAuth, StringComparison.Ordinal);
         Assert.Contains("Test-GitHubReleaseAuthentication", releaseAuth, StringComparison.Ordinal);
         Assert.Contains("gitee-release-bot", giteeAuth, StringComparison.Ordinal);
+        Assert.Contains("function Import-GiteeReleaseBotToken", giteeAuth, StringComparison.Ordinal);
         Assert.Contains("\"GITEE_RELEASE_TOKEN\"", giteeAuth, StringComparison.Ordinal);
         Assert.Contains("\"GITEE_TOKEN\"", giteeAuth, StringComparison.Ordinal);
-        Assert.Contains("Import-GitHubReleaseTokenFromEnvFile", prereqs, StringComparison.Ordinal);
+        Assert.Contains("Import-GitHubReleaseAppInstallationToken", prereqs, StringComparison.Ordinal);
+        Assert.DoesNotContain("Import-GitHubReleaseTokenFromEnvFile", prereqs, StringComparison.Ordinal);
+        Assert.Contains("Import-GiteeReleaseBotToken", prereqs, StringComparison.Ordinal);
         Assert.DoesNotContain("gh auth status", prereqs, StringComparison.Ordinal);
-        Assert.Contains("Import-GitHubReleaseTokenFromEnvFile", publish, StringComparison.Ordinal);
+        Assert.Contains("Import-GitHubReleaseAppInstallationToken", publish, StringComparison.Ordinal);
+        Assert.DoesNotContain("Import-GitHubReleaseTokenFromEnvFile", publish, StringComparison.Ordinal);
+        Assert.Contains("Import-GiteeReleaseBotToken", publish, StringComparison.Ordinal);
         Assert.Contains("Test-GitHubReleaseAuthentication", publish, StringComparison.Ordinal);
+        Assert.Contains("Import-GiteeReleaseBotToken", noRuntime, StringComparison.Ordinal);
+        Assert.Contains("PACKINGPROOF_RELEASE_BOT", prePushHook, StringComparison.Ordinal);
+        Assert.Contains("Direct git push is disabled", prePushHook, StringComparison.Ordinal);
+        Assert.DoesNotContain("C:\\Users\\", releaseDocument, StringComparison.Ordinal);
+        Assert.DoesNotContain("C:\\Users\\", agentGuide, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

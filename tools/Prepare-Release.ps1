@@ -2,7 +2,7 @@ param(
     [string]$Version = "",
     [ValidateSet("include", "exclude")]
     [string]$VisionObb = "include",
-    [string]$PatchBaselineVersion = "0.0.84",
+    [string]$PatchBaselineVersion = "0.0.100",
     [string]$BaselineAppDir = "",
     [ValidateSet("gitee", "github", "auto")]
     [string]$DownloadSource = "github",
@@ -47,7 +47,7 @@ if (-not [string]::Equals(
 $releaseTag = "v$requestedVersion"
 & git rev-parse --verify --quiet "$releaseTag^{commit}" *> $null
 if ($LASTEXITCODE -ne 0) {
-    throw "找不到 $releaseTag。请先合并发布 PR，再在合并后的主干提交上创建该标签"
+    throw "找不到 $releaseTag。请先用发布机器人把主线同步到远端 main，再在该提交上创建标签"
 }
 $headCommit = (git rev-parse HEAD).Trim()
 $tagCommit = (git rev-parse "$releaseTag^{commit}").Trim()

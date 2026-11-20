@@ -49,7 +49,9 @@ if (-not $IncludeZip -and (Test-Path -LiteralPath $standardSetupPath -PathType L
     $standardSetupSize = (Get-Item -LiteralPath $standardSetupPath).Length
     Write-Host ("==> 完整 Setup 已小于 100MB（{0:N1} MB），跳过 no-runtime 构建" -f ($standardSetupSize / 1MB))
     if ($UploadGitee -and -not $SkipSetup) {
-        $null = Import-GiteeTokenFromEnvFile -RepoRoot $repoRoot
+        if (-not (Import-GiteeReleaseBotToken)) {
+            throw "Gitee 远端写入必须使用 PackingProof-Release-Bot token 文件"
+        }
         $setupName = Split-Path -Leaf $standardSetupPath
         $noRuntimeName = "PackingProof_Setup_no-runtime_$releaseTag.exe"
         Remove-GiteeReleaseAttachmentsForTag `
@@ -247,7 +249,9 @@ if (-not $SkipSetup) {
 }
 
 if ($UploadGitee) {
-    $null = Import-GiteeTokenFromEnvFile -RepoRoot $repoRoot
+    if (-not (Import-GiteeReleaseBotToken)) {
+        throw "Gitee 远端写入必须使用 PackingProof-Release-Bot token 文件"
+    }
     Write-Host "==> 上传到 Gitee Release $releaseTag"
     $uploadFiles = @()
     if (-not [string]::IsNullOrWhiteSpace($setupPath)) { $uploadFiles += $setupPath }

@@ -6,15 +6,7 @@
 # 各存一份，容易停在失效的旧身份上（而且 `gitee auth status` 在令牌失效时仍返回 0），
 # 所以发布脚本必须先注入 .env 里的令牌，不能只看 CLI 的登录状态。
 
-function Import-GiteeTokenFromEnvFile {
-    param([Parameter(Mandatory = $true)] [string]$RepoRoot)
-
-    $releaseToken = [Environment]::GetEnvironmentVariable("GITEE_RELEASE_TOKEN")
-    if (-not [string]::IsNullOrWhiteSpace($releaseToken)) {
-        $env:GITEE_TOKEN = $releaseToken.Trim()
-        return "环境变量 GITEE_RELEASE_TOKEN"
-    }
-
+function Import-GiteeReleaseBotToken {
     $botTokenPath = $env:PACKINGPROOF_GITEE_RELEASE_BOT_TOKEN_FILE
     if ([string]::IsNullOrWhiteSpace($botTokenPath)) {
         $botTokenPath = Join-Path $env:USERPROFILE ".config\PackingProof\gitee-release-bot\token.txt"
@@ -25,6 +17,23 @@ function Import-GiteeTokenFromEnvFile {
             $env:GITEE_TOKEN = $botToken
             return "Gitee Release Bot token file"
         }
+    }
+
+    return ""
+}
+
+function Import-GiteeTokenFromEnvFile {
+    param([Parameter(Mandatory = $true)] [string]$RepoRoot)
+
+    $botSource = Import-GiteeReleaseBotToken
+    if ($botSource) {
+        return $botSource
+    }
+
+    $releaseToken = [Environment]::GetEnvironmentVariable("GITEE_RELEASE_TOKEN")
+    if (-not [string]::IsNullOrWhiteSpace($releaseToken)) {
+        $env:GITEE_TOKEN = $releaseToken.Trim()
+        return "环境变量 GITEE_RELEASE_TOKEN"
     }
 
     $legacyEnvironmentToken = [Environment]::GetEnvironmentVariable("GITEE_TOKEN")
@@ -68,7 +77,6 @@ function Test-GiteeAuthentication {
         [Parameter(Mandatory = $true)] [string]$RepoRoot
     )
 
-    # 自己负责注入 .env 的令牌，避免调用方忘记导入而回退到失效的 CLI 登录态。
     $null = Import-GiteeTokenFromEnvFile -RepoRoot $RepoRoot
 
     & gitee release list --repo $Repository *> $null

@@ -1,0 +1,10 @@
+#!/bin/sh
+
+if [ "${PACKINGPROOF_RELEASE_BOT:-}" != "1" ]; then
+    echo "ERROR: Direct git push is disabled." >&2
+    echo "Use tools/Submit-ChangePr.ps1 with PackingProof Release Bot authentication." >&2
+    echo "Personal git, gh, or gitee credentials must not perform remote writes." >&2
+    exit 1
+fi
+
+exit 0
