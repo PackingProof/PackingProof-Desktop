@@ -781,6 +781,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 // Actual* 已经是旋转后的尺寸，不能再按角度换算一次。
                 _actualCameraWidth = source.ActualWidth;
                 _actualCameraHeight = source.ActualHeight;
+                _actualCameraRotationDegrees =
+                    CameraFrameOrientation.NormalizeDegrees(
+                        Config.CameraRotationDegrees);
+                NotifyCameraVisionFrameGeometryChanged();
                 _actualCameraFps = source.ActualFps > 0
                     ? (int)Math.Round(source.ActualFps)
                     : (Config.Fps > 0 ? Config.Fps : 15);

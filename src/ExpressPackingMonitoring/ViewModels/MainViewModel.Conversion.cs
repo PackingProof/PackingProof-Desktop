@@ -961,7 +961,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 codec,
                 ValidatedEncoders ?? new HashSet<string>(),
                 EncoderPerformanceScores,
-                out string encoder)
+                out string encoder,
+                AutoEligibleEncoders)
                 ? encoder
                 : "";
         }

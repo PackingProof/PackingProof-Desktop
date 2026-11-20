@@ -165,11 +165,12 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             LoadConfig();
+            HydrateEncoderCachesFromConfig(Config);
             HookApplicationFocusTracking();
             InitializeCameraBarcodeRecognition();
             LogStartupStage("config-and-barcode");
             // 在起动时后台探测可用 GPU 编码器并缓存
-            Task.Run(() => {
+            Task.Run(async () => {
                 _isEncoderDetectRunning = true;
                 try
                 {
@@ -178,33 +179,40 @@ namespace ExpressPackingMonitoring.ViewModels
                         && Config.EncoderOptionsCache != null
                         && Config.ValidatedEncodersCache != null)
                     {
-                        CachedEncoderOptions = Config.EncoderOptionsCache;
-                        ValidatedEncoders = new HashSet<string>(Config.ValidatedEncodersCache);
-                        EncoderPerformanceScores = (Config.EncoderPerformanceCache ?? [])
-                            .Where(entry => entry.SchemaVersion == EncoderScoreSchemaVersion
-                                && entry.CompletedSuccessfully
-                                && entry.Width == EncoderScoreMode.Width
-                                && entry.Height == EncoderScoreMode.Height
-                                && entry.VideoCqp == EncoderScoreCqp
-                                && entry.MeasuredEncodingFps > 0)
-                            .GroupBy(entry => entry.Encoder, StringComparer.OrdinalIgnoreCase)
-                            .ToDictionary(group => group.Key, group => group.OrderByDescending(entry => entry.TestedAt).First().MeasuredEncodingFps, StringComparer.OrdinalIgnoreCase);
+                        // 启动前已从配置水合，避免缓存版本不匹配时短时间无法开录。
                     }
                     else
                     {
-                        EncoderDetectionResult detection = DetectAvailableEncodersSync();
+                        while (IsRecording && !_isDisposed)
+                            await Task.Delay(1000);
+                        if (_isDisposed)
+                            return;
+                        EncoderDetectionResult detection = MergeWithKnownEncoders(
+                            DetectAvailableEncodersSync(),
+                            ValidatedEncoders,
+                            AutoEligibleEncoders,
+                            Config.EncoderPerformanceCache,
+                            EncoderPerformanceScores);
                         CachedEncoderOptions = detection.Options;
                         ValidatedEncoders = detection.ValidatedEncoders;
+                        AutoEligibleEncoders = detection.AutoEligibleEncoders;
                         EncoderPerformanceScores = detection.PerformanceScores;
 
                         // 保存到配置中
                         Config.EncoderOptionsCache = detection.Options;
                         Config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
+                        Config.AutoEligibleEncodersCache =
+                            detection.AutoEligibleEncoders.ToList();
                         Config.EncoderPerformanceCache = detection.PerformanceResults;
                         Config.IsEncoderDetected = detection.Succeeded;
-                        Config.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
+                        Config.EncoderDetectionCacheVersion =
+                            detection.CacheCanBeReused
+                                ? CurrentEncoderDetectionCacheVersion
+                                : 0;
                         UpdateEncoderDriverWarning(Config, detection.NvencDriverIssue);
                     }
+
+                    Config.EncoderOptionsCache = CachedEncoderOptions;
 
                     string driverWarningMessage = BuildEncoderDriverWarningMessage(Config);
                     SaveConfig();

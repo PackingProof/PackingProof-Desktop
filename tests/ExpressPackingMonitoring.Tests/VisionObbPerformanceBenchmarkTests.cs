@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.Vision;
 using OpenCvSharp;
 using System.IO;
 using Xunit;
@@ -16,21 +17,15 @@ public sealed class VisionObbPerformanceBenchmarkTests
             "Services",
             "VisionObbPerformanceBenchmark.cs"));
 
-        Assert.Contains(
-            "CreateFalsePositiveBenchmarkFrame(frameWidth, frameHeight, candidateCount: 1)",
-            source);
-        Assert.Contains(
-            "CreateFalsePositiveBenchmarkFrame(frameWidth, frameHeight, candidateCount: 3)",
-            source);
-        Assert.Contains(
-            "CreateFalsePositiveBenchmarkFrame(frameWidth, frameHeight, candidateCount: 6)",
-            source);
+        Assert.Contains("candidateCount: 1", source);
+        Assert.Contains("candidateCount: 3", source);
+        Assert.Contains("candidateCount: 6", source);
         Assert.Contains("bareWaybill: true", source);
         Assert.Contains("\"JD0123456789\"", source);
     }
 
     [Fact]
-    public void ProductionBenchmarkMeasuresNoObbAcrossTheSameScenarios()
+    public void ProductionBenchmarkSkipsBaselineAfterProviderAlreadyFails()
     {
         string source = File.ReadAllText(FindRepositoryFile(
             "src",
@@ -39,11 +34,28 @@ public sealed class VisionObbPerformanceBenchmarkTests
             "VisionObbPerformanceBenchmark.cs"));
 
         Assert.Contains("MeasureNoObbProduction", source, StringComparison.Ordinal);
-        Assert.Contains("noObbMeasurements", source, StringComparison.Ordinal);
+        Assert.Contains("enhancedScenarios", source, StringComparison.Ordinal);
         Assert.Contains(
-            "BaselineP95Ms: noObb.P95Ms",
+            "ShouldAbortProviderBenchmark",
             source,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "bool recommended = allScenariosCompleted",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "AllScenariosCompleted: allScenariosCompleted",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("if (!recommended)", source, StringComparison.Ordinal);
+        Assert.Contains("noObbScenarios", source, StringComparison.Ordinal);
+        Assert.True(
+            source.IndexOf(
+                "if (!recommended)",
+                StringComparison.Ordinal)
+            < source.IndexOf(
+                "noObbScenarios",
+                StringComparison.Ordinal));
     }
 
     [Fact]
@@ -167,9 +179,24 @@ public sealed class VisionObbPerformanceBenchmarkTests
         Assert.Contains("Config.FrameHeight", viewModel);
         Assert.Contains("Config.CameraVisionBenchmarkCache", viewModel);
         Assert.Contains("StoreCameraVisionBenchmarkCache", viewModel);
-        Assert.Contains("frameWidth: Config.FrameWidth", viewModel);
-        Assert.Contains("frameHeight: Config.FrameHeight", viewModel);
+        Assert.Contains("FrameWidth = frameWidth", viewModel);
+        Assert.Contains("FrameHeight = frameHeight", viewModel);
+        Assert.DoesNotContain(
+            "FrameWidth = Config.FrameWidth",
+            viewModel);
+        Assert.Contains("frameWidth: benchmarkWidth", viewModel);
+        Assert.Contains("frameHeight: benchmarkHeight", viewModel);
+        Assert.Contains(
+            "guideGeometry: benchmarkGuide",
+            viewModel);
+        Assert.Contains("ShouldCompareCpuProvider", viewModel);
+        Assert.Contains("_actualCameraWidth > 0", viewModel);
+        Assert.Contains("_actualCameraHeight > 0", viewModel);
         Assert.Contains("new Size(frameWidth, frameHeight)", benchmark);
+        Assert.Contains(
+            "CameraBarcodeGuideLayout.ToFrameRect",
+            benchmark);
+        Assert.Contains("new Mat(frame, guide)", benchmark);
 
         string settings = File.ReadAllText(FindRepositoryFile(
             "src",
@@ -178,6 +205,81 @@ public sealed class VisionObbPerformanceBenchmarkTests
             "MainViewModel.Settings.cs"));
         Assert.Contains("mainCameraResolutionChanged", settings);
         Assert.Contains("_ = RunCameraVisionBenchmarkIfNeededAsync()", settings);
+    }
+
+    [Fact]
+    public void CameraVisionBenchmarkDefersAndCancelsInsteadOfDroppingWork()
+    {
+        string viewModel = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.CameraVisionObb.cs"));
+        string settings = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Settings.cs"));
+        string recording = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Recording.cs"));
+        string camera = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Camera.cs"));
+        string cameraGuide = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.CameraGuide.cs"));
+        string cameraRotation = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.CameraRotation.cs"));
+
+        Assert.Contains(
+            "_cameraVisionBenchmarkRerunRequested",
+            viewModel);
+        Assert.Contains(
+            "CancelCameraVisionBenchmarkIfRunning",
+            viewModel);
+        Assert.Contains(
+            "TryRunDeferredCameraVisionBenchmark",
+            viewModel);
+        Assert.Contains(
+            "CancelCameraVisionBenchmarkIfRunning(",
+            settings);
+        Assert.Contains(
+            "TryRunDeferredCameraVisionBenchmark",
+            recording);
+        Assert.Contains(
+            "DeferCameraVisionBenchmarkForRecording",
+            recording);
+        Assert.Contains(
+            "InternalStopRecordingCoreAsync",
+            recording);
+        Assert.Contains(
+            "NotifyCameraVisionFrameGeometryChanged",
+            camera);
+        Assert.Contains(
+            "NotifyCameraVisionFrameGeometryChanged",
+            cameraGuide);
+        Assert.Contains(
+            "_actualCameraRotationDegrees",
+            cameraRotation);
+        Assert.Contains(
+            "Task.Run(() =>",
+            viewModel);
+        Assert.Contains(
+            "AllScenariosCompleted",
+            viewModel);
+        Assert.Contains(
+            "NotifyCameraVisionFrameGeometryChanged",
+            viewModel);
     }
 
     [Fact]
@@ -191,14 +293,69 @@ public sealed class VisionObbPerformanceBenchmarkTests
         using Mat frame = generated.Frame;
 
         Assert.Equal(new Size(2560, 1440), frame.Size());
-        Assert.Equal(6, generated.Detections.Length);
+        Assert.Equal(12, generated.Detections.Length);
+        Assert.Equal(
+            6,
+            generated.Detections.Count(detection =>
+                VisionObbClassPolicy.IsWaybill(detection)));
+        Assert.Equal(
+            6,
+            generated.Detections.Count(detection =>
+                VisionObbClassPolicy.IsBarcode(detection)));
+        Rect guide = CameraBarcodeGuideLayout.ToFrameRect(
+            2560,
+            1440,
+            CameraBarcodeGuideGeometry.Default);
         Assert.All(generated.Detections, detection =>
         {
-            Assert.InRange(detection.CenterX, 0, 2560);
-            Assert.InRange(detection.CenterY, 0, 1440);
+            Assert.InRange(detection.CenterX, guide.Left, guide.Right);
+            Assert.InRange(detection.CenterY, guide.Top, guide.Bottom);
             Assert.InRange(detection.Width, 1, 2560);
             Assert.InRange(detection.Height, 1, 1440);
         });
+    }
+
+    [Fact]
+    public void ScreeningBenchmarkConfirmsBorderlineResultsWithRobustP95()
+    {
+        Assert.Equal(
+            1,
+            VisionObbPerformanceBenchmark.ScreeningWarmupIterations);
+        Assert.Equal(
+            7,
+            VisionObbPerformanceBenchmark.ScreeningMeasuredIterations);
+        Assert.Equal(
+            21,
+            VisionObbPerformanceBenchmark.ConfirmationMeasuredIterations);
+        Assert.Equal(
+            0.75,
+            VisionObbPerformanceBenchmark.ClearPerformanceRatio);
+    }
+
+    [Theory]
+    [InlineData(true, false, 0, true)]
+    [InlineData(true, true, 100, false)]
+    [InlineData(true, true, 140, true)]
+    [InlineData(true, true, 160, true)]
+    [InlineData(false, true, 100, false)]
+    public void CpuComparisonOnlyRunsWhenDirectMlCannotConclude(
+        bool modelAvailable,
+        bool recommended,
+        double enhancedP95Ms,
+        bool expected)
+    {
+        var directMl = new VisionObbBenchmarkResult(
+            ModelAvailable: modelAvailable,
+            Provider: "DirectML",
+            BaselineP95Ms: 20,
+            EnhancedP95Ms: enhancedP95Ms,
+            BaselineCpuMsPerFrame: 20,
+            EnhancedCpuMsPerFrame: enhancedP95Ms,
+            Recommended: recommended);
+
+        Assert.Equal(
+            expected,
+            VisionObbPerformanceBenchmark.ShouldCompareCpuProvider(directMl));
     }
 
     [Theory]

@@ -210,6 +210,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         || Config.EnableVisionObbSmartZoom != nextConfig.EnableVisionObbSmartZoom
                         || Config.CameraBarcodeRecognitionChannel
                             != nextConfig.CameraBarcodeRecognitionChannel;
+                    bool cameraBarcodeRecognitionWillEnable =
+                        !Config.EnableCameraBarcodeRecognition
+                        && nextConfig.EnableCameraBarcodeRecognition;
                     bool workstationChanged = !string.Equals(
                         Config.DeploymentPreset,
                         nextConfig.DeploymentPreset,
@@ -250,7 +253,16 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (computerNicknameChanged && IsRecordingWorkstation)
                         QueueRecordingWorkstationHeartbeat(force: true);
                     if (cameraBarcodeChanged)
+                    {
                         ResetCameraBarcodeRecognition();
+                        if (!CameraVisionAutoEnablePolicy.ShouldRunBenchmark(
+                                Config.EnableCameraBarcodeRecognition,
+                                Config.CameraBarcodeRecognitionChannel))
+                        {
+                            CancelCameraVisionBenchmarkIfRunning(
+                                "识别已关闭或已切换到副摄像头");
+                        }
+                    }
 
                     // 同步语音服务配置
                     if (_speechService != null)
@@ -316,7 +328,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     if (mainCameraResolutionChanged
                         || (barcodeSourceChanged
-                            && nextConfig.CameraBarcodeRecognitionChannel == 0))
+                            && nextConfig.CameraBarcodeRecognitionChannel == 0)
+                        || cameraBarcodeRecognitionWillEnable)
                     {
                         _ = RunCameraVisionBenchmarkIfNeededAsync();
                     }

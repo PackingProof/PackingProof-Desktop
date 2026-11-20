@@ -25,7 +25,9 @@ internal sealed record RealtimeEncodingBenchmarkResult(
     int EncodedFrames,
     double MeasuredEncodingFps,
     double RequiredHeadroom,
-    string Detail)
+    string Detail,
+    RealtimeEncodingBenchmarkFailureKind FailureKind =
+        RealtimeEncodingBenchmarkFailureKind.None)
 {
     internal bool SupportsFrameRate(int fps) =>
         CompletedSuccessfully
@@ -33,6 +35,14 @@ internal sealed record RealtimeEncodingBenchmarkResult(
         && MeasuredEncodingFps >= fps * RequiredHeadroom;
 
     internal bool Stable => SupportsFrameRate(Mode.Fps);
+}
+
+internal enum RealtimeEncodingBenchmarkFailureKind
+{
+    None,
+    HardFailure,
+    Timeout,
+    Incomplete
 }
 
 internal static class RecordingProfileDetector
@@ -336,7 +346,8 @@ internal static class RecordingProfileDetector
                 0,
                 0,
                 RequiredEncodingSpeed,
-                "FFmpeg 不存在");
+                "FFmpeg 不存在",
+                RealtimeEncodingBenchmarkFailureKind.HardFailure);
         }
 
         string source =
@@ -373,7 +384,8 @@ internal static class RecordingProfileDetector
                     0,
                     0,
                     RequiredEncodingSpeed,
-                    "FFmpeg 进程启动失败");
+                    "FFmpeg 进程启动失败",
+                    RealtimeEncodingBenchmarkFailureKind.HardFailure);
             }
 
             Task<string> stderrTask = process.StandardError.ReadToEndAsync();
@@ -397,6 +409,11 @@ internal static class RecordingProfileDetector
             bool completedSuccessfully = exited
                 && process.ExitCode == 0
                 && encodedFrames >= BenchmarkFrameCount;
+            RealtimeEncodingBenchmarkFailureKind failureKind =
+                ResolveBenchmarkFailureKind(
+                    exited,
+                    completedSuccessfully,
+                    process.ExitCode);
             string detail = string.Format(
                 CultureInfo.InvariantCulture,
                 "frames={0}, exit={1}, elapsed={2:F2}s, measuredFps={3:F2}, headroom={4:F2}, stderr={5}",
@@ -414,7 +431,8 @@ internal static class RecordingProfileDetector
                 encodedFrames,
                 measuredEncodingFps,
                 RequiredEncodingSpeed,
-                detail);
+                detail,
+                failureKind);
         }
         catch (Exception ex)
         {
@@ -426,8 +444,24 @@ internal static class RecordingProfileDetector
                 0,
                 0,
                 RequiredEncodingSpeed,
-                ex.Message);
+                ex.Message,
+                RealtimeEncodingBenchmarkFailureKind.HardFailure);
         }
+    }
+
+    private static RealtimeEncodingBenchmarkFailureKind
+        ResolveBenchmarkFailureKind(
+            bool exited,
+            bool completedSuccessfully,
+            int exitCode)
+    {
+        if (!exited)
+            return RealtimeEncodingBenchmarkFailureKind.Timeout;
+        if (completedSuccessfully)
+            return RealtimeEncodingBenchmarkFailureKind.None;
+        return exitCode != 0
+            ? RealtimeEncodingBenchmarkFailureKind.HardFailure
+            : RealtimeEncodingBenchmarkFailureKind.Incomplete;
     }
 
     internal static int ParseProgressFrameCount(string progress)

@@ -662,7 +662,8 @@ public partial class FirstUseSetupWizardWindow : Window
                     codec,
                     encoderDetection.ValidatedEncoders,
                     encoderDetection.PerformanceScores,
-                    out string encoder))
+                    out string encoder,
+                    encoderDetection.AutoEligibleEncoders))
                 {
                     return (encoderDetection, encoder: "", videoCqp: RecordingProfileDetector.NormalizeVideoCqp(_config.VideoCqp),
                         ffmpegPath: AppPaths.FindFFmpeg(), recommendation: new RecordingProfileRecommendation(false, null, "当前选择未通过编码器检测", []));
@@ -682,9 +683,14 @@ public partial class FirstUseSetupWizardWindow : Window
             _config.EncoderOptionsCache = detection.encoderDetection.Options;
             _config.ValidatedEncodersCache =
                 detection.encoderDetection.ValidatedEncoders.ToList();
+            _config.AutoEligibleEncodersCache =
+                detection.encoderDetection.AutoEligibleEncoders.ToList();
             _config.EncoderPerformanceCache = detection.encoderDetection.PerformanceResults;
             _config.IsEncoderDetected = detection.encoderDetection.Succeeded;
-            _config.EncoderDetectionCacheVersion = MainViewModel.CurrentEncoderDetectionCacheVersion;
+            _config.EncoderDetectionCacheVersion =
+                detection.encoderDetection.CacheCanBeReused
+                    ? MainViewModel.CurrentEncoderDetectionCacheVersion
+                    : 0;
             RecordingProfileDetector.UpdateBenchmarkCache(
                 _config,
                 detection.encoder,

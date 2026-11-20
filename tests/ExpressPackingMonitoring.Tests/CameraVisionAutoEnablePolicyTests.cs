@@ -6,16 +6,21 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class CameraVisionAutoEnablePolicyTests
 {
     [Theory]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(2, false)]
-    public void BenchmarkRunsOnlyForMainCameraRecognition(
+    [InlineData(true, 0, true)]
+    [InlineData(true, 1, false)]
+    [InlineData(true, 2, false)]
+    [InlineData(false, 0, false)]
+    [InlineData(false, 1, false)]
+    public void BenchmarkRunsOnlyWhenMainCameraRecognitionIsEnabled(
+        bool recognitionEnabled,
         int recognitionChannel,
         bool expected)
     {
         Assert.Equal(
             expected,
-            CameraVisionAutoEnablePolicy.ShouldRunBenchmark(recognitionChannel));
+            CameraVisionAutoEnablePolicy.ShouldRunBenchmark(
+                recognitionEnabled,
+                recognitionChannel));
     }
 
     [Theory]

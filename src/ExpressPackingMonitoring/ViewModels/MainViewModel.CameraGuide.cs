@@ -241,6 +241,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
 
             SaveConfig(notifyUser: true);
+            NotifyCameraVisionFrameGeometryChanged();
             RuntimeLog.Info(
                 "CameraBarcode",
                 $"Guide adjusted width={Config.CameraBarcodeGuideWidthRatio:F3} height={Config.CameraBarcodeGuideHeightRatio:F3} offsetX={Config.CameraBarcodeGuideOffsetX:F3} offsetY={Config.CameraBarcodeGuideOffsetY:F3}");

@@ -93,6 +93,19 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private async Task InternalStopRecordingAsync(bool playCompletionBeep = true)
         {
+            try
+            {
+                await InternalStopRecordingCoreAsync(playCompletionBeep);
+            }
+            finally
+            {
+                TryRunDeferredCameraVisionBenchmark();
+            }
+        }
+
+        private async Task InternalStopRecordingCoreAsync(
+            bool playCompletionBeep = true)
+        {
             if (!IsRecording || _isDisposed) return;
 
             _scanAudit?.RecordStopRequested(_stopOrigin);
@@ -859,6 +872,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     // 实测要 1 秒上下），一直占着锁会让处理循环连预览一起停住，就是开录那下卡住的原因。
                     Volatile.Write(ref _preRecordFlushInProgress, 1);
                 }
+                DeferCameraVisionBenchmarkForRecording();
 
                 try
                 {
@@ -1036,6 +1050,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     ClearPendingEventRecordingFrames();
                 }
                 IsBusy = false;
+                TryRunDeferredCameraVisionBenchmark();
             }
         }
 

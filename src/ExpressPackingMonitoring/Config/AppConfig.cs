@@ -551,6 +551,7 @@ namespace ExpressPackingMonitoring.Config
         // 缓存的检测结果
         public List<GpuEncoderOption> EncoderOptionsCache { get; set; } = new();
         public List<string> ValidatedEncodersCache { get; set; } = new();
+        public List<string> AutoEligibleEncodersCache { get; set; } = new();
         public List<RecordingBenchmarkCacheEntry> RecordingBenchmarkCache { get; set; } = new();
         public List<EncoderPerformanceCacheEntry> EncoderPerformanceCache { get; set; } = new();
         public bool IsEncoderDetected { get; set; } = false;
@@ -564,6 +565,11 @@ namespace ExpressPackingMonitoring.Config
         {
             bool changed = false;
             changed = NormalizeCameraVisionSettings(config) || changed;
+            if (config.AutoEligibleEncodersCache == null)
+            {
+                config.AutoEligibleEncodersCache = new();
+                changed = true;
+            }
 
             int normalizedVideoCqp = NormalizeVideoCqp(config.VideoCqp);
             if (config.VideoCqp != normalizedVideoCqp)

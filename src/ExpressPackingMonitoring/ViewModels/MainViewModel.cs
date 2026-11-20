@@ -48,6 +48,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         /// <summary>启动时通过试编码验证的所有编码器名称（包括 H.264 和 H.265）</summary>
         public static HashSet<string> ValidatedEncoders { get; private set; } = new();
+        public static HashSet<string> AutoEligibleEncoders { get; private set; } = new();
         public static Dictionary<string, double> EncoderPerformanceScores { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
         private VideoCaptureDevice _videoSource;

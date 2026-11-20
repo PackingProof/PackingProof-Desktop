@@ -3,12 +3,13 @@ namespace ExpressPackingMonitoring.Config;
 public partial class AppConfig
 {
     public const int CurrentCameraVisionSchemaVersion = 1;
+    public const int CurrentCameraVisionBenchmarkCacheSchemaVersion = 2;
 
     /// <summary>
     /// 视觉行为版本。修改模型预处理、张量契约、OBB/ZXing 解码策略、benchmark
     /// 场景或性能门槛时必须递增，使所有已缓存的本机检测结果失效并重新 benchmark。
     /// </summary>
-    public const int CurrentCameraVisionPolicyVersion = 3;
+    public const int CurrentCameraVisionPolicyVersion = 5;
 
     public const string CameraVisionEnableSourceAuto = "Auto";
     public const string CameraVisionEnableSourceManualOn = "ManualOn";
@@ -118,6 +119,11 @@ public partial class AppConfig
             config.CameraVisionBenchmarkCache = [];
             changed = true;
         }
+        int currentCacheCount = config.CameraVisionBenchmarkCache.Count;
+        config.CameraVisionBenchmarkCache.RemoveAll(entry =>
+            entry.SchemaVersion
+                != CurrentCameraVisionBenchmarkCacheSchemaVersion);
+        changed |= config.CameraVisionBenchmarkCache.Count != currentCacheCount;
 
         return changed;
     }
@@ -125,7 +131,8 @@ public partial class AppConfig
 
 public sealed class CameraVisionBenchmarkCacheEntry
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } =
+        AppConfig.CurrentCameraVisionBenchmarkCacheSchemaVersion;
     public string Input { get; set; } = "";
     public int FrameWidth { get; set; }
     public int FrameHeight { get; set; }
@@ -134,4 +141,5 @@ public sealed class CameraVisionBenchmarkCacheEntry
     public double EnhancedP95Ms { get; set; }
     public double AddedCpuMsPerFrame { get; set; }
     public bool Recommended { get; set; }
+    public bool AllScenariosCompleted { get; set; } = true;
 }

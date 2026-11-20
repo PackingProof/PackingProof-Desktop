@@ -82,30 +82,81 @@ public sealed class CameraVisionEnablePolicyTests
         string input = CameraVisionAutoEnablePolicy.BuildBenchmarkInput(
             "model-sha",
             1920,
-            1080);
+            1080,
+            CameraBarcodeGuideGeometry.Default,
+            0);
         string highResolution = CameraVisionAutoEnablePolicy.BuildBenchmarkInput(
             "model-sha",
             2560,
-            1440);
+            1440,
+            CameraBarcodeGuideGeometry.Default,
+            0);
 
         Assert.Equal(
-            $"model-sha:{AppConfig.CurrentCameraVisionPolicyVersion}:1920x1080",
+            $"model-sha:{AppConfig.CurrentCameraVisionPolicyVersion}:"
+                + "1920x1080:g0.850,0.850,0.000,0.000:r0",
             input);
         Assert.NotEqual(input, highResolution);
-        Assert.Empty(CameraVisionAutoEnablePolicy.BuildBenchmarkInput("", 1920, 1080));
-        Assert.Empty(CameraVisionAutoEnablePolicy.BuildBenchmarkInput("model-sha", 0, 1080));
+        Assert.Empty(CameraVisionAutoEnablePolicy.BuildBenchmarkInput(
+            "",
+            1920,
+            1080,
+            CameraBarcodeGuideGeometry.Default,
+            0));
+        Assert.Empty(CameraVisionAutoEnablePolicy.BuildBenchmarkInput(
+            "model-sha",
+            0,
+            1080,
+            CameraBarcodeGuideGeometry.Default,
+            0));
     }
 
     [Fact]
     public void RoiPreprocessingUsesANewBenchmarkPolicyVersion()
     {
-        Assert.Equal(3, AppConfig.CurrentCameraVisionPolicyVersion);
+        Assert.Equal(5, AppConfig.CurrentCameraVisionPolicyVersion);
         Assert.Equal(
-            "model-sha:3:1920x1080",
+            "model-sha:5:1920x1080:g0.850,0.850,0.000,0.000:r0",
             CameraVisionAutoEnablePolicy.BuildBenchmarkInput(
                 "model-sha",
                 1920,
-                1080));
+                1080,
+                CameraBarcodeGuideGeometry.Default,
+                0));
+    }
+
+    [Fact]
+    public void BenchmarkInputChangesWithGuideGeometryAndRotation()
+    {
+        CameraBarcodeGuideGeometry baseline =
+            CameraBarcodeGuideGeometry.Default;
+        CameraBarcodeGuideGeometry adjusted =
+            baseline with { WidthRatio = 0.70, OffsetX = -0.35 };
+
+        string original =
+            CameraVisionAutoEnablePolicy.BuildBenchmarkInput(
+                "model-sha",
+                1920,
+                1080,
+                baseline,
+                0);
+        string adjustedGuide =
+            CameraVisionAutoEnablePolicy.BuildBenchmarkInput(
+                "model-sha",
+                1920,
+                1080,
+                adjusted,
+                0);
+        string rotated =
+            CameraVisionAutoEnablePolicy.BuildBenchmarkInput(
+                "model-sha",
+                1920,
+                1080,
+                baseline,
+                90);
+
+        Assert.NotEqual(original, adjustedGuide);
+        Assert.NotEqual(original, rotated);
     }
 
     [Fact]
@@ -143,5 +194,36 @@ public sealed class CameraVisionEnablePolicyTests
         Assert.Equal(2, restored.CameraVisionBenchmarkCache.Count);
         Assert.Equal(1920, restored.CameraVisionBenchmarkCache[0].FrameWidth);
         Assert.Equal(2560, restored.CameraVisionBenchmarkCache[1].FrameWidth);
+    }
+
+    [Fact]
+    public void BenchmarkCacheNormalizationDropsOldSchemaEntries()
+    {
+        var config = new AppConfig
+        {
+            CameraVisionSchemaVersion =
+                AppConfig.CurrentCameraVisionSchemaVersion,
+            CameraVisionPolicyVersion =
+                AppConfig.CurrentCameraVisionPolicyVersion,
+            CameraVisionBenchmarkCache =
+            [
+                new CameraVisionBenchmarkCacheEntry
+                {
+                    SchemaVersion = 1,
+                    Input = "old"
+                },
+                new CameraVisionBenchmarkCacheEntry
+                {
+                    SchemaVersion =
+                        AppConfig.CurrentCameraVisionBenchmarkCacheSchemaVersion,
+                    Input = "current"
+                }
+            ]
+        };
+
+        Assert.True(AppConfig.NormalizeAfterLoad(config));
+        CameraVisionBenchmarkCacheEntry remaining =
+            Assert.Single(config.CameraVisionBenchmarkCache);
+        Assert.Equal("current", remaining.Input);
     }
 }

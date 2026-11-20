@@ -91,9 +91,13 @@ namespace ExpressPackingMonitoring.Helpers
             string codec,
             ISet<string> validated,
             IReadOnlyDictionary<string, double> scores,
-            out string encoder)
+            out string encoder,
+            ISet<string> autoEligible = null)
         {
             validated ??= new HashSet<string>();
+            autoEligible ??= validated;
+            scores ??= new Dictionary<string, double>(
+                StringComparer.OrdinalIgnoreCase);
             gpu = NormalizeGpuSetting(gpu ?? "auto");
             codec = NormalizeCodec(codec);
             encoder = "";
@@ -105,6 +109,15 @@ namespace ExpressPackingMonitoring.Helpers
                 {
                     encoder = requested;
                     return true;
+                }
+                if (codec == "av1")
+                {
+                    requested = ResolveRequestedEncoder(gpu, "h265");
+                    if (validated.Contains(requested))
+                    {
+                        encoder = requested;
+                        return true;
+                    }
                 }
                 return false;
             }
@@ -120,54 +133,111 @@ namespace ExpressPackingMonitoring.Helpers
                 return false;
             }
 
-            IEnumerable<string> candidates = HardwareEncodersForCodec(codec)
-                .Where(validated.Contains)
-                .Where(candidate => scores != null
-                    && scores.TryGetValue(candidate, out double score)
-                    && score > 0);
-            if (codec == "h265" && !candidates.Any())
+            IReadOnlyList<string> fallbackCodecs = codec switch
             {
-                candidates = HardwareEncodersForCodec("h264")
-                    .Where(validated.Contains)
-                    .Where(candidate => scores != null
-                        && scores.TryGetValue(candidate, out double score)
-                        && score > 0);
+                "av1" => ["av1", "h265", "h264"],
+                "h265" => ["h265", "h264"],
+                _ => ["h264"]
+            };
+            if (codec == "av1")
+            {
+                foreach (string fallbackCodec in fallbackCodecs)
+                {
+                    string bestHardware = HardwareEncodersForCodec(fallbackCodec)
+                        .Where(autoEligible.Contains)
+                        .Where(candidate =>
+                            scores.TryGetValue(candidate, out double score)
+                            && score > 0)
+                        .OrderByDescending(candidate => scores[candidate])
+                        .ThenBy(candidate => candidate, StringComparer.Ordinal)
+                        .FirstOrDefault();
+                    if (bestHardware != null)
+                    {
+                        encoder = bestHardware;
+                        return true;
+                    }
+
+                    string cpuEncoder = ResolveRequestedEncoder(
+                        "cpu",
+                        fallbackCodec);
+                    if (autoEligible.Contains(cpuEncoder))
+                    {
+                        encoder = cpuEncoder;
+                        return true;
+                    }
+
+                    string hardware =
+                        HardwareEncodersForCodec(fallbackCodec)
+                            .FirstOrDefault(autoEligible.Contains);
+                    if (hardware != null)
+                    {
+                        encoder = hardware;
+                        return true;
+                    }
+                }
+                return false;
             }
 
-            string best = candidates
-                .OrderByDescending(candidate => scores![candidate])
-                .ThenBy(candidate => candidate, StringComparer.Ordinal)
-                .FirstOrDefault();
-            if (best == null)
-                return false;
+            foreach (string fallbackCodec in fallbackCodecs)
+            {
+                string best = HardwareEncodersForCodec(fallbackCodec)
+                    .Where(autoEligible.Contains)
+                    .Where(candidate =>
+                        scores.TryGetValue(candidate, out double score)
+                        && score > 0)
+                    .OrderByDescending(candidate => scores[candidate])
+                    .ThenBy(candidate => candidate, StringComparer.Ordinal)
+                    .FirstOrDefault();
+                if (best != null)
+                {
+                    encoder = best;
+                    return true;
+                }
+            }
 
-            encoder = best;
-            return true;
+            // Auto 的首要目标是“能开录”。评分失败只影响排序，不应让已验证硬件
+            // 或 CPU 编码器从自动选择中消失。
+            foreach (string fallbackCodec in fallbackCodecs)
+            {
+                string hardware = HardwareEncodersForCodec(fallbackCodec)
+                    .FirstOrDefault(autoEligible.Contains);
+                if (hardware != null)
+                {
+                    encoder = hardware;
+                    return true;
+                }
+            }
+            foreach (string fallbackCodec in fallbackCodecs)
+            {
+                string cpuEncoder = ResolveRequestedEncoder("cpu", fallbackCodec);
+                if (autoEligible.Contains(cpuEncoder))
+                {
+                    encoder = cpuEncoder;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public static bool IsExactSelectionAvailable(
             string gpu,
             string codec,
             ISet<string> validated,
-            IReadOnlyDictionary<string, double> scores)
+            ISet<string> autoEligible = null)
         {
             validated ??= new HashSet<string>();
+            autoEligible ??= validated;
             gpu = NormalizeGpuSetting(gpu ?? "auto");
             codec = NormalizeCodec(codec);
             if (gpu == "auto")
             {
-                return HardwareEncodersForCodec(codec).Any(encoder =>
-                    validated.Contains(encoder)
-                    && scores != null
-                    && scores.TryGetValue(encoder, out double score)
-                    && score > 0);
+                return HardwareEncodersForCodec(codec)
+                           .Any(autoEligible.Contains)
+                       || autoEligible.Contains(ResolveRequestedEncoder("cpu", codec));
             }
 
-            string requested = ResolveRequestedEncoder(gpu, codec);
-            if (!validated.Contains(requested))
-                return false;
-            return gpu == "cpu"
-                || scores != null && scores.TryGetValue(requested, out double score) && score > 0;
+            return validated.Contains(ResolveRequestedEncoder(gpu, codec));
         }
 
         public static string NormalizeCodec(string codec) =>

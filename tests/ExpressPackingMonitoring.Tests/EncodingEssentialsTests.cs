@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Helpers;
+using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
 using Xunit;
 
@@ -63,11 +64,257 @@ public sealed class EncodingEssentialsTests
     }
 
     [Fact]
-    public void AutoSelection_RequiresValidPerformanceScore()
+    public void AutoSelection_FallsBackToValidatedHardwareWithoutScore()
     {
         var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "hevc_nvenc" };
-        Assert.False(EncodingHelper.TryResolveEncoder("auto", "h265", validated,
-            new Dictionary<string, double>(), out _));
+        Assert.True(EncodingHelper.TryResolveEncoder("auto", "h265", validated,
+            new Dictionary<string, double>(), out string encoder));
+        Assert.Equal("hevc_nvenc", encoder);
+    }
+
+    [Fact]
+    public void AutoSelection_FallsBackToValidatedCpuWhenNoHardwareIsAvailable()
+    {
+        var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "libx264"
+        };
+
+        Assert.True(EncodingHelper.TryResolveEncoder(
+            "auto",
+            "h264",
+            validated,
+            new Dictionary<string, double>(),
+            out string encoder));
+        Assert.Equal("libx264", encoder);
+    }
+
+    [Fact]
+    public void AutoSelection_ExcludesHardwareThatDidNotCompleteBenchmark()
+    {
+        var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "hevc_nvenc", "libx265"
+        };
+        var autoEligible = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "libx265"
+        };
+
+        Assert.True(EncodingHelper.TryResolveEncoder(
+            "auto",
+            "h265",
+            validated,
+            new Dictionary<string, double>(),
+            out string encoder,
+            autoEligible));
+        Assert.Equal("libx265", encoder);
+    }
+
+    [Fact]
+    public void AutoAv1_FallsBackToH265BeforeH264()
+    {
+        var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "libx265", "libx264"
+        };
+
+        Assert.True(EncodingHelper.TryResolveEncoder(
+            "auto",
+            "av1",
+            validated,
+            new Dictionary<string, double>(),
+            out string encoder));
+        Assert.Equal("libx265", encoder);
+    }
+
+    [Fact]
+    public void AutoAv1_PrefersH265CpuBeforeH264Hardware()
+    {
+        var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "h264_nvenc", "libx265"
+        };
+
+        Assert.True(EncodingHelper.TryResolveEncoder(
+            "auto",
+            "av1",
+            validated,
+            new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["h264_nvenc"] = 120
+            },
+            out string encoder));
+        Assert.Equal("libx265", encoder);
+    }
+
+    [Fact]
+    public void ExplicitCpuAv1_FallsBackToH265()
+    {
+        var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "libx265"
+        };
+
+        Assert.True(EncodingHelper.TryResolveEncoder(
+            "cpu",
+            "av1",
+            validated,
+            new Dictionary<string, double>(),
+            out string encoder));
+        Assert.Equal("libx265", encoder);
+    }
+
+    [Fact]
+    public void ExplicitHardwareSelection_DoesNotRequirePerformanceScore()
+    {
+        var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "h264_qsv", "hevc_qsv"
+        };
+
+        Assert.True(EncodingHelper.TryResolveEncoder(
+            "intel",
+            "h264",
+            validated,
+            new Dictionary<string, double>(),
+            out string encoder));
+        Assert.Equal("h264_qsv", encoder);
+        Assert.True(EncodingHelper.IsExactSelectionAvailable(
+            "intel",
+            "h264",
+            validated));
+    }
+
+    [Fact]
+    public void ValidatedHardware_IsListedEvenWhenScoringFails()
+    {
+        var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "libx264", "h264_qsv", "hevc_qsv"
+        };
+
+        List<GpuEncoderOption> options = MainViewModel.BuildGpuEncoderOptions(
+            validated);
+
+        Assert.Contains(options, option => option.Value == "auto");
+        Assert.Contains(options, option => option.Value == "intel");
+        Assert.Contains(options, option => option.Value == "cpu");
+    }
+
+    [Theory]
+    [InlineData((int)RealtimeEncodingBenchmarkFailureKind.None, true)]
+    [InlineData((int)RealtimeEncodingBenchmarkFailureKind.Timeout, true)]
+    [InlineData((int)RealtimeEncodingBenchmarkFailureKind.Incomplete, true)]
+    [InlineData((int)RealtimeEncodingBenchmarkFailureKind.HardFailure, false)]
+    public void EncoderOptionVisibilityDistinguishesTransientAndHardFailures(
+        int failureKindValue,
+        bool expected)
+    {
+        var failureKind =
+            (RealtimeEncodingBenchmarkFailureKind)failureKindValue;
+        var benchmark = new RealtimeEncodingBenchmarkResult(
+            new NativeCameraMode(1280, 720, 15),
+            CompletedSuccessfully:
+                failureKind == RealtimeEncodingBenchmarkFailureKind.None,
+            ElapsedSeconds: 1,
+            EncodedFrames:
+                failureKind == RealtimeEncodingBenchmarkFailureKind.None ? 180 : 0,
+            MeasuredEncodingFps:
+                failureKind == RealtimeEncodingBenchmarkFailureKind.None ? 180 : 0,
+            RequiredHeadroom: RecordingProfileDetector.RequiredEncodingSpeed,
+            Detail: "",
+            FailureKind: failureKind);
+
+        Assert.Equal(
+            expected,
+            MainViewModel.ShouldExposeEncoderAfterBenchmark(benchmark));
+    }
+
+    [Fact]
+    public void EncoderDetectionMergeKeepsKnownCapabilitiesWhenRefreshDegrades()
+    {
+        EncoderPerformanceCacheEntry timedOutHardware = new()
+        {
+            Encoder = "h264_qsv",
+            CompletedSuccessfully = false,
+            Detail = "timeout"
+        };
+        var detection = new EncoderDetectionResult(
+            Options: [],
+            ValidatedEncoders:
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "libx264"
+                },
+            AutoEligibleEncoders:
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "libx264"
+                },
+            PerformanceScores:
+                new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
+            PerformanceResults: [],
+            FfmpegAvailable: true,
+            NvencDriverIssue: null,
+            EncoderListReadSucceeded: false);
+        Assert.False(detection.CacheCanBeReused);
+
+        EncoderDetectionResult merged = MainViewModel.MergeWithKnownEncoders(
+            detection,
+            ["h264_qsv", "hevc_qsv"],
+            ["hevc_qsv"],
+            [timedOutHardware],
+            new Dictionary<string, double>());
+
+        Assert.Contains("h264_qsv", merged.ValidatedEncoders);
+        Assert.DoesNotContain("h264_qsv", merged.AutoEligibleEncoders);
+        Assert.Contains("hevc_qsv", merged.AutoEligibleEncoders);
+        Assert.Contains(
+            merged.PerformanceResults,
+            entry => entry.Encoder == "h264_qsv"
+                && !entry.CompletedSuccessfully);
+        Assert.Contains(
+            merged.Options,
+            option => option.Value == "intel");
+        Assert.Contains(merged.Options, option => option.Value == "auto");
+    }
+
+    [Fact]
+    public void EncoderDetectionMergeDropsPreviouslyKnownEncoderNoLongerExposed()
+    {
+        var detection = new EncoderDetectionResult(
+            Options: [],
+            ValidatedEncoders:
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "libx264"
+                },
+            AutoEligibleEncoders:
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "libx264"
+                },
+            PerformanceScores:
+                new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
+            PerformanceResults: [],
+            FfmpegAvailable: true,
+            NvencDriverIssue: null,
+            EncoderListReadSucceeded: true);
+        Assert.True(detection.CacheCanBeReused);
+
+        EncoderDetectionResult merged = MainViewModel.MergeWithKnownEncoders(
+            detection,
+            ["h264_qsv", "hevc_qsv"],
+            ["hevc_qsv"],
+            [],
+            new Dictionary<string, double>());
+
+        Assert.DoesNotContain("h264_qsv", merged.ValidatedEncoders);
+        Assert.DoesNotContain("hevc_qsv", merged.AutoEligibleEncoders);
+        Assert.DoesNotContain(
+            merged.Options,
+            option => option.Value == "intel");
     }
 
     [Fact]
@@ -87,19 +334,15 @@ public sealed class EncodingEssentialsTests
     public void ExactUiAvailability_DoesNotPresentH265WhenOnlyHardwareH264Exists()
     {
         var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "h264_nvenc" };
-        var scores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["h264_nvenc"] = 100
-        };
 
-        Assert.False(EncodingHelper.IsExactSelectionAvailable("auto", "h265", validated, scores));
-        Assert.True(EncodingHelper.IsExactSelectionAvailable("auto", "h264", validated, scores));
+        Assert.False(EncodingHelper.IsExactSelectionAvailable("auto", "h265", validated));
+        Assert.True(EncodingHelper.IsExactSelectionAvailable("auto", "h264", validated));
     }
 
     [Fact]
     public void EncoderDetectionCacheVersion_IsBumpedForEssentialsBaseline()
     {
-        Assert.True(MainViewModel.CurrentEncoderDetectionCacheVersion >= 4);
+        Assert.Equal(6, MainViewModel.CurrentEncoderDetectionCacheVersion);
     }
 
     [Fact]

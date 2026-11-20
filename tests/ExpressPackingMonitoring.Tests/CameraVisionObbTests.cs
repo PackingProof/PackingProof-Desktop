@@ -2,6 +2,7 @@ using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.Vision;
 using ExpressPackingMonitoring.Vision.Obb;
 using ExpressPackingMonitoring.UI;
+using Microsoft.ML.OnnxRuntime.Tensors;
 using OpenCvSharp;
 using System.Diagnostics;
 using Xunit;
@@ -11,6 +12,16 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class VisionObbDetectorTests(ITestOutputHelper output)
 {
+    [Fact]
+    public void ResolveDenseOutputReusesDenseTensorBuffer()
+    {
+        var dense = new DenseTensor<float>(
+            new float[12],
+            [1, 6, 2]);
+
+        Assert.Same(dense, VisionObbDetector.ResolveDenseOutput(dense));
+    }
+
     [Fact]
     public void FillInputConvertsBgrToPlanarRgb()
     {

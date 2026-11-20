@@ -369,9 +369,10 @@ internal sealed class VisionObbDetector : IVisionObbDetector
 
             long postprocessStarted = Stopwatch.GetTimestamp();
             Tensor<float> output = results.First().AsTensor<float>();
+            DenseTensor<float> denseOutput = ResolveDenseOutput(output);
             List<VisionObbDetection> candidates = ParseOutput(
-                output.ToDenseTensor().Buffer.Span,
-                output.Dimensions.ToArray(),
+                denseOutput.Buffer.Span,
+                denseOutput.Dimensions.ToArray(),
                 _channelsFirst,
                 _outputLayout,
                 _scoreThreshold);
@@ -396,6 +397,12 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                 Stopwatch.GetElapsedTime(postprocessStarted).TotalMilliseconds);
             return restored;
         }
+    }
+
+    internal static DenseTensor<float> ResolveDenseOutput(Tensor<float> output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+        return output as DenseTensor<float> ?? output.ToDenseTensor();
     }
 
     internal static List<VisionObbDetection> ParseOutput(

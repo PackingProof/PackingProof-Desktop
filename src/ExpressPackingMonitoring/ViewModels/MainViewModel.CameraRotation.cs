@@ -14,11 +14,29 @@ namespace ExpressPackingMonitoring.ViewModels
     /// </summary>
     public partial class MainViewModel
     {
+        private int _actualCameraRotationDegrees;
+
         /// <summary>采集端上报的是未旋转的画面尺寸，这里换算成旋转之后的实际尺寸。</summary>
         private void SetActualCameraSize(int width, int height)
         {
+            int nextRotation = CameraFrameOrientation.NormalizeDegrees(
+                Config.CameraRotationDegrees);
+            (int nextWidth, int nextHeight) =
+                CameraFrameOrientation.RotateDimensions(
+                    width,
+                    height,
+                    nextRotation);
+            if (_actualCameraWidth == nextWidth
+                && _actualCameraHeight == nextHeight
+                && _actualCameraRotationDegrees == nextRotation)
+            {
+                return;
+            }
+
             (_actualCameraWidth, _actualCameraHeight) =
-                CameraFrameOrientation.RotateDimensions(width, height, Config.CameraRotationDegrees);
+                (nextWidth, nextHeight);
+            _actualCameraRotationDegrees = nextRotation;
+            NotifyCameraVisionFrameGeometryChanged();
         }
 
         /// <summary>
@@ -37,6 +55,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 $"画面尺寸随旋转调整为 {frame.Width}x{frame.Height}（原 {_actualCameraWidth}x{_actualCameraHeight}）");
             _actualCameraWidth = frame.Width;
             _actualCameraHeight = frame.Height;
+            _actualCameraRotationDegrees =
+                CameraFrameOrientation.NormalizeDegrees(
+                    Config.CameraRotationDegrees);
+            NotifyCameraVisionFrameGeometryChanged();
         }
     }
 }
