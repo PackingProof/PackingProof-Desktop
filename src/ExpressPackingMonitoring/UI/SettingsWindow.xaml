@@ -1112,7 +1112,9 @@
                             </Border>
 
                             <!-- 主摄像头 -->
-                            <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
+                            <Border Style="{StaticResource SectionCardStyle}"
+                                    Loaded="WindowsDevicePermissions_Loaded"
+                                    Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
                                     <Grid Style="{StaticResource SettingRowStyle}"
                                           Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
@@ -1132,6 +1134,54 @@
                                                   Loaded="CameraChannelCards_Loaded"
                                                   SelectedValue="{Binding Config.CameraIndex}"
                                                   SelectionChanged="CameraComboBox_SelectionChanged"/>
+                                    </Grid>
+
+                                    <Grid x:Name="CameraPermissionRecoveryRow"
+                                          Style="{StaticResource SettingRowStyle}"
+                                          Visibility="Collapsed">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="{loc:Localized WindowsDevicePermission.CameraTitle}"
+                                                       Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="{loc:Localized WindowsDevicePermission.CameraBlocked}"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <Button x:Name="OpenCameraPermissionSettingsButton"
+                                                Grid.Column="2"
+                                                Content="{loc:Localized WindowsDevicePermission.OpenSettings}"
+                                                Click="OpenCameraPermissionSettings_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.Name="{loc:Localized WindowsDevicePermission.CameraOpenSettings}"/>
+                                    </Grid>
+
+                                    <Grid x:Name="MicrophonePermissionRecoveryRow"
+                                          Style="{StaticResource SettingRowStyle}"
+                                          Visibility="Collapsed">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="{loc:Localized WindowsDevicePermission.MicrophoneTitle}"
+                                                       Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="{loc:Localized WindowsDevicePermission.MicrophoneBlocked}"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <Button x:Name="OpenMicrophonePermissionSettingsButton"
+                                                Grid.Column="2"
+                                                Content="{loc:Localized WindowsDevicePermission.OpenSettings}"
+                                                Click="OpenMicrophonePermissionSettings_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Center"
+                                                AutomationProperties.Name="{loc:Localized WindowsDevicePermission.MicrophoneOpenSettings}"/>
                                     </Grid>
 
                                     <StackPanel x:Name="NetworkCameraPanel"

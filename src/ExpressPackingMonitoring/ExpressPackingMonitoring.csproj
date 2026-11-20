@@ -226,6 +226,7 @@
     <Compile Include="Services\RecordingProfileDetector.cs" />
     <Compile Include="Services\TrayIconService.cs" />
     <Compile Include="Services\TaskbarIdentityService.cs" />
+    <Compile Include="Services\WindowsDevicePermissionService.cs" />
     <Compile Include="Themes\ThemeManager.cs" />
     <Compile Include="ViewModels\MainViewModel.Cleanup.cs" />
     <Compile Include="ViewModels\CameraLifecycleSynchronization.cs" />
@@ -303,6 +304,7 @@
     <Compile Include="UI\DriveSelectionDialog.cs" />
     <Compile Include="UI\FirstUseSetupWizardWindow.xaml.cs" />
     <Compile Include="UI\MainWindow.xaml.cs" />
+    <Compile Include="UI\MainWindow.DevicePermissions.cs" />
     <Compile Include="UI\MainWindow.CameraVisionObb.cs" />
     <Compile Include="UI\MainWindow.ZoomGuideAnimation.cs" />
     <Compile Include="UI\MainWindow.OverlayBoxes.cs" />
@@ -329,6 +331,7 @@
   <Compile Include="UI\SettingsWindow.CameraVision.cs" />
     <Compile Include="UI\SettingsWindow.CameraChannels.cs" />
     <Compile Include="UI\SettingsWindow.NetworkStreamCopy.cs" />
+    <Compile Include="UI\SettingsWindow.DevicePermissions.cs" />
     <Compile Include="UI\SettingsWindow.SampleContribution.cs" />
     <Compile Include="UI\SettingsWindow.ZoomGuide.cs" />
     <Compile Include="UI\SettingsWindow.About.cs" />

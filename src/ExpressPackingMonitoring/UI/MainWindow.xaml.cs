@@ -160,6 +160,7 @@ namespace ExpressPackingMonitoring.UI
                 {
                     await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                     await runtimeViewModel.EnsureRuntimeInitializedAsync();
+                    await ShowWindowsDevicePermissionRecoveryIfNeededAsync(runtimeViewModel);
                 }
             };
             DpiChanged += (_, _) =>

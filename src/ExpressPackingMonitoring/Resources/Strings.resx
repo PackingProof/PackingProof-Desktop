@@ -1958,4 +1958,14 @@ Local audio</value></data>
   <data name="原码流" xml:space="preserve"><value>Original stream</value></data>
   <data name="当前设置的编码器不可用，请重新检测编码器或在设置中选择其他可用编码器" xml:space="preserve"><value>The selected encoder is unavailable. Detect encoders again or choose another available encoder in Settings</value></data>
   <data name="当前设置无法启动录制" xml:space="preserve"><value>The current setting cannot start recording</value></data>
+  <data name="WindowsDevicePermission.DialogTitle" xml:space="preserve"><value>Camera or microphone permission is off</value></data>
+  <data name="WindowsDevicePermission.CameraTitle" xml:space="preserve"><value>Camera permission</value></data>
+  <data name="WindowsDevicePermission.MicrophoneTitle" xml:space="preserve"><value>Microphone permission</value></data>
+  <data name="WindowsDevicePermission.CameraBlocked" xml:space="preserve"><value>Camera access is blocked. Allow it in Windows Settings, then reopen PackingProof</value></data>
+  <data name="WindowsDevicePermission.MicrophoneBlocked" xml:space="preserve"><value>Microphone access is blocked. Allow it in Windows Settings, then reopen PackingProof</value></data>
+  <data name="WindowsDevicePermission.BothBlocked" xml:space="preserve"><value>Camera and microphone access are blocked. Allow them in Windows Settings, then reopen PackingProof</value></data>
+  <data name="WindowsDevicePermission.OpenSettings" xml:space="preserve"><value>Open Windows Settings</value></data>
+  <data name="WindowsDevicePermission.CameraOpenSettings" xml:space="preserve"><value>Open camera permission settings</value></data>
+  <data name="WindowsDevicePermission.MicrophoneOpenSettings" xml:space="preserve"><value>Open microphone permission settings</value></data>
+  <data name="WindowsDevicePermission.OpenFailed" xml:space="preserve"><value>Could not open Windows permission settings</value></data>
 </root>

@@ -59,6 +59,8 @@ public sealed class SettingsCapabilities
     public bool IsSetupPackage => !IsStorePackage;
     public bool CanManageAutoStart => !IsStorePackage;
     public bool CanManageAppUpdates => !IsStorePackage;
+    public bool CanShowWindowsDevicePermissionHelp =>
+        IsStorePackage && (CanUseCamera || CanRecordAudio);
     public bool HasOtherEditionData { get; } =
         EditionCoexistenceDetector.HasOtherEditionData(PackagingIdentity.IsPackaged);
     public string OtherEditionNotice => !HasOtherEditionData

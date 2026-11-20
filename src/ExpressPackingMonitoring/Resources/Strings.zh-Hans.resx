@@ -1960,4 +1960,14 @@
   <data name="原码流" xml:space="preserve"><value>原码流</value></data>
   <data name="当前设置的编码器不可用，请重新检测编码器或在设置中选择其他可用编码器" xml:space="preserve"><value>当前设置的编码器不可用，请重新检测编码器或在设置中选择其他可用编码器</value></data>
   <data name="当前设置无法启动录制" xml:space="preserve"><value>当前设置无法启动录制</value></data>
+  <data name="WindowsDevicePermission.DialogTitle" xml:space="preserve"><value>摄像头或麦克风权限未开启</value></data>
+  <data name="WindowsDevicePermission.CameraTitle" xml:space="preserve"><value>摄像头权限</value></data>
+  <data name="WindowsDevicePermission.MicrophoneTitle" xml:space="preserve"><value>麦克风权限</value></data>
+  <data name="WindowsDevicePermission.CameraBlocked" xml:space="preserve"><value>摄像头访问权限被关闭，请在 Windows 设置中重新允许，然后重新打开 PackingProof</value></data>
+  <data name="WindowsDevicePermission.MicrophoneBlocked" xml:space="preserve"><value>麦克风访问权限被关闭，请在 Windows 设置中重新允许，然后重新打开 PackingProof</value></data>
+  <data name="WindowsDevicePermission.BothBlocked" xml:space="preserve"><value>摄像头和麦克风访问权限都被关闭，请在 Windows 设置中重新允许，然后重新打开 PackingProof</value></data>
+  <data name="WindowsDevicePermission.OpenSettings" xml:space="preserve"><value>打开 Windows 设置</value></data>
+  <data name="WindowsDevicePermission.CameraOpenSettings" xml:space="preserve"><value>打开摄像头权限设置</value></data>
+  <data name="WindowsDevicePermission.MicrophoneOpenSettings" xml:space="preserve"><value>打开麦克风权限设置</value></data>
+  <data name="WindowsDevicePermission.OpenFailed" xml:space="preserve"><value>无法打开 Windows 权限设置</value></data>
 </root>

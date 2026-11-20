@@ -1958,4 +1958,14 @@
   <data name="原码流" xml:space="preserve"><value>元のストリーム</value></data>
   <data name="当前设置的编码器不可用，请重新检测编码器或在设置中选择其他可用编码器" xml:space="preserve"><value>選択したエンコーダーは使用できません。エンコーダーを再検出するか、設定で別の使用可能なエンコーダーを選択してください</value></data>
   <data name="当前设置无法启动录制" xml:space="preserve"><value>現在の設定では録画を開始できません</value></data>
+  <data name="WindowsDevicePermission.DialogTitle" xml:space="preserve"><value>カメラまたはマイクのアクセス許可がオフです</value></data>
+  <data name="WindowsDevicePermission.CameraTitle" xml:space="preserve"><value>カメラのアクセス許可</value></data>
+  <data name="WindowsDevicePermission.MicrophoneTitle" xml:space="preserve"><value>マイクのアクセス許可</value></data>
+  <data name="WindowsDevicePermission.CameraBlocked" xml:space="preserve"><value>カメラへのアクセスがブロックされています。Windows の設定で許可し、PackingProof を開き直してください</value></data>
+  <data name="WindowsDevicePermission.MicrophoneBlocked" xml:space="preserve"><value>マイクへのアクセスがブロックされています。Windows の設定で許可し、PackingProof を開き直してください</value></data>
+  <data name="WindowsDevicePermission.BothBlocked" xml:space="preserve"><value>カメラとマイクへのアクセスがブロックされています。Windows の設定で許可し、PackingProof を開き直してください</value></data>
+  <data name="WindowsDevicePermission.OpenSettings" xml:space="preserve"><value>Windows の設定を開く</value></data>
+  <data name="WindowsDevicePermission.CameraOpenSettings" xml:space="preserve"><value>カメラのアクセス許可設定を開く</value></data>
+  <data name="WindowsDevicePermission.MicrophoneOpenSettings" xml:space="preserve"><value>マイクのアクセス許可設定を開く</value></data>
+  <data name="WindowsDevicePermission.OpenFailed" xml:space="preserve"><value>Windows のアクセス許可設定を開けませんでした</value></data>
 </root>
