@@ -17,6 +17,10 @@ $visionArguments = @(
     "-p:IncludeVisionObb=$($includeVisionObb.ToString().ToLowerInvariant())"
 )
 
+# 真实摄像头属于发布现场人工检查；自动化门禁只验证确定性逻辑。
+# 本机/CI 的虚拟摄像头帧率、占用状态和驱动差异不能让正式出包随机失败。
+$env:PACKINGPROOF_SKIP_CAMERA_TESTS = "1"
+
 $requiredCoreTests = @(
     "CameraLifecycleTests.PreviewSessionGate_StaleCallbackCannotReleaseAwakenedSession",
     "CameraLifecycleTests.CameraFrameReadySignal_WakeRequiresNewSessionFrame",

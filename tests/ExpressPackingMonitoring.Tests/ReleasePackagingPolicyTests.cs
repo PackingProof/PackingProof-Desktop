@@ -1070,6 +1070,9 @@ public sealed class ReleasePackagingPolicyTests
         string agentGuide = File.ReadAllText(
             Path.Combine(repositoryRoot, "AGENTS.md"),
             Encoding.UTF8);
+        string releaseTests = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Test-Release.ps1"),
+            Encoding.UTF8);
 
         Assert.Contains("$value = \"both\"", pusher, StringComparison.Ordinal);
         Assert.Contains("-Confirmed", pusher, StringComparison.Ordinal);
@@ -1090,6 +1093,10 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("远端直推统一使用 `tools\\Push-ReleaseBot.ps1`", agentGuide, StringComparison.Ordinal);
         Assert.Contains("禁止直接运行 `git push`", agentGuide, StringComparison.Ordinal);
         Assert.Contains("发布标签必须打在", agentGuide, StringComparison.Ordinal);
+        Assert.Contains(
+            "$env:PACKINGPROOF_SKIP_CAMERA_TESTS = \"1\"",
+            releaseTests,
+            StringComparison.Ordinal);
     }
 
     [Fact]
