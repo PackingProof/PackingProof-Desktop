@@ -210,6 +210,37 @@ public sealed class WindowConstructionTests
     }
 
     [Fact]
+    public void TrayIconRemainsVisibleWhileMainWindowIsMinimized()
+    {
+        RunOnStaThread(() =>
+        {
+            var window = new Window();
+            using var tray = new TrayIconService(window, () => { });
+            Assert.True(tray.IsVisible);
+
+            window.Show();
+            tray.MinimizeToTray();
+
+            Assert.True(tray.IsVisible);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public void TrayIconUsesTheSmallSingleCharacterFrame()
+    {
+        RunOnStaThread(() =>
+        {
+            using System.Drawing.Icon? icon = TrayIconService.LoadTrayIcon();
+            Assert.NotNull(icon);
+            Assert.InRange(icon!.Width, 16, 24);
+            using System.Drawing.Bitmap bitmap = icon.ToBitmap();
+            Assert.Equal(0, bitmap.GetPixel(0, 0).A);
+            Assert.Equal(0, bitmap.GetPixel(bitmap.Width - 1, bitmap.Height - 1).A);
+        });
+    }
+
+    [Fact]
     public void WorkstationSelectionFooterStaysOutsideScrollViewer()
     {
         RunOnStaThread(() =>

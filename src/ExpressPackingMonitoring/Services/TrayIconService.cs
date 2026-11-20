@@ -3,9 +3,11 @@ using ExpressPackingMonitoring.Input;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.UI;
 using System.Drawing;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Resources;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -51,6 +53,8 @@ internal sealed class TrayIconService : IDisposable
     private bool _visible;
     private bool _hasShownMinimizeTip;
 
+    internal bool IsVisible => _visible;
+
     public TrayIconService(
         Window window,
         Action exitRequested,
@@ -65,16 +69,7 @@ internal sealed class TrayIconService : IDisposable
         _source?.AddHook(WndProc);
         _taskbarCreatedMessage = RegisterWindowMessage("TaskbarCreated");
 
-        try
-        {
-            string? executablePath = Environment.ProcessPath;
-            if (!string.IsNullOrWhiteSpace(executablePath))
-                _icon = Icon.ExtractAssociatedIcon(executablePath);
-        }
-        catch
-        {
-            _icon = null;
-        }
+        _icon = LoadTrayIcon();
 
         _data = new NOTIFYICONDATA
         {
@@ -88,6 +83,8 @@ internal sealed class TrayIconService : IDisposable
             szInfo = "",
             szInfoTitle = ""
         };
+        // 托盘图标从启动后常驻；最小化只切换主窗口可见性，不再决定图标是否存在。
+        EnsureIconVisible();
     }
 
     public void MinimizeToTray(bool? sessionKeyboardListeningOverride = null)
@@ -118,7 +115,7 @@ internal sealed class TrayIconService : IDisposable
             if (_disposed)
                 return;
 
-            RemoveIcon();
+            EnsureIconVisible();
             _window.ShowInTaskbar = true;
             _window.Show();
             if (_window.WindowState == WindowState.Minimized)
@@ -132,6 +129,27 @@ internal sealed class TrayIconService : IDisposable
     {
         RestoreWindow();
         _window.Dispatcher.BeginInvoke(_exitRequested);
+    }
+
+    internal static Icon? LoadTrayIcon()
+    {
+        try
+        {
+            StreamResourceInfo? resource = Application.GetResourceStream(
+                new Uri("pack://application:,,,/app.ico", UriKind.Absolute));
+            if (resource == null)
+                return null;
+
+            using Stream stream = resource.Stream;
+            int size = GetSystemMetrics(SM_CXSMICON);
+            if (size is < 16 or > 256)
+                size = 16;
+            return new Icon(stream, size, size);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void EnsureIconVisible()
@@ -278,6 +296,11 @@ internal sealed class TrayIconService : IDisposable
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool Shell_NotifyIcon(uint dwMessage, ref NOTIFYICONDATA lpData);
+
+    private const int SM_CXSMICON = 49;
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern uint RegisterWindowMessage(string lpString);

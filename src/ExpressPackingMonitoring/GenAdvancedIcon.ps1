@@ -45,7 +45,7 @@ public class AdvancedIconGenerator {
     }
 
     /// <summary>
-    /// 按尺寸画一张图标：白色圆角方块 + 蓝色"打包监控"（48 以下只画"包"）。
+    /// 按尺寸画一张图标：白色圆角方块 + 蓝色"打包监控"（32 以下只画"包"）。
     /// app.ico 与网页头部用的 Web/logo.png 共用这一份画法，样式不会走偏。
     /// </summary>
     public static Bitmap CreateIconBitmap(int size) {
@@ -57,7 +57,7 @@ public class AdvancedIconGenerator {
 
             int r = Math.Max(2, size / 5);
             int margin = Math.Max(1, size / 32);
-            if (size <= 16) { margin = 0; r = 3; }
+            if (size <= 16) { margin = 1; r = 3; }
 
             using (GraphicsPath path = new GraphicsPath()) {
                 int wPath = size - 2 * margin;
@@ -76,10 +76,11 @@ public class AdvancedIconGenerator {
 
             using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(26, 115, 232)))
             using (StringFormat format = new StringFormat() { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center }) {
-                // 256, 64, 48 show "打包\n监控", 32 and 16 show "包"
-                if (size >= 48) {
-                    float fontSize = size * 0.25f + (size == 48 ? 1f : 0f);
-                    float opticalOffsetY = size * 0.025f + (size == 48 ? 1f : 0f);
+                // 任务栏在 100% DPI 下取 32px 帧；商店版从 256px 完整图标缩放，
+                // 所以普通安装版也必须在 32px 帧保留"打包\n监控"，不能只留一个"包"。
+                if (size >= 32) {
+                    float fontSize = size * 0.25f + (size <= 48 ? 0.75f : 0f);
+                    float opticalOffsetY = size * 0.025f;
                     using (Font font = new Font("Microsoft YaHei", fontSize, FontStyle.Bold)) {
                         RectangleF r1 = new RectangleF(0, margin + size * 0.05f + opticalOffsetY, size, size * 0.45f);
                         RectangleF r2 = new RectangleF(0, margin + size * 0.40f + opticalOffsetY, size, size * 0.45f);
@@ -87,7 +88,7 @@ public class AdvancedIconGenerator {
                         g.DrawString("监控", font, textBrush, r2, format);
                     }
                 } else {
-                    float fontSize = size <= 16 ? 11.5f : size * 0.60f;
+                    float fontSize = size <= 16 ? 10f : size <= 24 ? size * 0.52f : size * 0.56f;
                     using (Font font = new Font("Microsoft YaHei", fontSize, FontStyle.Bold)) {
                         using (GraphicsPath textPath = new GraphicsPath()) {
                             textPath.AddString("包", font.FontFamily, (int)font.Style, font.Size, PointF.Empty, StringFormat.GenericTypographic);
@@ -115,7 +116,7 @@ public class AdvancedIconGenerator {
     }
 
     public static void BuildIcon(string outputPath) {
-        int[] sizes = { 256, 64, 48, 32, 16 };
+        int[] sizes = { 256, 64, 48, 40, 32, 24, 20, 16 };
         
         using (FileStream fs = new FileStream(outputPath, FileMode.Create))
         using (BinaryWriter bw = new BinaryWriter(fs)) {
@@ -126,10 +127,13 @@ public class AdvancedIconGenerator {
 
             byte[][] imageData = new byte[sizes.Length][];
             int offset = 6 + 16 * sizes.Length;
+            using Bitmap master = CreateIconBitmap(256);
 
             for (int i = 0; i < sizes.Length; i++) {
                 int size = sizes[i];
-                using (Bitmap bmp = CreateIconBitmap(size)) {
+                // 任务栏尺寸必须从 256px 主图高质量缩放，才能和商店版一样清晰；
+                // 直接在 32px 上画四字会因字体栅格化而发糊。24px 以下托盘帧仍用单字"包"。
+                using (Bitmap bmp = size >= 32 ? ResizeIconBitmap(master, size) : CreateIconBitmap(size)) {
                     // Windows compiler explicitly requires DIB format for <= 64 icons
                     if (size >= 256) {
                         using (MemoryStream ms = new MemoryStream()) {
@@ -158,6 +162,18 @@ public class AdvancedIconGenerator {
                 bw.Write(imageData[i]);
             }
         }
+    }
+
+    private static Bitmap ResizeIconBitmap(Bitmap source, int size) {
+        var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+        using (Graphics g = Graphics.FromImage(bitmap)) {
+            g.SmoothingMode = SmoothingMode.HighQuality;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            g.Clear(Color.Transparent);
+            g.DrawImage(source, new Rectangle(0, 0, size, size));
+        }
+        return bitmap;
     }
 }
 "@
