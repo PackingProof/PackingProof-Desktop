@@ -378,7 +378,6 @@
   <data name="更新内容：" xml:space="preserve"><value>更新内容：</value></data>
   <data name="回放" xml:space="preserve"><value>回放</value></data>
   <data name="件" xml:space="preserve"><value>件</value></data>
-  <data name="今日" xml:space="preserve"><value>今日</value></data>
   <data name="今日:" xml:space="preserve"><value>今日:</value></data>
   <data name="本机今日:" xml:space="preserve"><value>本机今日:</value></data>
   <data name="局域网查看视频" xml:space="preserve"><value>局域网查看视频</value></data>
@@ -1186,7 +1185,7 @@
   <data name="预留空间是留给整块磁盘的安全空间，整个磁盘共享，其他软件占用也算在内，不是本软件最多占用多少；留得太小磁盘容易写满，调整后立即生效" xml:space="preserve"><value>预留空间是留给整块磁盘的安全空间，整个磁盘共享，其他软件占用也算在内，不是本软件最多占用多少；留得太小磁盘容易写满，调整后立即生效</value></data>
   <data name="请输入大于 0 的数字（单位 GB）" xml:space="preserve"><value>请输入大于 0 的数字（单位 GB）</value></data>
   <data name="启动" xml:space="preserve"><value>启动</value></data>
-  <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘</value></data>
+  <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>本机录像按列表顺序保存；保存主机接收手机或电脑上传时，会按物理磁盘负载和剩余空间自动分配。同一块物理磁盘的多个盘符共用同一写入能力。系统会为每块磁盘保留安全空间，需要调整时右键磁盘</value></data>
   <data name="备份按顺序切换可用位置，当前位置空间不足时自动跳到下一个。系统会为每个备份位置保留安全空间，按整个位置计算；需要调整时右键该位置；校验通过后才会清理旧本地副本；程序不会删除 NAS 上的文件" xml:space="preserve"><value>备份按顺序切换可用位置，当前位置空间不足时自动跳到下一个。系统会为每个备份位置保留安全空间，按整个位置计算；需要调整时右键该位置；校验通过后才会清理旧本地副本；程序不会删除 NAS 上的文件</value></data>
   <data name="扩展 API 授权" xml:space="preserve"><value>扩展 API 授权</value></data>
   <data name="管理 ERP、称重设备等 API 客户端的访问权限；导入的订单脚本在上方单独管理" xml:space="preserve"><value>管理 ERP、称重设备等 API 客户端的访问权限；导入的订单脚本在上方单独管理</value></data>
@@ -1196,7 +1195,6 @@
   <data name="撤销" xml:space="preserve"><value>撤销</value></data>
   <data name="订单联动设备" xml:space="preserve"><value>订单联动设备</value></data>
   <data name="显示可接收联动数据的录像设备；绿点表示当前在线" xml:space="preserve"><value>显示可接收联动数据的录像设备；绿点表示当前在线</value></data>
-  <data name="设备" xml:space="preserve"><value>设备</value></data>
   <data name="最近活动" xml:space="preserve"><value>最近活动</value></data>
   <data name="已导入脚本（" xml:space="preserve"><value>已导入脚本（</value></data>
   <data name="已导入脚本" xml:space="preserve"><value>已导入脚本</value></data>
@@ -1536,7 +1534,6 @@
   <data name="正在下载扩展包" xml:space="preserve"><value>正在下载扩展包</value></data>
   <data name="正在修复…" xml:space="preserve"><value>正在修复…</value></data>
   <data name="正在修复局域网，Windows 可能会请求管理员授权" xml:space="preserve"><value>正在修复局域网，Windows 可能会请求管理员授权</value></data>
-  <data name="正在重新连接" xml:space="preserve"><value>正在重新连接</value></data>
   <data name="正在准备给其他电脑浏览器使用的网址。两台电脑需要在同一局域网内" xml:space="preserve"><value>正在准备给其他电脑浏览器使用的网址。两台电脑需要在同一局域网内</value></data>
   <data name="至少需要保留一个存储路径" xml:space="preserve"><value>至少需要保留一个存储路径</value></data>
   <data name="至少需要一个本地保存位置，请先添加本地磁盘" xml:space="preserve"><value>至少需要一个本地保存位置，请先添加本地磁盘</value></data>
@@ -1873,4 +1870,80 @@
   <data name="截图已保存：{0}" xml:space="preserve"><value>截图已保存：{0}</value></data>
   <data name="未能保存当前画面" xml:space="preserve"><value>未能保存当前画面</value></data>
   <data name="截图失败：{0}" xml:space="preserve"><value>截图失败：{0}</value></data>
+  <data name="接收设备" xml:space="preserve"><value>接收设备</value></data>
+  <data name="上传任务" xml:space="preserve"><value>上传任务</value></data>
+  <data name="今日" xml:space="preserve"><value>今日</value></data>
+  <data name="今日已上传" xml:space="preserve"><value>今日已上传</value></data>
+  <data name="今日已接收" xml:space="preserve"><value>今日已接收</value></data>
+  <data name="今日数量单位" xml:space="preserve"><value>个</value></data>
+  <data name="{0} 台需要处理" xml:space="preserve"><value>{0} 台异常</value></data>
+  <data name="{0} 个异常" xml:space="preserve"><value>{0} 个异常</value></data>
+  <data name="保存主机离线，恢复后自动继续" xml:space="preserve"><value>保存主机离线，恢复后自动继续</value></data>
+  <data name="保存主机空间不足，上传已暂停" xml:space="preserve"><value>保存主机空间不足，上传已暂停</value></data>
+  <data name="主机写入繁忙，稍后自动继续" xml:space="preserve"><value>主机写入繁忙，稍后自动继续</value></data>
+  <data name="正在检查保存主机" xml:space="preserve"><value>正在检查保存主机</value></data>
+  <data name="正在检查主机" xml:space="preserve"><value>正在检查主机</value></data>
+  <data name="{0} 自动重试" xml:space="preserve"><value>{0} 自动重试</value></data>
+  <data name="设备" xml:space="preserve"><value>设备</value></data>
+  <data name="已离线" xml:space="preserve"><value>已离线</value></data>
+  <data name="空间不足" xml:space="preserve"><value>空间不足</value></data>
+  <data name="其余 {0} 台正常" xml:space="preserve"><value>其余 {0} 台正常</value></data>
+  <data name="重试" xml:space="preserve"><value>重试</value></data>
+  <data name="重试上传" xml:space="preserve"><value>重试上传</value></data>
+  <data name="全部重试" xml:space="preserve"><value>全部重试</value></data>
+  <data name="正在上传" xml:space="preserve"><value>正在上传</value></data>
+  <data name="冷却中" xml:space="preserve"><value>冷却中</value></data>
+  <data name="即将上传" xml:space="preserve"><value>即将上传</value></data>
+  <data name="{0} 秒后上传" xml:space="preserve"><value>{0} 秒后上传</value></data>
+  <data name="{0} 分钟后上传" xml:space="preserve"><value>{0} 分钟后上传</value></data>
+  <data name="暂无待上传录像" xml:space="preserve"><value>暂无待上传录像</value></data>
+  <data name="刚刚" xml:space="preserve"><value>刚刚</value></data>
+  <data name="{0} 分钟前" xml:space="preserve"><value>{0} 分钟前</value></data>
+  <data name="失败录像会保留在本机，修好后可重新上传" xml:space="preserve"><value>失败录像会保留在本机，修好后可重新上传</value></data>
+  <data name="还有 {0} 个失败录像" xml:space="preserve"><value>还有 {0} 个失败录像</value></data>
+  <data name="还有 {0} 个待上传" xml:space="preserve"><value>还有 {0} 个待上传</value></data>
+  <data name="主机存储空间不足" xml:space="preserve"><value>主机存储空间不足</value></data>
+  <data name="设备详情中可继续管理连接方式、定时开关机和更新" xml:space="preserve"><value>设备详情中可继续管理连接方式、定时开关机和更新</value></data>
+  <data name="打开设备与传输管理" xml:space="preserve"><value>打开设备与传输管理</value></data>
+  <data name="打开上传任务管理" xml:space="preserve"><value>打开上传任务管理</value></data>
+  <data name="上传服务尚未准备完成" xml:space="preserve"><value>上传服务尚未准备完成</value></data>
+  <data name="手机/电脑备份服务尚未准备完成" xml:space="preserve"><value>手机/电脑备份服务尚未准备完成</value></data>
+  <data name="设备备份服务尚未准备完成" xml:space="preserve"><value>设备备份服务尚未准备完成</value></data>
+  <data name="设备与传输" xml:space="preserve"><value>设备与传输</value></data>
+  <data name="保存主机连接中断，稍后自动继续" xml:space="preserve"><value>保存主机连接中断，稍后自动继续</value></data>
+  <data name="收起" xml:space="preserve"><value>收起</value></data>
+  <data name="展开" xml:space="preserve"><value>展开</value></data>
+  <data name="移除" xml:space="preserve"><value>移除</value></data>
+  <data name="移除设备" xml:space="preserve"><value>移除设备</value></data>
+  <data name="解绑" xml:space="preserve"><value>解绑</value></data>
+  <data name="解绑从机" xml:space="preserve"><value>解绑从机</value></data>
+  <data name="无法解绑从机" xml:space="preserve"><value>无法解绑从机</value></data>
+  <data name="设备不存在或已经解绑" xml:space="preserve"><value>设备不存在或已经解绑</value></data>
+  <data name="只会移除设备登记和昵称，不会删除录像文件。确定移除“{0}”吗？" xml:space="preserve"><value>将解除这台从机的配对并撤销上传权限，历史录像和视频标签都会保留。确定解绑“{0}”吗？</value></data>
+  <data name="设备移除失败，请稍后重试" xml:space="preserve"><value>设备移除失败，请稍后重试</value></data>
+  <data name="保存主机已解除本机配对，请重新连接" xml:space="preserve"><value>保存主机已解除本机配对，请重新连接</value></data>
+  <data name="等待主机允许连接" xml:space="preserve"><value>等待主机允许连接</value></data>
+  <data name="等待授权" xml:space="preserve"><value>等待授权</value></data>
+  <data name="等待主机允许连接，录像仍保存在本机" xml:space="preserve"><value>等待主机允许连接，录像仍保存在本机</value></data>
+  <data name="暂停上传" xml:space="preserve"><value>暂停上传</value></data>
+  <data name="继续上传" xml:space="preserve"><value>继续上传</value></data>
+  <data name="上传已暂停" xml:space="preserve"><value>上传已暂停</value></data>
+  <data name="已暂停" xml:space="preserve"><value>已暂停</value></data>
+  <data name="已暂停上传，{0} 个录像保存在本机" xml:space="preserve"><value>已暂停上传，{0} 个录像保存在本机</value></data>
+  <data name="上传已暂停，暂无待上传录像" xml:space="preserve"><value>上传已暂停，暂无待上传录像</value></data>
+  <data name="保存上传状态失败：{0}" xml:space="preserve"><value>保存上传状态失败：{0}</value></data>
+  <data name="保存主机拒绝了本机连接申请，可重新申请或更换保存主机" xml:space="preserve"><value>保存主机拒绝了本机连接申请，可重新申请或更换保存主机</value></data>
+  <data name="保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”" xml:space="preserve"><value>保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”</value></data>
+  <data name="等待保存主机允许连接超时，请确认保存主机界面已打开后重新申请" xml:space="preserve"><value>等待保存主机允许连接超时，请确认保存主机界面已打开后重新申请</value></data>
+  <data name="保存主机暂时无法显示连接确认窗口，请打开保存主机界面后重试" xml:space="preserve"><value>保存主机暂时无法显示连接确认窗口，请打开保存主机界面后重试</value></data>
+  <data name="保存主机正在确认其他设备，请稍后重新申请" xml:space="preserve"><value>保存主机正在确认其他设备，请稍后重新申请</value></data>
+  <data name="无法连接保存主机，请检查网络后重试" xml:space="preserve"><value>无法连接保存主机，请检查网络后重试</value></data>
+  <data name="保存主机版本不兼容，请更新后重新连接" xml:space="preserve"><value>保存主机版本不兼容，请更新后重新连接</value></data>
+  <data name="保存主机返回的连接信息无效，请更新保存主机后重试" xml:space="preserve"><value>保存主机返回的连接信息无效，请更新保存主机后重试</value></data>
+  <data name="保存主机暂时无法处理连接申请，请稍后重试" xml:space="preserve"><value>保存主机暂时无法处理连接申请，请稍后重试</value></data>
+  <data name="需要重新连接保存主机" xml:space="preserve"><value>需要重新连接保存主机</value></data>
+  <data name="需要重新连接保存主机：{0}" xml:space="preserve"><value>需要重新连接保存主机：{0}</value></data>
+  <data name="需要重新连接" xml:space="preserve"><value>需要重新连接</value></data>
+  <data name="正在重新连接" xml:space="preserve"><value>正在重新连接</value></data>
+  <data name="无法保存主机连接状态" xml:space="preserve"><value>无法保存主机连接状态</value></data>
 </root>

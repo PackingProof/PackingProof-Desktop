@@ -149,6 +149,55 @@ public sealed class VideoDatabaseTests
     }
 
     [Fact]
+    public void ActiveExternalVideoCount_IgnoresDeletedRecordsForDeviceCleanup()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(
+                Path.Combine(tempDirectory, "videos.db"));
+            string activePath = Path.Combine(tempDirectory, "active.mp4");
+            string deletedPath = Path.Combine(tempDirectory, "deleted.mp4");
+            database.InsertMobileBackupRecord(
+                "A",
+                activePath,
+                1,
+                DateTime.Now,
+                3,
+                "phone-a",
+                "手机1",
+                "session-a",
+                "sha-a");
+            database.InsertMobileBackupRecord(
+                "B",
+                deletedPath,
+                1,
+                DateTime.Now,
+                3,
+                "phone-b",
+                "手机2",
+                "session-b",
+                "sha-b");
+            database.MarkVideoDeleted(deletedPath, "测试");
+
+            Assert.Equal(
+                1,
+                database.CountActiveExternalVideosByDevice("PHONE-A"));
+            Assert.Equal(
+                0,
+                database.CountActiveExternalVideosByDevice("phone-b"));
+            Assert.Equal(
+                ["phone-a"],
+                database.GetActiveExternalDeviceIds(
+                    ["phone-a", "phone-b"]));
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public void MobileBackupOverview_CountsCompletedBackupsAndKeepsDeletedHistory()
     {
         string tempDirectory = CreateTempDirectory();

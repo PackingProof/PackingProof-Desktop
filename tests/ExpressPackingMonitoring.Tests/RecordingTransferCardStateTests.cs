@@ -11,12 +11,12 @@ public sealed class RecordingTransferCardStateTests
     [InlineData(2, 0, 0, 0, 0, false, false, false, "待上传", "2 个录像等待上传")]
     [InlineData(2, 0, 0, 0, 0, true, false, false, "待上传", "2 个录像已保存在本机，联网后自动上传")]
     [InlineData(1, 1, 0, 0, 45, false, false, false, "上传中", "正在上传 45% · 共 2 个待上传")]
-    [InlineData(0, 0, 2, 0, 0, false, false, false, "上传失败", "2 个录像等待重试，录像仍保存在本机")]
+    [InlineData(0, 0, 2, 0, 0, false, false, false, "待上传", "2 个录像稍后自动重试，录像仍保存在本机")]
     [InlineData(0, 0, 2, 0, 0, false, false, true, "需要重新连接", "需要重新连接保存主机，录像仍保存在本机")]
     // 停止重试的录像不占卡片状态，只并进现有明细；全都停止时沿用"上传失败"口径。
     [InlineData(0, 0, 0, 3, 0, false, false, false, "上传失败", "3 个录像已停止上传，请查看失败原因后重试")]
     [InlineData(1, 0, 0, 3, 0, false, false, false, "待上传", "1 个录像等待上传 · 3 个已停止上传")]
-    [InlineData(0, 0, 2, 3, 0, false, false, false, "上传失败", "2 个录像等待重试 · 3 个已停止上传，录像仍保存在本机")]
+    [InlineData(0, 0, 2, 3, 0, false, false, false, "待上传", "2 个录像稍后自动重试 · 3 个已停止上传，录像仍保存在本机")]
     public void BuildRecordingTransferCardState_SeparatesShortStatusFromCountedDetail(
         int pendingCount,
         int uploadingCount,
@@ -52,6 +52,107 @@ public sealed class RecordingTransferCardStateTests
     [InlineData(null, false)]
     public void IsReconnectRequiredError_DetectsPairingFailures(string? error, bool expected) =>
         Assert.Equal(expected, MainViewModel.IsReconnectRequiredError(error));
+
+    [Fact]
+    public void AwaitingHostApprovalIsNotReportedAsUploadFailure()
+    {
+        RecordingTransferCardState state = MainViewModel.BuildRecordingTransferCardState(
+            pendingCount: 109,
+            uploadingCount: 0,
+            failedCount: 0,
+            abandonedCount: 0,
+            progress: 0,
+            hostOffline: false,
+            recentlyUploaded: false,
+            hostAwaitingApproval: true);
+
+        Assert.Equal("等待授权", state.ShortStatusText);
+        Assert.Equal("等待主机允许连接，录像仍保存在本机", state.DetailText);
+    }
+
+    [Fact]
+    public void UserPausedUploadKeepsQueueLocalAndIsNotReportedAsFailure()
+    {
+        RecordingTransferCardState state = MainViewModel.BuildRecordingTransferCardState(
+            pendingCount: 109,
+            uploadingCount: 0,
+            failedCount: 0,
+            abandonedCount: 0,
+            progress: 0,
+            hostOffline: false,
+            recentlyUploaded: false,
+            pausedByUser: true);
+
+        Assert.Equal("上传已暂停", state.ShortStatusText);
+        Assert.Equal("已暂停上传，109 个录像保存在本机", state.DetailText);
+    }
+
+    [Fact]
+    public void PauseActionStaysInsideTheTransferPopupAndHostBannerRemainsOnMainWindow()
+    {
+        string root = FindRepositoryRoot();
+        string mainXaml = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "MainWindow.xaml"));
+        string transferXaml = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "TransferManagementWindow.xaml"));
+
+        Assert.Contains("RecordingWorkstationHostCard", mainXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "ToggleRecordingUploadPauseCommand",
+            mainXaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "UploadPauseButtonText",
+            transferXaml,
+            StringComparison.Ordinal);
+        Assert.Equal(
+            1,
+            transferXaml.Split(
+                "Content=\"{Binding UploadPauseButtonText}\"",
+                StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain(
+            "UploadPauseOverlayButtonStyle",
+            transferXaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ToggleUploadPauseCommand",
+            transferXaml,
+            StringComparison.Ordinal);
+        int retryIndex = transferXaml.LastIndexOf(
+            "Content=\"{loc:Localized 全部重试}\"",
+            StringComparison.Ordinal);
+        int pauseIndex = transferXaml.LastIndexOf(
+            "Content=\"{Binding UploadPauseButtonText}\"",
+            StringComparison.Ordinal);
+        Assert.True(retryIndex >= 0);
+        Assert.True(pauseIndex > retryIndex);
+
+        int failureStart = transferXaml.IndexOf(
+            "ItemsSource=\"{Binding FailureItems}\"",
+            StringComparison.Ordinal);
+        Assert.True(failureStart >= 0);
+        int failureEnd = transferXaml.IndexOf(
+            "</ItemsControl>",
+            failureStart,
+            StringComparison.Ordinal);
+        Assert.True(failureEnd > failureStart);
+        string failureTemplate = transferXaml[failureStart..failureEnd];
+        Assert.Contains("Text=\"{Binding Reason}\"", failureTemplate, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding SummaryText}\"", failureTemplate, StringComparison.Ordinal);
+        Assert.Contains("Content=\"{loc:Localized 重试}\"", failureTemplate, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Text=\"{loc:Localized 需要处理}\"",
+            transferXaml,
+            StringComparison.Ordinal);
+    }
 
     [Fact]
     public void TransferSummaryQueryRunsOffTheUiThread()

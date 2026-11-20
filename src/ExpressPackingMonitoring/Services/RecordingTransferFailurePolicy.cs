@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using ExpressPackingMonitoring.Data;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -11,28 +12,90 @@ internal sealed class RecordingTransferHostException : Exception
         string message,
         HttpStatusCode? statusCode = null,
         bool retryWholeFile = false,
-        int maxFileAttempts = 0)
+        int maxFileAttempts = 0,
+        int retryAfterSeconds = 0)
         : base(message)
     {
         ErrorCode = errorCode ?? "";
         StatusCode = statusCode;
         RetryWholeFile = retryWholeFile;
         MaxFileAttempts = maxFileAttempts;
+        RetryAfterSeconds = Math.Max(0, retryAfterSeconds);
     }
 
     public string ErrorCode { get; }
     public HttpStatusCode? StatusCode { get; }
     public bool RetryWholeFile { get; }
     public int MaxFileAttempts { get; }
+    public int RetryAfterSeconds { get; }
 }
 
 internal static class RecordingTransferFailurePolicy
 {
+    internal static string ClassifyFailureKind(Exception exception)
+    {
+        if (exception is RecordingTransferHostException host)
+        {
+            if (string.Equals(
+                    host.ErrorCode,
+                    "storage_unavailable",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return RecordingTransferFailureKinds.HostStorageUnavailable;
+            }
+            if (host.ErrorCode is "enrollment_required"
+                or "device_token_invalid")
+            {
+                return RecordingTransferFailureKinds.HostApprovalRequired;
+            }
+            if (host.ErrorCode is "host_storage_busy"
+                or "offset_mismatch"
+                or "upload_not_found")
+            {
+                return host.ErrorCode == "host_storage_busy"
+                    ? RecordingTransferFailureKinds.HostWriteBusy
+                    : RecordingTransferFailureKinds.RetryableTask;
+            }
+            if (host.ErrorCode is "server_busy" or "request_rate_limited")
+                return RecordingTransferFailureKinds.HostWriteBusy;
+            if (IsRetryableHostErrorCode(host.ErrorCode)
+                || (!IsDeterministicHostErrorCode(host.ErrorCode)
+                    && IsRetryableStatusCode(host.StatusCode)))
+            {
+                return RecordingTransferFailureKinds.HostOffline;
+            }
+            return RecordingTransferFailureKinds.ActionRequired;
+        }
+
+        if (exception is HttpRequestException http)
+        {
+            return IsRetryableStatusCode(http.StatusCode)
+                ? RecordingTransferFailureKinds.HostOffline
+                : RecordingTransferFailureKinds.ActionRequired;
+        }
+
+        if (exception is FileNotFoundException
+            or InvalidOperationException
+            or InvalidDataException
+            or JsonException
+            or UnauthorizedAccessException)
+        {
+            return RecordingTransferFailureKinds.ActionRequired;
+        }
+
+        return RecordingTransferFailureKinds.HostOffline;
+    }
+
     /// <summary>返回非空表示必须停止自动重试（内容为原因），空串表示继续退避重试。</summary>
     internal static string ClassifyFailure(Exception exception)
     {
         if (exception is RecordingTransferHostException host)
         {
+            if (host.ErrorCode is "enrollment_required"
+                or "device_token_invalid")
+            {
+                return "";
+            }
             if (string.Equals(host.ErrorCode, "session_conflict", StringComparison.OrdinalIgnoreCase))
             {
                 return "保存主机上已存在同编号的其它录像，已停止自动重试；请先在保存主机删除那条旧记录，再手动重试";
@@ -101,6 +164,7 @@ internal static class RecordingTransferFailurePolicy
 
     private static bool IsRetryableHostErrorCode(string errorCode) =>
         errorCode is "server_busy"
+            or "host_storage_busy"
             or "request_rate_limited"
             or "storage_unavailable"
             or "offset_mismatch"

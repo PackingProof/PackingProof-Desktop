@@ -1,4 +1,5 @@
 using System.Windows;
+using ExpressPackingMonitoring.UI;
 
 namespace ExpressPackingMonitoring;
 
@@ -9,6 +10,7 @@ public partial class ManualHostConnectionWindow : Window
     public ManualHostConnectionWindow(bool requiresCompleteLink)
     {
         InitializeComponent();
+        DialogWindowChrome.UseCloseButtonOnly(this);
         ConnectionHintText.Text = requiresCompleteLink
             ? "输入保存主机地址，或粘贴连接链接；设备令牌会自动领取"
             : "输入主机地址，或粘贴完整连接链接";

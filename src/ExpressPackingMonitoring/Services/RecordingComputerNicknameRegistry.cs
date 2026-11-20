@@ -43,7 +43,11 @@ internal sealed class RecordingComputerNicknameRegistry
         RefreshNicknameSnapshot();
     }
 
-    internal string Assign(string? nodeId, string? requestedName, bool customized)
+    internal string Assign(
+        string? nodeId,
+        string? requestedName,
+        bool customized,
+        bool restoreRemoved = false)
     {
         string normalizedNodeId = nodeId?.Trim() ?? "";
         if (normalizedNodeId.Length == 0)
@@ -64,6 +68,23 @@ internal sealed class RecordingComputerNicknameRegistry
             {
                 assignedName = existing.DisplayName;
                 customized = existing.Customized;
+                bool restoredNameConflict = restoreRemoved
+                    && (_entries.Any(item =>
+                            item.RemovedAtUtc == default
+                            && !string.Equals(
+                                item.NodeId,
+                                normalizedNodeId,
+                                StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(
+                                item.DisplayName,
+                                assignedName,
+                                StringComparison.OrdinalIgnoreCase))
+                        || IsNameTakenInExternalTable(assignedName, normalizedNodeId));
+                if (restoredNameConflict)
+                {
+                    assignedName = CreateNextAutomaticName();
+                    customized = false;
+                }
             }
             else
             {
@@ -78,7 +99,10 @@ internal sealed class RecordingComputerNicknameRegistry
                 NodeId = normalizedNodeId,
                 DisplayName = assignedName,
                 Customized = customized,
-                UpdatedAtUtc = DateTime.UtcNow
+                UpdatedAtUtc = DateTime.UtcNow,
+                RemovedAtUtc = restoreRemoved
+                    ? default
+                    : existing?.RemovedAtUtc ?? default
             });
             _entries = _entries
                 .OrderByDescending(item => item.UpdatedAtUtc)
@@ -95,17 +119,21 @@ internal sealed class RecordingComputerNicknameRegistry
         Assign(nodeId, displayName, customized);
     }
 
-    internal IReadOnlyList<RecordingComputerNicknameInfo> GetKnown()
+    internal IReadOnlyList<RecordingComputerNicknameInfo> GetKnown(
+        bool includeRemoved = false)
     {
         lock (_sync)
         {
             DateTime cutoff = DateTime.UtcNow - Retention;
-            if (_entries.RemoveAll(item => item.UpdatedAtUtc < cutoff) > 0)
+            if (_entries.RemoveAll(item =>
+                    item.RemovedAtUtc == default
+                    && item.UpdatedAtUtc < cutoff) > 0)
             {
                 RefreshNicknameSnapshot();
                 SaveOrWarn("清理过期工位");
             }
             return _entries
+                .Where(item => includeRemoved || item.RemovedAtUtc == default)
                 .OrderByDescending(item => item.UpdatedAtUtc)
                 .Select(item => new RecordingComputerNicknameInfo(
                     item.NodeId,
@@ -115,11 +143,56 @@ internal sealed class RecordingComputerNicknameRegistry
         }
     }
 
+    /// <summary>
+    /// 解除工位绑定，但保留昵称用于历史录像显示；普通心跳不会恢复，重新配对才恢复。
+    /// </summary>
+    internal bool TryForgetDevice(string? nodeId)
+    {
+        string normalizedNodeId = nodeId?.Trim() ?? "";
+        if (normalizedNodeId.Length == 0)
+            return false;
+
+        lock (_sync)
+        {
+            Entry? entry = _entries.FirstOrDefault(item =>
+                string.Equals(item.NodeId, normalizedNodeId, StringComparison.OrdinalIgnoreCase));
+            if (entry == null)
+                return false;
+
+            entry.RemovedAtUtc = DateTime.UtcNow;
+            RefreshNicknameSnapshot();
+            SaveOrWarn("移除工位昵称");
+            return true;
+        }
+    }
+
+    internal bool RestoreDevice(string? nodeId)
+    {
+        string normalizedNodeId = nodeId?.Trim() ?? "";
+        if (normalizedNodeId.Length == 0)
+            return false;
+
+        lock (_sync)
+        {
+            Entry? entry = _entries.FirstOrDefault(item =>
+                string.Equals(item.NodeId, normalizedNodeId, StringComparison.OrdinalIgnoreCase));
+            if (entry == null || entry.RemovedAtUtc == default)
+                return false;
+
+            entry.RemovedAtUtc = default;
+            entry.UpdatedAtUtc = DateTime.UtcNow;
+            RefreshNicknameSnapshot();
+            SaveOrWarn("恢复工位绑定");
+            return true;
+        }
+    }
+
     private string CreateNextAutomaticName()
     {
         // 自动编号也要避开手机登记表里的名字：用户可能把一台手机手工命名成"电脑3"，
         // 那么下一台工位就不能再拿到"电脑3"。
         var usedNumbers = _entries
+            .Where(item => item.RemovedAtUtc == default)
             .Select(item => item.DisplayName?.Trim() ?? "")
             .Concat(ReadExternalNicknames().Values.Select(name => name?.Trim() ?? ""))
             .Where(Config.AppConfig.IsAutomaticComputerName)
@@ -170,6 +243,8 @@ internal sealed class RecordingComputerNicknameRegistry
         var snapshot = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (Entry entry in _entries)
         {
+            if (entry.RemovedAtUtc != default)
+                continue;
             string entryNodeId = entry.NodeId?.Trim() ?? "";
             if (entryNodeId.Length > 0)
                 snapshot[entryNodeId] = entry.DisplayName?.Trim() ?? "";
@@ -183,7 +258,8 @@ internal sealed class RecordingComputerNicknameRegistry
         // 本表 + 手机登记表一起查：手机和电脑不能同名，而只发心跳的工位不在手机登记表里，
         // 反过来没上传过的手机也可能不在本表里，两边都查才是全局唯一。
         bool IsUsed(string candidate) => _entries.Any(item =>
-            !string.Equals(item.NodeId, nodeId, StringComparison.OrdinalIgnoreCase)
+            item.RemovedAtUtc == default
+            && !string.Equals(item.NodeId, nodeId, StringComparison.OrdinalIgnoreCase)
             && string.Equals(item.DisplayName, candidate, StringComparison.OrdinalIgnoreCase))
             || IsNameTakenInExternalTable(candidate, nodeId);
         if (!IsUsed(requestedName)) return requestedName;
@@ -277,6 +353,7 @@ internal sealed class RecordingComputerNicknameRegistry
         public string DisplayName { get; set; } = "";
         public bool Customized { get; set; }
         public DateTime UpdatedAtUtc { get; set; }
+        public DateTime RemovedAtUtc { get; set; }
     }
 }
 

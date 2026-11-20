@@ -987,6 +987,32 @@ namespace ExpressPackingMonitoring.UI
             e.Handled = true;
         }
 
+        private void BoundHostCard_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key is not (Key.Enter or Key.Space))
+                return;
+            ExecuteMobileConnection();
+            e.Handled = true;
+        }
+
+        private void TransferManagementCard_PreviewMouseLeftButtonUp(
+            object sender,
+            MouseButtonEventArgs e)
+        {
+            if (DataContext is MainViewModel viewModel)
+                viewModel.OpenTransferManagement(this);
+            e.Handled = true;
+        }
+
+        private void TransferManagementCard_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key is not (Key.Enter or Key.Space))
+                return;
+            if (DataContext is MainViewModel viewModel)
+                viewModel.OpenTransferManagement(this);
+            e.Handled = true;
+        }
+
         private void ExecuteMobileConnection()
         {
             if (DataContext is MainViewModel viewModel) viewModel.ShowMainConnection(this);

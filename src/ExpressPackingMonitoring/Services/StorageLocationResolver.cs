@@ -156,6 +156,63 @@ internal static class StorageLocationResolver
     }
 
     /// <summary>
+    /// Returns every writable local recording root. Upload placement can then spread
+    /// different recordings across physical disks while local recording keeps its
+    /// existing priority-based single active root.
+    /// </summary>
+    public static IReadOnlyList<string> ResolveUsableLocalRoots(
+        AppConfig config,
+        bool allowDefaultFallback,
+        bool requireFreeSpaceAboveReserve = false)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        var roots = new List<string>();
+        foreach (StorageLocation location in (config.StorageLocations ?? [])
+                     .Where(item => !string.IsNullOrWhiteSpace(item.Path))
+                     .OrderBy(item => item.Priority))
+        {
+            if (IsBackupLocation(location))
+                continue;
+
+            try
+            {
+                string path = NormalizePath(location.Path);
+                if (StorageVolumeInfo.ClassifyStorageLocation(path)
+                    != StorageVolumeInfo.StorageLocationKind.Local)
+                    continue;
+                if (!TryGetVolume(path, out StorageVolumeInfo volume))
+                    continue;
+                if (requireFreeSpaceAboveReserve)
+                {
+                    long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(
+                        location,
+                        volume);
+                    if (volume.AvailableFreeSpace <= reserveBytes)
+                        continue;
+                }
+                if (!roots.Contains(path, StringComparer.OrdinalIgnoreCase))
+                    roots.Add(path);
+            }
+            catch
+            {
+                // A broken optional path must not reject every other disk.
+            }
+        }
+
+        if (roots.Count > 0)
+            return roots;
+
+        if (allowDefaultFallback)
+        {
+            string fallback = AppConfig.DefaultStoragePath;
+            EnsureDirectoryWritable(fallback);
+            return [fallback];
+        }
+
+        throw new IOException("没有可用的本地录像保存位置（至少需要一个本地保存位置）");
+    }
+
+    /// <summary>
     /// 按优先级返回全部备份位置（网络共享与网盘挂载盘，不做可用性检查），供归档 Worker 与 UI 使用。
     /// </summary>
     public static IReadOnlyList<StorageLocation> GetOrderedBackupLocations(

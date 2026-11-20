@@ -16,6 +16,151 @@ public sealed class StoragePlanTests : IDisposable
     public void Dispose() => _volumeProbe.Dispose();
 
     [Fact]
+    public void WindowsLocalVolumeReportsItsPhysicalDiskIdentity()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        string root = Path.GetPathRoot(Environment.SystemDirectory)
+            ?? throw new DirectoryNotFoundException("无法确定系统盘");
+        Assert.True(StorageVolumeInfo.TryGet(root, out StorageVolumeInfo volume));
+        Assert.False(string.IsNullOrWhiteSpace(volume.PhysicalDiskId));
+        Assert.StartsWith(
+            "physical-disk:",
+            volume.PhysicalDiskId,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VolumeDiskExtentReadsDiskNumberFromItsDeclaredOffset()
+    {
+        byte[] buffer = new byte[32];
+        BitConverter.GetBytes(7u).CopyTo(buffer, 8);
+        BitConverter.GetBytes(123456L).CopyTo(buffer, 16);
+        BitConverter.GetBytes(654321L).CopyTo(buffer, 24);
+        BitConverter.GetBytes(1u).CopyTo(buffer, 0);
+
+        Assert.Equal(
+            "physical-disk:7",
+            StorageVolumeInfo.ParsePhysicalDiskId(buffer, buffer.Length));
+    }
+
+    [Fact]
+    public void VolumeGuidPathKeepsItsExtendedPrefixForMountPointQueries()
+    {
+        const string path = @"\\?\Volume{01234567-89ab-cdef-0123-456789abcdef}\Data";
+
+        Assert.Equal(path, StorageVolumeInfo.NormalizeExtendedFinalPath(path));
+    }
+
+    [Fact]
+    public void VolumeGuidMountTargetResolvesCapacityAndPhysicalDisk()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        string source = CreateTempDirectory();
+        try
+        {
+            string root = Path.GetPathRoot(Environment.SystemDirectory)
+                ?? throw new DirectoryNotFoundException("无法确定系统盘");
+            string volumeId = StorageVolumeInfo.GetVolumeIdForRoot(root);
+            if (string.IsNullOrWhiteSpace(volumeId))
+                return;
+
+            Assert.True(StorageVolumeInfo.TryGet(
+                source,
+                _ => volumeId + @"\Data",
+                out StorageVolumeInfo volume));
+            Assert.Equal(volumeId, volume.RootPath, ignoreCase: true);
+            Assert.False(string.IsNullOrWhiteSpace(volume.PhysicalDiskId));
+            Assert.True(volume.AvailableFreeSpace > 0);
+        }
+        finally
+        {
+            TryDeleteDirectory(source);
+        }
+    }
+
+    [Fact]
+    public void ResolvedJunctionStylePathUsesTargetVolumeMetadata()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        string source = CreateTempDirectory();
+        string? target = null;
+        try
+        {
+            string sourceRoot = Path.GetPathRoot(source) ?? "";
+            DriveInfo? other = DriveInfo.GetDrives()
+                .FirstOrDefault(drive =>
+                    drive.IsReady
+                    && drive.DriveType == DriveType.Fixed
+                    && !string.Equals(
+                        drive.RootDirectory.FullName,
+                        sourceRoot,
+                        StringComparison.OrdinalIgnoreCase));
+            if (other == null)
+                return;
+
+            target = Path.Combine(
+                other.RootDirectory.FullName,
+                "packingproof-volume-target-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(target);
+
+            Assert.True(StorageVolumeInfo.TryGet(
+                source,
+                _ => target,
+                out StorageVolumeInfo volume));
+            Assert.Equal(
+                other.RootDirectory.FullName.TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar),
+                volume.RootPath,
+                ignoreCase: true);
+        }
+        finally
+        {
+            TryDeleteDirectory(source);
+            if (target != null)
+                TryDeleteDirectory(target);
+        }
+    }
+
+    [Fact]
+    public void UsableLocalRootsKeepEveryConfiguredDiskForUploadPlacement()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string first = Path.Combine(directory, "disk-1");
+            string second = Path.Combine(directory, "disk-2");
+            Directory.CreateDirectory(first);
+            Directory.CreateDirectory(second);
+            var config = new AppConfig
+            {
+                StorageLocations =
+                [
+                    new StorageLocation { Path = second, Priority = 2 },
+                    new StorageLocation { Path = first, Priority = 1 }
+                ]
+            };
+
+            IReadOnlyList<string> roots =
+                StorageLocationResolver.ResolveUsableLocalRoots(
+                    config,
+                    allowDefaultFallback: false);
+
+            Assert.Equal([first, second], roots);
+        }
+        finally
+        {
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void SelectUsableArchiveRoot_PrefersPriorityAndSkipsUnavailable()
     {
         string directory = CreateTempDirectory();

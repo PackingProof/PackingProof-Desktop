@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:ExpressPackingMonitoring.UI.Controls"
+        xmlns:loc="clr-namespace:ExpressPackingMonitoring.Localization"
         Title="PackingProof 备份主机"
         Width="760"
         MinWidth="760"
@@ -94,7 +95,13 @@
                         <controls:StatusCard x:Name="MobileBackupStatusCard"
                                              CardIcon="{StaticResource FluentWifiIcon}"
                                              CardTitle="手机/电脑备份"
-                                             DeviceItemsSource="{Binding MobileBackupDeviceStatuses, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                             DeviceItemsSource="{Binding MobileBackupDeviceStatuses, RelativeSource={RelativeSource AncestorType=Window}}"
+                                             Cursor="Hand"
+                                             Focusable="True"
+                                             ToolTip="{loc:Localized 打开设备与传输管理}"
+                                             AutomationProperties.Name="{loc:Localized 打开设备与传输管理}"
+                                             PreviewMouseLeftButtonUp="MobileBackupStatusCard_PreviewMouseLeftButtonUp"
+                                             PreviewKeyDown="MobileBackupStatusCard_PreviewKeyDown"/>
                         <Button x:Name="RepairLanButton"
                                 Height="28"
                                 Margin="0,8,0,0"

@@ -50,6 +50,8 @@ public partial class ViewerClientWindow : Window
                 : DeploymentPresets.ViewerClient;
         _bindingOnly = _deploymentPreset == DeploymentPresets.RecordingWorkstation;
         InitializeComponent();
+        if (_bindingOnly)
+            DialogWindowChrome.UseCloseButtonOnly(this);
         if (!_bindingOnly)
             Title = $"{AppLanguage.Translate(Title)} {AppVersion.Current}";
         if (_bindingOnly)
@@ -112,6 +114,22 @@ public partial class ViewerClientWindow : Window
     private async void ViewerClientWindow_Loaded(object sender, RoutedEventArgs e)
     {
         await RefreshBoundHostAsync();
+        if (_boundHost == null
+            && ShouldRequestRecordingHostApproval(_config)
+            && string.IsNullOrWhiteSpace(_config.LastRecordingHostApprovalFailureCode)
+            && !_isConnecting)
+        {
+            PackingProofNodeInfo? savedHost =
+                await WorkstationNetwork.GetNodeInfoAsync(_config.LastKnownHostAddress);
+            if (savedHost != null
+                && string.Equals(
+                    savedHost.NodeId,
+                    _config.LastKnownHostNodeId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                await BindHostAsync(savedHost);
+            }
+        }
         if (_boundHost == null && (!_bindingOnly || !HasSavedHost()))
             await SearchHostsAsync();
         _onlineTimer.Start();
@@ -135,6 +153,32 @@ public partial class ViewerClientWindow : Window
                 && !string.Equals(node.NodeId, _config.LastKnownHostNodeId, StringComparison.OrdinalIgnoreCase)))
         {
             SetOffline(ViewerConnectionStatusText.HostOfflineOrChanged);
+            return;
+        }
+
+        if (_bindingOnly && ShouldRequestRecordingHostApproval(_config))
+        {
+            _boundHost = null;
+            HostNameText.Text = node.NodeName;
+            HostAddressText.Text = node.Address;
+            bool approvalPending = RecordingHostApprovalPolicy.IsPending(
+                _config,
+                DateTimeOffset.UtcNow);
+            string approvalStatus = approvalPending
+                ? ViewerConnectionStatusText.WaitingForHostApproval(node.NodeName)
+                : RecordingHostApprovalPolicy.GetFailureMessage(
+                    _config.LastRecordingHostApprovalFailureCode);
+            if (approvalStatus.Length == 0)
+                approvalStatus = ViewerConnectionStatusText.NeedsHostApproval;
+            OnlineStatusText.Text = approvalStatus;
+            Brush approvalBrush = (Brush)FindResource(
+                approvalPending ? "TransferAttentionText" : "TextSecondary");
+            OnlineStatusText.Foreground = approvalBrush;
+            OnlineStatusIndicator.Fill = approvalBrush;
+            OpenWebButton.IsEnabled = false;
+            ApplyConnectionViewState(
+                approvalPending ? ConnectionViewState.Connecting : ConnectionViewState.Error,
+                approvalStatus);
             return;
         }
 
@@ -227,7 +271,10 @@ public partial class ViewerClientWindow : Window
             searchCancellation.Token);
         PackingProofNodeInfo? viewerRecoveryCandidate = null;
         string savedHostNodeId = _config.LastKnownHostNodeId;
-        bool canRecoverViewer = !_bindingOnly && !string.IsNullOrWhiteSpace(savedHostNodeId);
+        bool canRecoverViewer = CanAutoRecoverViewer(
+            _bindingOnly,
+            _isChoosingHost,
+            savedHostNodeId);
         var viewerRecoverySource = new TaskCompletionSource<PackingProofNodeInfo>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         _isSearching = true;
@@ -369,6 +416,29 @@ public partial class ViewerClientWindow : Window
             && string.Equals(host.NodeId, nodeId, StringComparison.OrdinalIgnoreCase));
     }
 
+    internal static bool ShouldRequestRecordingHostApproval(AppConfig? config) =>
+        string.Equals(
+            DeploymentPresets.Normalize(config?.DeploymentPreset),
+            DeploymentPresets.RecordingWorkstation,
+            StringComparison.Ordinal)
+        && !HasUsableBackupCredential(config)
+        && !string.IsNullOrWhiteSpace(config?.LastKnownHostAddress)
+        && !string.IsNullOrWhiteSpace(config.LastKnownHostNodeId);
+
+    private static bool HasUsableBackupCredential(AppConfig? config) =>
+        config != null
+        && !string.IsNullOrWhiteSpace(config.LastKnownHostAccessKey)
+        && config.LastKnownHostBackupAuthVersion
+            >= BackupRequestAuthentication.CurrentVersion;
+
+    internal static bool CanAutoRecoverViewer(
+        bool bindingOnly,
+        bool choosingHost,
+        string? savedHostNodeId) =>
+        !bindingOnly
+        && !choosingHost
+        && !string.IsNullOrWhiteSpace(savedHostNodeId);
+
     private async Task BindHostAsync(PackingProofNodeInfo node, string? accessKey = null)
     {
         if (!node.IsValidHost)
@@ -393,6 +463,16 @@ public partial class ViewerClientWindow : Window
         string backupCredential = "";
         if (_bindingOnly)
         {
+            if (!await PersistHostApprovalStateAsync(config =>
+                {
+                    config.RecordingHostApprovalPending = true;
+                    config.RecordingHostApprovalRequestedAtUtc = DateTime.UtcNow;
+                    config.LastRecordingHostApprovalFailureCode = "";
+                }))
+            {
+                ShowConnectionError(AppLanguage.Get("无法保存主机连接状态"));
+                return;
+            }
             ApplyConnectionViewState(
                 ConnectionViewState.Connecting,
                 ViewerConnectionStatusText.WaitingForHostApproval(node.NodeName));
@@ -411,8 +491,12 @@ public partial class ViewerClientWindow : Window
             }
             catch (Exception ex)
             {
-                _isConnecting = false;
+                await PersistHostApprovalFailureAsync(
+                    ex is BackupDeviceEnrollmentException failure
+                        ? failure.Kind
+                        : BackupDeviceEnrollmentFailureKind.Failed);
                 ShowConnectionError(ex.Message);
+                NotifyRecordingHostApprovalChanged();
                 return;
             }
         }
@@ -420,56 +504,77 @@ public partial class ViewerClientWindow : Window
             ConnectionViewState.Connecting,
             ViewerConnectionStatusText.Connecting(node.NodeName));
         string previousHostNodeId = _config.LastKnownHostNodeId;
-        if (!WorkstationConfigStore.TryUpdate(
-                config =>
-                {
-                    config.DeploymentPreset = _deploymentPreset;
-                    config.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
-                    config.WorkstationRole = _bindingOnly
-                        ? WorkstationRoles.CameraMonitor
-                        : "";
-                    config.LastKnownHostNodeId = node.NodeId;
-                    config.LastKnownHostNodeName = node.NodeName;
-                    config.LastKnownHostAddress = node.Address;
-                    if (_bindingOnly)
+        (AppConfig Saved, string Error, bool Succeeded) bindingResult =
+            await Task.Run(() =>
+            {
+                bool succeeded = WorkstationConfigStore.TryUpdate(
+                    config =>
                     {
-                        config.LastKnownHostAccessKey = backupCredential;
-                        config.LastKnownHostBackupAuthVersion =
-                            BackupRequestAuthentication.CurrentVersion;
-                        config.BackupConnectionSchemaVersion =
-                            AppConfig.CurrentBackupConnectionSchemaVersion;
-                    }
-                    else
-                    {
-                        // 查看模式：粘贴链接携带的 key 持久化；更换主机时清除旧 key。
-                        if (!string.IsNullOrWhiteSpace(accessKey))
+                        config.DeploymentPreset = _deploymentPreset;
+                        config.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
+                        config.WorkstationRole = _bindingOnly
+                            ? WorkstationRoles.CameraMonitor
+                            : "";
+                        config.LastKnownHostNodeId = node.NodeId;
+                        config.LastKnownHostNodeName = node.NodeName;
+                        config.LastKnownHostAddress = node.Address;
+                        if (_bindingOnly)
                         {
-                            config.LastKnownHostWebAccessKey = accessKey.Trim();
+                            config.LastKnownHostAccessKey = backupCredential;
+                            config.LastKnownHostBackupAuthVersion =
+                                BackupRequestAuthentication.CurrentVersion;
+                            config.RecordingHostApprovalPending = false;
+                            config.RecordingHostApprovalRequestedAtUtc = null;
+                            config.LastRecordingHostApprovalFailureCode = "";
+                            config.BackupConnectionSchemaVersion =
+                                AppConfig.CurrentBackupConnectionSchemaVersion;
                         }
-                        else if (!string.Equals(
-                                     previousHostNodeId,
-                                     node.NodeId,
-                                     StringComparison.OrdinalIgnoreCase))
+                        else
                         {
-                            config.LastKnownHostWebAccessKey = "";
+                            // 查看模式：粘贴链接携带的 key 持久化；更换主机时清除旧 key。
+                            if (!string.IsNullOrWhiteSpace(accessKey))
+                            {
+                                config.LastKnownHostWebAccessKey = accessKey.Trim();
+                            }
+                            else if (!string.Equals(
+                                         previousHostNodeId,
+                                         node.NodeId,
+                                         StringComparison.OrdinalIgnoreCase))
+                            {
+                                config.LastKnownHostWebAccessKey = "";
+                            }
                         }
-                    }
-                    AppConfig.MarkDeploymentSetupCompleted(config);
-                },
-                out AppConfig saved,
-                out string error))
+                        AppConfig.MarkDeploymentSetupCompleted(config);
+                    },
+                    out AppConfig saved,
+                    out string error);
+                return (saved, error, succeeded);
+            });
+        if (!bindingResult.Succeeded)
         {
+            if (_bindingOnly)
+            {
+                await PersistHostApprovalFailureAsync(
+                    BackupDeviceEnrollmentFailureKind.Failed);
+            }
             _isConnecting = false;
-            ShowConnectionError($"连接保存主机失败：{error}");
+            ShowConnectionError($"连接保存主机失败：{bindingResult.Error}");
+            NotifyRecordingHostApprovalChanged();
             return;
         }
 
+        AppConfig saved = bindingResult.Saved;
         _config.LastKnownHostNodeId = saved.LastKnownHostNodeId;
         _config.LastKnownHostNodeName = saved.LastKnownHostNodeName;
         _config.LastKnownHostAddress = saved.LastKnownHostAddress;
         _config.LastKnownHostAccessKey = saved.LastKnownHostAccessKey;
         _config.LastKnownHostWebAccessKey = saved.LastKnownHostWebAccessKey;
         _config.LastKnownHostBackupAuthVersion = saved.LastKnownHostBackupAuthVersion;
+        _config.RecordingHostApprovalPending = saved.RecordingHostApprovalPending;
+        _config.RecordingHostApprovalRequestedAtUtc =
+            saved.RecordingHostApprovalRequestedAtUtc;
+        _config.LastRecordingHostApprovalFailureCode =
+            saved.LastRecordingHostApprovalFailureCode;
         _config.BackupConnectionSchemaVersion = saved.BackupConnectionSchemaVersion;
         _config.FirstUseWizardCompleted = saved.FirstUseWizardCompleted;
         _config.DeploymentSetupVersion = saved.DeploymentSetupVersion;
@@ -477,6 +582,7 @@ public partial class ViewerClientWindow : Window
         _deploymentSetupPersisted = true;
         _boundHost = node;
         _isChoosingHost = false;
+        NotifyRecordingHostApprovalChanged();
         try
         {
             await RefreshBoundHostAsync(allowWhileConnecting: true);
@@ -1137,6 +1243,47 @@ public partial class ViewerClientWindow : Window
 
     private static string FirstNotEmpty(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
+
+    private async Task<bool> PersistHostApprovalStateAsync(Action<AppConfig> update)
+    {
+        (AppConfig Saved, bool Succeeded) result = await Task.Run(() =>
+        {
+            bool succeeded = WorkstationConfigStore.TryUpdate(
+                update,
+                out AppConfig saved,
+                out _);
+            return (saved, succeeded);
+        });
+        if (!result.Succeeded)
+        {
+            return false;
+        }
+
+        _config.RecordingHostApprovalPending = result.Saved.RecordingHostApprovalPending;
+        _config.RecordingHostApprovalRequestedAtUtc =
+            result.Saved.RecordingHostApprovalRequestedAtUtc;
+        _config.LastRecordingHostApprovalFailureCode =
+            result.Saved.LastRecordingHostApprovalFailureCode;
+        return true;
+    }
+
+    private Task PersistHostApprovalFailureAsync(BackupDeviceEnrollmentFailureKind kind)
+    {
+        return PersistHostApprovalStateAsync(config =>
+        {
+            config.RecordingHostApprovalPending = false;
+            config.RecordingHostApprovalRequestedAtUtc = null;
+            config.LastRecordingHostApprovalFailureCode =
+                RecordingHostApprovalPolicy.GetFailureCode(kind);
+        });
+    }
+
+    private void NotifyRecordingHostApprovalChanged()
+    {
+        MainViewModel? viewModel = Owner?.DataContext as MainViewModel
+            ?? Application.Current?.MainWindow?.DataContext as MainViewModel;
+        viewModel?.NotifyRecordingHostApprovalStateChanged();
+    }
 
     private bool HasSavedHost() =>
         !string.IsNullOrWhiteSpace(_config.LastKnownHostNodeId)

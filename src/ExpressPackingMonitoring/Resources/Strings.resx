@@ -229,7 +229,7 @@
   <data name="开始检测" xml:space="preserve"><value>Start test</value></data>
   <data name="正在检测，请稍候" xml:space="preserve"><value>Testing, please wait</value></data>
   <data name="录像编码异常时，用它重新检测电脑能力" xml:space="preserve"><value>When the video encoding is abnormal, use it to re-test the computer's capabilities.</value></data>
-  <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>Space runs out: recordings move to the next disk. Each disk keeps a safety margin, so other apps can reduce usable space. Right-click a disk to adjust</value></data>
+  <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>Local recordings follow list order. The save host distributes incoming uploads by physical-disk load and free space; drive letters on one physical disk share the same write capacity. Each disk keeps a safety margin</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>Recording page access key</value></data>
   <data name="放大取景框内的画面，停留一会儿后恢复全景" xml:space="preserve"><value>Zoom the area inside the guide box, then restore the full view.</value></data>
   <data name="智能跟随面单" xml:space="preserve"><value>Follow the recognized label</value></data>
@@ -384,7 +384,6 @@
   <data name="更新内容：" xml:space="preserve"><value>Updates:</value></data>
   <data name="回放" xml:space="preserve"><value>Playback</value></data>
   <data name="件" xml:space="preserve"><value> items</value></data>
-  <data name="今日" xml:space="preserve"><value>Today</value></data>
   <data name="今日:" xml:space="preserve"><value>Today:</value></data>
   <data name="本机今日:" xml:space="preserve"><value>Local today:</value></data>
   <data name="局域网查看视频" xml:space="preserve"><value>View video on LAN</value></data>
@@ -1071,7 +1070,6 @@ Continue? After packaging, send the archive to {0}</value></data>
   <data name="撤销" xml:space="preserve"><value>Revoke</value></data>
   <data name="订单联动设备" xml:space="preserve"><value>Order integration devices</value></data>
   <data name="显示可接收联动数据的录像设备；绿点表示当前在线" xml:space="preserve"><value>Recording devices that can receive integration data; a green dot indicates online</value></data>
-  <data name="设备" xml:space="preserve"><value>Device</value></data>
   <data name="最近活动" xml:space="preserve"><value>Recent activity</value></data>
   <data name="已导入脚本（" xml:space="preserve"><value>Imported scripts (</value></data>
   <data name="已导入脚本" xml:space="preserve"><value>Imported scripts</value></data>
@@ -1535,7 +1533,6 @@ Continue? After packaging, send the archive to {0}</value></data>
   <data name="正在下载扩展包" xml:space="preserve"><value>Downloading the extension package</value></data>
   <data name="正在修复…" xml:space="preserve"><value>Repairing…</value></data>
   <data name="正在修复局域网，Windows 可能会请求管理员授权" xml:space="preserve"><value>Repairing LAN access. Windows may ask for administrator approval</value></data>
-  <data name="正在重新连接" xml:space="preserve"><value>Reconnecting</value></data>
   <data name="正在准备给其他电脑浏览器使用的网址。两台电脑需要在同一局域网内" xml:space="preserve"><value>Preparing the URL for browsers on other computers. Both computers must be on the same LAN</value></data>
   <data name="至少需要保留一个存储路径" xml:space="preserve"><value>Keep at least one storage path</value></data>
   <data name="至少需要一个本地保存位置，请先添加本地磁盘" xml:space="preserve"><value>At least one local storage location is required. Add a local disk first</value></data>
@@ -1871,4 +1868,80 @@ Continue? After packaging, send the archive to {0}</value></data>
   <data name="截图已保存：{0}" xml:space="preserve"><value>Screenshot saved: {0}</value></data>
   <data name="未能保存当前画面" xml:space="preserve"><value>Could not capture the current frame</value></data>
   <data name="截图失败：{0}" xml:space="preserve"><value>Screenshot failed: {0}</value></data>
+  <data name="接收设备" xml:space="preserve"><value>Receive devices</value></data>
+  <data name="上传任务" xml:space="preserve"><value>Upload tasks</value></data>
+  <data name="今日" xml:space="preserve"><value>Today</value></data>
+  <data name="今日已上传" xml:space="preserve"><value>Uploaded today</value></data>
+  <data name="今日已接收" xml:space="preserve"><value>Received today</value></data>
+  <data name="今日数量单位" xml:space="preserve"><value></value></data>
+  <data name="{0} 台需要处理" xml:space="preserve"><value>{0} need attention</value></data>
+  <data name="{0} 个异常" xml:space="preserve"><value>{0} alerts</value></data>
+  <data name="保存主机离线，恢复后自动继续" xml:space="preserve"><value>Save host is offline; uploads will resume automatically</value></data>
+  <data name="保存主机空间不足，上传已暂停" xml:space="preserve"><value>Save host is low on space; uploads are paused</value></data>
+  <data name="主机写入繁忙，稍后自动继续" xml:space="preserve"><value>Host storage is busy; retrying automatically</value></data>
+  <data name="正在检查保存主机" xml:space="preserve"><value>Checking the save host</value></data>
+  <data name="正在检查主机" xml:space="preserve"><value>Checking host</value></data>
+  <data name="{0} 自动重试" xml:space="preserve"><value>Automatic retry at {0}</value></data>
+  <data name="设备" xml:space="preserve"><value>Device</value></data>
+  <data name="已离线" xml:space="preserve"><value>Offline</value></data>
+  <data name="空间不足" xml:space="preserve"><value>Low space</value></data>
+  <data name="其余 {0} 台正常" xml:space="preserve"><value>Other {0} devices are healthy</value></data>
+  <data name="重试" xml:space="preserve"><value>Retry</value></data>
+  <data name="重试上传" xml:space="preserve"><value>Retry upload</value></data>
+  <data name="全部重试" xml:space="preserve"><value>Retry all</value></data>
+  <data name="正在上传" xml:space="preserve"><value>Uploading</value></data>
+  <data name="冷却中" xml:space="preserve"><value>Cooling down</value></data>
+  <data name="即将上传" xml:space="preserve"><value>Uploading shortly</value></data>
+  <data name="{0} 秒后上传" xml:space="preserve"><value>Uploading in {0} s</value></data>
+  <data name="{0} 分钟后上传" xml:space="preserve"><value>Uploading in {0} min</value></data>
+  <data name="暂无待上传录像" xml:space="preserve"><value>No pending uploads</value></data>
+  <data name="刚刚" xml:space="preserve"><value>Just now</value></data>
+  <data name="{0} 分钟前" xml:space="preserve"><value>{0} min ago</value></data>
+  <data name="失败录像会保留在本机，修好后可重新上传" xml:space="preserve"><value>Failed recordings stay on this device until retried</value></data>
+  <data name="还有 {0} 个失败录像" xml:space="preserve"><value>{0} more failed recordings</value></data>
+  <data name="还有 {0} 个待上传" xml:space="preserve"><value>{0} pending</value></data>
+  <data name="主机存储空间不足" xml:space="preserve"><value>Host storage is low on space</value></data>
+  <data name="设备详情中可继续管理连接方式、定时开关机和更新" xml:space="preserve"><value>Device details will provide connection, power schedule, and update controls</value></data>
+  <data name="打开设备与传输管理" xml:space="preserve"><value>Open device and transfer management</value></data>
+  <data name="打开上传任务管理" xml:space="preserve"><value>Open upload task management</value></data>
+  <data name="上传服务尚未准备完成" xml:space="preserve"><value>The upload service is not ready</value></data>
+  <data name="手机/电脑备份服务尚未准备完成" xml:space="preserve"><value>The phone/PC backup service is not ready</value></data>
+  <data name="设备备份服务尚未准备完成" xml:space="preserve"><value>The device backup service is not ready</value></data>
+  <data name="设备与传输" xml:space="preserve"><value>Devices and transfers</value></data>
+  <data name="保存主机连接中断，稍后自动继续" xml:space="preserve"><value>Save host connection was interrupted; retrying automatically</value></data>
+  <data name="收起" xml:space="preserve"><value>Collapse</value></data>
+  <data name="展开" xml:space="preserve"><value>Expand</value></data>
+  <data name="移除" xml:space="preserve"><value>Remove</value></data>
+  <data name="移除设备" xml:space="preserve"><value>Remove device</value></data>
+  <data name="解绑" xml:space="preserve"><value>Unpair</value></data>
+  <data name="解绑从机" xml:space="preserve"><value>Unpair client</value></data>
+  <data name="无法解绑从机" xml:space="preserve"><value>Cannot unpair client</value></data>
+  <data name="设备不存在或已经解绑" xml:space="preserve"><value>The device does not exist or is already unpaired</value></data>
+  <data name="只会移除设备登记和昵称，不会删除录像文件。确定移除“{0}”吗？" xml:space="preserve"><value>This unpairs the client and revokes upload access. Historical recordings and tags will be kept. Unpair “{0}”?</value></data>
+  <data name="设备移除失败，请稍后重试" xml:space="preserve"><value>Failed to remove the device. Try again later.</value></data>
+  <data name="保存主机已解除本机配对，请重新连接" xml:space="preserve"><value>The save host unpaired this workstation. Reconnect to continue.</value></data>
+  <data name="等待主机允许连接" xml:space="preserve"><value>Waiting for the host to allow this client</value></data>
+  <data name="等待授权" xml:space="preserve"><value>Waiting for approval</value></data>
+  <data name="等待主机允许连接，录像仍保存在本机" xml:space="preserve"><value>Waiting for the host to allow this client. Recordings remain on this computer.</value></data>
+  <data name="暂停上传" xml:space="preserve"><value>Pause uploads</value></data>
+  <data name="继续上传" xml:space="preserve"><value>Resume uploads</value></data>
+  <data name="上传已暂停" xml:space="preserve"><value>Uploads paused</value></data>
+  <data name="已暂停" xml:space="preserve"><value>Paused</value></data>
+  <data name="已暂停上传，{0} 个录像保存在本机" xml:space="preserve"><value>Uploads paused; {0} recordings kept on this computer</value></data>
+  <data name="上传已暂停，暂无待上传录像" xml:space="preserve"><value>Uploads are paused; no pending recordings</value></data>
+  <data name="保存上传状态失败：{0}" xml:space="preserve"><value>Could not save upload state: {0}</value></data>
+  <data name="保存主机拒绝了本机连接申请，可重新申请或更换保存主机" xml:space="preserve"><value>The storage host denied this connection request. Retry or choose another host.</value></data>
+  <data name="保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”" xml:space="preserve"><value>The storage host did not allow this connection. Retry and choose Allow on the storage host.</value></data>
+  <data name="等待保存主机允许连接超时，请确认保存主机界面已打开后重新申请" xml:space="preserve"><value>Timed out waiting for the storage host to allow this connection. Open the storage host window and retry.</value></data>
+  <data name="保存主机暂时无法显示连接确认窗口，请打开保存主机界面后重试" xml:space="preserve"><value>The storage host cannot show the connection confirmation window right now. Open the storage host window and retry.</value></data>
+  <data name="保存主机正在确认其他设备，请稍后重新申请" xml:space="preserve"><value>The storage host is confirming another device. Retry later.</value></data>
+  <data name="无法连接保存主机，请检查网络后重试" xml:space="preserve"><value>Unable to connect to the storage host. Check the network and retry.</value></data>
+  <data name="保存主机版本不兼容，请更新后重新连接" xml:space="preserve"><value>The storage host version is not compatible. Update it and reconnect.</value></data>
+  <data name="保存主机返回的连接信息无效，请更新保存主机后重试" xml:space="preserve"><value>The storage host returned invalid connection information. Update it and retry.</value></data>
+  <data name="保存主机暂时无法处理连接申请，请稍后重试" xml:space="preserve"><value>The storage host cannot process the connection request right now. Retry later.</value></data>
+  <data name="需要重新连接保存主机" xml:space="preserve"><value>Reconnect to the storage host</value></data>
+  <data name="需要重新连接保存主机：{0}" xml:space="preserve"><value>Reconnect to the storage host: {0}</value></data>
+  <data name="需要重新连接" xml:space="preserve"><value>Reconnect</value></data>
+  <data name="正在重新连接" xml:space="preserve"><value>Reconnecting</value></data>
+  <data name="无法保存主机连接状态" xml:space="preserve"><value>Could not save the host connection state</value></data>
 </root>

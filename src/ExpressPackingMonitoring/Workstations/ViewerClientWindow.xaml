@@ -17,13 +17,53 @@
             <Setter Property="Height" Value="38"/>
             <Setter Property="Padding" Value="12,0"/>
         </Style>
+        <Style x:Key="HostListItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource ControlBackgroundHover}"/>
+                                <Setter TargetName="ItemBorder"
+                                        Property="BorderBrush"
+                                        Value="{DynamicResource BorderStrong}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder"
+                                        Property="Background"
+                                        Value="{DynamicResource BadgePackBg}"/>
+                                <Setter TargetName="ItemBorder"
+                                        Property="BorderBrush"
+                                        Value="{DynamicResource AccentBlue}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <DataTemplate x:Key="HostItemTemplate">
-            <Border Margin="2,4"
-                    Padding="12"
+            <Border Padding="12"
                     CornerRadius="8"
-                    Background="{DynamicResource ControlBackground}"
-                    BorderBrush="{DynamicResource BorderDefault}"
-                    BorderThickness="1">
+                    Background="{StaticResource TransparentBrush}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="36"/>
@@ -399,14 +439,47 @@
                     <ListBox x:Name="HostsList"
                              MaxHeight="244"
                              Margin="0,16,0,0"
+                             Padding="0"
+                             Background="{StaticResource TransparentBrush}"
+                             BorderThickness="0"
+                             FocusVisualStyle="{x:Null}"
                              HorizontalContentAlignment="Stretch"
+                             ItemContainerStyle="{StaticResource HostListItemStyle}"
                              ItemTemplate="{StaticResource HostItemTemplate}"
                              AutomationProperties.Name="可连接的主机"
                              SelectionChanged="HostsList_SelectionChanged"
                              MouseDoubleClick="HostsList_MouseDoubleClick">
+                        <ListBox.Resources>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"
+                                             Color="{StaticResource TransparentColor}"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
+                                             Color="{DynamicResource TextPrimary}"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
+                                             Color="{StaticResource TransparentColor}"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
+                                             Color="{DynamicResource TextPrimary}"/>
+                        </ListBox.Resources>
                         <ListBox.Style>
                             <Style TargetType="ListBox">
                                 <Setter Property="Visibility" Value="Visible"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource TransparentBrush}"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBox">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}">
+                                                <ScrollViewer Padding="{TemplateBinding Padding}"
+                                                              Focusable="False"
+                                                              CanContentScroll="True"
+                                                              HorizontalScrollBarVisibility="Disabled"
+                                                              VerticalScrollBarVisibility="Auto">
+                                                    <ItemsPresenter/>
+                                                </ScrollViewer>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
                                 <Style.Triggers>
                                     <Trigger Property="HasItems" Value="False">
                                         <Setter Property="Visibility" Value="Collapsed"/>

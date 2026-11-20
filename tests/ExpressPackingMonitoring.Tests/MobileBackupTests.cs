@@ -61,6 +61,26 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
+    public void ForgetDeviceRevokesPersistedUploadCredential()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            var service = new BackupPairingTokenService(directory, AccessKey);
+            service.Enroll("pc-node-1", "pc");
+
+            Assert.True(service.ForgetDevice("pc-node-1"));
+            Assert.False(service.TryGetDeviceCredential("pc-node-1", out _));
+            Assert.False(new BackupPairingTokenService(directory, AccessKey)
+                .TryGetDeviceCredential("pc-node-1", out _));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void DeviceCredentialEncryptionRootDoesNotDependOnWebAccessKey()
     {
         string directory = CreateTempDirectory();
@@ -507,6 +527,62 @@ public sealed class MobileBackupTests
         finally
         {
             releaseApproval.Set();
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task SuccessfulReenrollmentClearsPersistentDeviceRemoval()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        try
+        {
+            string stateDirectory = Path.Combine(directory, "state");
+            var removals = new BackupDeviceRemovalStore(
+                Path.Combine(
+                    stateDirectory,
+                    "backup-device-removals.json"));
+            Assert.True(removals.MarkRemoved("returning-phone"));
+
+            using var database = new VideoDatabase(
+                Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: stateDirectory,
+                mobileBackupRecordingRootResolver: () =>
+                    Path.Combine(directory, "recordings"),
+                deploymentPreset: DeploymentPresets.RecordingHost,
+                backupDeviceEnrollmentApprover: _ =>
+                    BackupDeviceEnrollmentApprovalDecision.Approved);
+            server.Start();
+
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri($"http://127.0.0.1:{port}")
+            };
+            using HttpResponseMessage response =
+                await client.PostAsJsonAsync(
+                    "/api/mobile-backup/enroll",
+                    CreateCompatibleEnrollment(
+                        "returning-phone",
+                        "重新配对手机"),
+                    TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.DoesNotContain(
+                "returning-phone",
+                new BackupDeviceRemovalStore(
+                    Path.Combine(
+                        stateDirectory,
+                        "backup-device-removals.json"))
+                    .GetRemovedDeviceIds());
+        }
+        finally
+        {
             DeleteTempDirectory(directory);
         }
     }
@@ -1856,6 +1932,11 @@ public sealed class MobileBackupTests
 
             var restarted = new MobileBackupService(database, stateDirectory, () => storageRoot);
             Assert.Equal(8, restarted.CreateOrResume(CreateRequest(sha, file.Length)).Offset);
+            Assert.True(File.Exists(Path.Combine(
+                storageRoot,
+                MobileBackupService.StagingDirectoryName,
+                $"{sha}.part")));
+            Assert.False(File.Exists(Path.Combine(stateDirectory, $"{sha}.part")));
             byte[] remaining = file[8..];
             Assert.Equal(
                 file.Length,

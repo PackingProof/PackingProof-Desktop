@@ -194,6 +194,22 @@ public sealed class WindowConstructionTests
     }
 
     [Fact]
+    public void SmoothProgressBar_ShowsInitialTargetBeforeWindowLoads()
+    {
+        RunOnStaThread(() =>
+        {
+            var progress = new SmoothProgressBar
+            {
+                Minimum = 0,
+                Maximum = 100,
+                TargetValue = 63
+            };
+
+            Assert.Equal(63, progress.Value);
+        });
+    }
+
+    [Fact]
     public void WorkstationSelectionFooterStaysOutsideScrollViewer()
     {
         RunOnStaThread(() =>
@@ -308,6 +324,16 @@ public sealed class WindowConstructionTests
         yield return (
             "ExpressPackingMonitoring.UI.TrayKeyboardListeningDialog",
             () => new TrayKeyboardListeningDialog());
+        yield return (
+            "ExpressPackingMonitoring.UI.TransferManagementWindow",
+            () => new TransferManagementWindow(
+                new TransferManagementSnapshotService(
+                    TransferManagementMode.HostDevices,
+                    new AppConfig(),
+                    new VideoDatabase(":memory:"),
+                    webServer: null,
+                    queueStore: null,
+                    transferService: null)));
         yield return (
             "ExpressPackingMonitoring.UI.UpdateAvailableDialog",
             () => new UpdateAvailableDialog(new UpdateCheckResult

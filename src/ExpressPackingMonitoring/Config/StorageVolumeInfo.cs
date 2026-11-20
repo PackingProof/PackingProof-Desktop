@@ -16,7 +16,8 @@ namespace ExpressPackingMonitoring.Config
         string RootPath,
         long TotalSize,
         long AvailableFreeSpace,
-        string VolumeId)
+        string VolumeId,
+        string PhysicalDiskId = "")
     {
         /// <summary>
         /// 存储位置类型：明确物理本地 / 明确网络（UNC 或映射盘） / 网盘挂载成的虚拟磁盘 /
@@ -30,7 +31,13 @@ namespace ExpressPackingMonitoring.Config
             Unknown
         }
 
-        public static bool TryGet(string path, out StorageVolumeInfo volume)
+        public static bool TryGet(string path, out StorageVolumeInfo volume) =>
+            TryGet(path, ResolveFinalPathOfNearestExistingAncestor, out volume);
+
+        internal static bool TryGet(
+            string path,
+            Func<string, string?> resolvedPathProvider,
+            out StorageVolumeInfo volume)
         {
             volume = default;
             if (string.IsNullOrWhiteSpace(path)) return false;
@@ -40,7 +47,11 @@ namespace ExpressPackingMonitoring.Config
             try
             {
                 string fullPath = Path.GetFullPath(path);
-                string? root = Path.GetPathRoot(fullPath);
+                string? resolvedPath = resolvedPathProvider(fullPath);
+                if (string.IsNullOrWhiteSpace(resolvedPath))
+                    return false;
+                string normalizedPath = NormalizeExtendedFinalPath(resolvedPath);
+                string? root = Path.GetPathRoot(normalizedPath);
                 if (string.IsNullOrWhiteSpace(root)) return false;
 
                 string queryPath = Path.EndsInDirectorySeparator(root)
@@ -58,11 +69,15 @@ namespace ExpressPackingMonitoring.Config
                 string normalizedRoot = root.TrimEnd(
                     Path.DirectorySeparatorChar,
                     Path.AltDirectorySeparatorChar);
+                string physicalDiskId = GetPhysicalDiskIdForRoot(queryPath);
                 volume = new StorageVolumeInfo(
                     normalizedRoot,
                     ClampToInt64(totalBytes),
                     ClampToInt64(availableBytes),
-                    GetVolumeIdForRoot(queryPath));
+                    GetVolumeIdForRoot(queryPath),
+                    string.IsNullOrWhiteSpace(physicalDiskId)
+                        ? "physical-disk:unknown"
+                        : physicalDiskId);
                 return true;
             }
             catch
@@ -95,7 +110,8 @@ namespace ExpressPackingMonitoring.Config
                     root,
                     totalBytes,
                     Math.Max(0, drive.AvailableFreeSpace),
-                    GetVolumeIdForRoot(root));
+                    GetVolumeIdForRoot(root),
+                    "mount:" + root);
                 return true;
             }
             catch
@@ -423,6 +439,13 @@ namespace ExpressPackingMonitoring.Config
         public static string GetVolumeIdForRoot(string rootPath)
         {
             if (string.IsNullOrWhiteSpace(rootPath)) return "";
+            if (!OperatingSystem.IsWindows()) return "";
+            if (rootPath.StartsWith(@"\\?\Volume{", StringComparison.OrdinalIgnoreCase))
+            {
+                return rootPath.TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+            }
             if (rootPath.StartsWith(@"\\", StringComparison.Ordinal)) return "";
 
             try
@@ -439,6 +462,116 @@ namespace ExpressPackingMonitoring.Config
             {
                 return "";
             }
+        }
+
+        /// <summary>
+        /// Stable grouping key for write scheduling. Multiple drive letters backed by
+        /// the same physical disk share one throughput budget. Unix falls back to the
+        /// volume identity because Windows physical-disk extents are not available.
+        /// </summary>
+        public string PhysicalDiskKey =>
+            !string.IsNullOrWhiteSpace(PhysicalDiskId)
+                ? PhysicalDiskId
+                : !string.IsNullOrWhiteSpace(VolumeId)
+                    ? VolumeId
+                    : RootPath;
+
+        private static string GetPhysicalDiskIdForRoot(string rootPath)
+        {
+            if (!OperatingSystem.IsWindows()
+                || string.IsNullOrWhiteSpace(rootPath))
+            {
+                return "";
+            }
+
+            try
+            {
+                string volumeDevice;
+                if (rootPath.StartsWith(@"\\?\Volume{", StringComparison.OrdinalIgnoreCase))
+                {
+                    volumeDevice = rootPath.TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar);
+                }
+                else
+                {
+                    string normalizedRoot = Path.GetFullPath(rootPath);
+                    string? pathRoot = Path.GetPathRoot(normalizedRoot);
+                    if (string.IsNullOrWhiteSpace(pathRoot)
+                        || pathRoot.Length < 2
+                        || pathRoot[1] != ':')
+                    {
+                        return "";
+                    }
+                    volumeDevice = $@"\\.\{char.ToUpperInvariant(pathRoot[0])}:";
+                }
+                using SafeFileHandle handle = CreateFile(
+                    volumeDevice,
+                    0,
+                    ShareReadWriteDelete,
+                    IntPtr.Zero,
+                    OpenExisting,
+                    FlagBackupSemantics,
+                    IntPtr.Zero);
+                if (handle.IsInvalid)
+                    return "";
+
+                byte[] buffer = new byte[256];
+                if (!DeviceIoControl(
+                        handle,
+                        IoctlVolumeGetVolumeDiskExtents,
+                        IntPtr.Zero,
+                        0,
+                        buffer,
+                        (uint)buffer.Length,
+                        out int bytesReturned,
+                        IntPtr.Zero)
+                    || bytesReturned < 8)
+                {
+                    return "";
+                }
+
+                return ParsePhysicalDiskId(buffer, bytesReturned);
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        internal static string ParsePhysicalDiskId(
+            byte[] buffer,
+            int bytesReturned)
+        {
+            if (buffer.Length < 8 || bytesReturned < 8)
+                return "";
+            uint extentCount = BitConverter.ToUInt32(buffer, 0);
+            if (extentCount == 0
+                || extentCount > 32
+                || 8L + extentCount * 24L > bytesReturned)
+            {
+                return "";
+            }
+
+            var diskNumbers = new SortedSet<uint>();
+            for (int index = 0; index < extentCount; index++)
+            {
+                int offset = 8 + index * 24;
+                diskNumbers.Add(BitConverter.ToUInt32(buffer, offset));
+            }
+            return "physical-disk:" + string.Join(",", diskNumbers);
+        }
+
+        internal static string NormalizeExtendedFinalPath(string path)
+        {
+            string normalized = path.Trim();
+            if (normalized.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
+                return @"\\" + normalized[8..];
+            if (normalized.StartsWith(@"\\?\Volume{", StringComparison.OrdinalIgnoreCase))
+                return normalized;
+            if (normalized.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase))
+                return normalized[4..];
+            return normalized;
         }
 
         /// <summary>
@@ -658,6 +791,7 @@ namespace ExpressPackingMonitoring.Config
         private const uint OpenExisting = 3;
         private const uint FlagBackupSemantics = 0x02000000;
         private const uint FlagOpenReparsePoint = 0x00200000;
+        private const uint IoctlVolumeGetVolumeDiskExtents = 0x00560000;
 
         /// <summary>解析路径的真实最终路径（穿透目录挂载点/连接点），失败返回 null。</summary>
         private static string? ResolveFinalPath(string path)
@@ -796,6 +930,18 @@ namespace ExpressPackingMonitoring.Config
             uint dwCreationDisposition,
             uint dwFlagsAndAttributes,
             IntPtr hTemplateFile);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool DeviceIoControl(
+            SafeFileHandle device,
+            uint ioControlCode,
+            IntPtr inputBuffer,
+            uint inputBufferSize,
+            byte[] outputBuffer,
+            uint outputBufferSize,
+            out int bytesReturned,
+            IntPtr overlapped);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern uint GetFinalPathNameByHandle(

@@ -1461,7 +1461,13 @@
                                                  CardTitle="手机/电脑备份"
                                                  ShortStatusText="{Binding WorkstationPrintStatusText, Mode=OneWay}"
                                                  ShortStatusToolTip="{Binding WorkstationStatusToolTip, Mode=OneWay}"
-                                                 DeviceItemsSource="{Binding MobileBackupDeviceStatuses, Mode=OneWay}">
+                                                 DeviceItemsSource="{Binding MobileBackupDeviceStatuses, Mode=OneWay}"
+                                                 Cursor="Hand"
+                                                 Focusable="True"
+                                                 ToolTip="{loc:Localized 打开设备与传输管理}"
+                                                 AutomationProperties.Name="{loc:Localized 打开设备与传输管理}"
+                                                 PreviewMouseLeftButtonUp="TransferManagementCard_PreviewMouseLeftButtonUp"
+                                                 PreviewKeyDown="TransferManagementCard_PreviewKeyDown">
                                 <controls:StatusCard.Style>
                                     <Style TargetType="controls:StatusCard">
                                         <Setter Property="Visibility" Value="Visible"/>
@@ -1497,17 +1503,30 @@
                                     </Style>
                                 </StackPanel.Style>
                                 <controls:StatusCard x:Name="RecordingWorkstationHostCard"
+                                                     Margin="0,0,0,6"
                                                      CardIcon="{StaticResource FluentDatabaseIcon}"
                                                      CardTitle="保存主机"
                                                      ShortStatusText="{Binding BoundHostOnlineStatusText, Mode=OneWay}"
-                                                     DetailText="{Binding BoundHostNameDisplay, Mode=OneWay}"/>
-
+                                                     ShortStatusToolTip="{Binding LastRecordingTransferError, Mode=OneWay}"
+                                                     DetailText="{Binding BoundHostNameDisplay, Mode=OneWay}"
+                                                     Cursor="Hand"
+                                                     Focusable="True"
+                                                     ToolTip="{Binding MainConnectionButtonToolTip, Mode=OneWay}"
+                                                     AutomationProperties.Name="管理保存主机"
+                                                     PreviewMouseLeftButtonUp="BtnMobileConnection_PreviewMouseLeftButtonUp"
+                                                     PreviewKeyDown="BoundHostCard_PreviewKeyDown"/>
                                 <controls:StatusCard x:Name="RecordingWorkstationUploadCard"
                                                      CardIcon="{StaticResource FluentDataIcon}"
                                                      CardTitle="录像上传"
                                                      ShortStatusText="{Binding RecordingTransferShortStatusText, Mode=OneWay}"
                                                      ShortStatusToolTip="{Binding LastRecordingTransferError, Mode=OneWay}"
-                                                     DetailText="{Binding RecordingTransferStatusText, Mode=OneWay}"/>
+                                                     DetailText="{Binding RecordingTransferStatusText, Mode=OneWay}"
+                                                     Cursor="Hand"
+                                                     Focusable="True"
+                                                     ToolTip="{loc:Localized 打开上传任务管理}"
+                                                     AutomationProperties.Name="{loc:Localized 打开上传任务管理}"
+                                                     PreviewMouseLeftButtonUp="TransferManagementCard_PreviewMouseLeftButtonUp"
+                                                     PreviewKeyDown="TransferManagementCard_PreviewKeyDown"/>
                             </StackPanel>
 
                             <controls:StatusCard x:Name="ReceivedOrdersCard"

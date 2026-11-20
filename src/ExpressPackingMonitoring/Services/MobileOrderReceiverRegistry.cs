@@ -80,7 +80,8 @@ internal sealed class MobileOrderReceiverRegistry
         string? platform = null,
         bool customized = false,
         bool trustProvidedName = false,
-        bool hasRecordings = false)
+        bool hasRecordings = false,
+        bool restoreRemoved = false)
     {
         string? address = NormalizePrivateIpv4(remoteAddress);
         if (address == null) return null;
@@ -102,7 +103,10 @@ internal sealed class MobileOrderReceiverRegistry
                 // 用户改过名、或者在这台主机上留下过录像的设备都不按活跃时间清理：
                 // 昵称映射是录像显示名的唯一来源，设备一旦被清掉，它的老录像就只能退回
                 // 记录里的历史快照（同一台设备又会变成两个名字）。
-                || (!item.Customized && !item.HasRecordings && now - item.LastSeenUtc > Retention));
+                || (item.RemovedAtUtc == default
+                    && !item.Customized
+                    && !item.HasRecordings
+                    && now - item.LastSeenUtc > Retention));
             // 这一轮除了"把自己那条换掉"之外还清掉了别的设备：那是必须立刻落盘的实质变化。
             bool removedStaleEntries =
                 entryCountBeforeCleanup - _entries.Count - (existing != null ? 1 : 0) > 0;
@@ -128,9 +132,19 @@ internal sealed class MobileOrderReceiverRegistry
             // 用户手动改过的昵称不许被自动命名覆盖。手机每 15 秒心跳都会把本地缓存的
             // 旧自动名报回来，没有这一位的话改好的名字下一次心跳就被改回去了；
             // 只有显式改名（customized=true）才能改动它。
+            bool restoringRemoved =
+                restoreRemoved && existing?.RemovedAtUtc != default;
             bool existingCustomized = existing?.Customized == true && !customized;
+            bool restoredNameConflict = restoringRemoved
+                && IsNameTakenByAnotherDevice(existing?.NodeName ?? "", normalizedNodeId);
+            if (restoredNameConflict)
+                existingCustomized = false;
             string namePrefix = ResolveNamePrefix(normalizedDeviceKind, normalizedPlatform, existing);
-            if (existingCustomized)
+            if (restoredNameConflict)
+            {
+                normalizedNodeName = CreateNextMobileName(null, namePrefix);
+            }
+            else if (existingCustomized)
             {
                 normalizedNodeName = existing!.NodeName;
             }
@@ -174,9 +188,15 @@ internal sealed class MobileOrderReceiverRegistry
                 Port = normalizedPort,
                 Capabilities = normalizedCapabilities,
                 // 显式改名或此前已改名：保持"用户自定义"，自动命名不再覆盖。
-                Customized = customized || existing?.Customized == true,
+                Customized = customized
+                    || (existing?.Customized == true && !restoredNameConflict),
                 // 有录像的设备不清：这台主机还要靠它显示老录像的来源名。
-                HasRecordings = hasRecordings || existing?.HasRecordings == true
+                HasRecordings = hasRecordings || existing?.HasRecordings == true,
+                // 普通心跳/上传不会把用户移除的设备重新放回列表；
+                // 只有重新扫码配对会显式清除移除状态。
+                RemovedAtUtc = restoreRemoved
+                    ? default
+                    : existing?.RemovedAtUtc ?? default
             };
             _entries.Insert(0, entry);
             // 每次注册都顺手修一次重名：老版本曾经给多台设备发过同一个名字，
@@ -213,7 +233,8 @@ internal sealed class MobileOrderReceiverRegistry
         {
             DateTime now = _utcNow();
             return _entries
-                .Where(item => now - item.LastSeenUtc <= Retention)
+                .Where(item => item.RemovedAtUtc == default
+                    && now - item.LastSeenUtc <= Retention)
                 .OrderByDescending(item => item.LastSeenUtc)
                 .Select(item => $"{item.Address}:{NormalizePort(item.Port)}")
                 .ToArray();
@@ -229,14 +250,16 @@ internal sealed class MobileOrderReceiverRegistry
         {
             DateTime now = _utcNow();
             return _entries
-                .Where(item => now - item.LastSeenUtc <= ActiveRetention)
+                .Where(item => item.RemovedAtUtc == default
+                    && now - item.LastSeenUtc <= ActiveRetention)
                 .OrderByDescending(item => item.LastSeenUtc)
                 .Select(item => ToInfo(item, online: true))
                 .ToArray();
         }
     }
 
-    internal IReadOnlyList<MobileOrderReceiverInfo> GetKnownRecordingDevices()
+    internal IReadOnlyList<MobileOrderReceiverInfo> GetKnownRecordingDevices(
+        bool includeRemoved = false)
     {
         lock (_sync)
         {
@@ -244,10 +267,26 @@ internal sealed class MobileOrderReceiverRegistry
             return _entries
                 // 用户改过名、或者有录像的设备即使长期不在线也要留在列表里：
                 // 昵称不能因为设备离线超过保留期就退回记录里的老快照名。
-                .Where(item => item.Customized || item.HasRecordings || now - item.LastSeenUtc <= Retention)
+                .Where(item => includeRemoved || item.RemovedAtUtc == default)
+                .Where(item => item.RemovedAtUtc != default
+                    || item.Customized
+                    || item.HasRecordings
+                    || now - item.LastSeenUtc <= Retention)
                 .OrderByDescending(item => item.LastSeenUtc)
                 .Select(item => ToInfo(item, now - item.LastSeenUtc <= ActiveRetention))
                 .ToArray();
+        }
+    }
+
+    internal IReadOnlySet<string> GetRemovedDeviceIds()
+    {
+        lock (_sync)
+        {
+            return _entries
+                .Where(item => item.RemovedAtUtc != default
+                    && !string.IsNullOrWhiteSpace(item.NodeId))
+                .Select(item => item.NodeId)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
     }
 
@@ -299,6 +338,30 @@ internal sealed class MobileOrderReceiverRegistry
     }
 
     /// <summary>
+    /// 解除一台从机的绑定。昵称和设备号作为历史墓碑保留，供老录像继续显示和搜索；
+    /// 当前设备列表、筛选与上传目标会排除它，普通心跳也不会恢复，只有重新配对才会清除墓碑状态。
+    /// </summary>
+    internal bool TryForgetDevice(string? nodeId)
+    {
+        string normalizedNodeId = nodeId?.Trim() ?? "";
+        if (normalizedNodeId.Length == 0)
+            return false;
+
+        lock (_sync)
+        {
+            Entry? entry = _entries.FirstOrDefault(item =>
+                string.Equals(item.NodeId, normalizedNodeId, StringComparison.OrdinalIgnoreCase));
+            if (entry == null)
+                return false;
+
+            entry.RemovedAtUtc = _utcNow();
+            RefreshNicknameSnapshot();
+            SaveOrWarn("移除设备");
+            return true;
+        }
+    }
+
+    /// <summary>
     /// 用库里已有的录像来源补齐"设备号 -> 昵称"映射。
     ///
     /// 昵称只存在这张表里（记录不再逐条写昵称），升级前的昵称只存在于记录快照中，
@@ -315,7 +378,10 @@ internal sealed class MobileOrderReceiverRegistry
         lock (_sync)
         {
             var usedNames = new HashSet<string>(
-                _entries.Select(item => item.NodeName?.Trim() ?? "").Where(name => name.Length > 0),
+                _entries
+                    .Where(item => item.RemovedAtUtc == default)
+                    .Select(item => item.NodeName?.Trim() ?? "")
+                    .Where(name => name.Length > 0),
                 StringComparer.OrdinalIgnoreCase);
             bool changed = false;
             foreach (VideoSourceInfo source in sources
@@ -361,6 +427,47 @@ internal sealed class MobileOrderReceiverRegistry
             TrimOverflow();
             RefreshNicknameSnapshot();
             SaveOrWarn("更新设备");
+        }
+    }
+
+    /// <summary>
+    /// 后台对账设备登记与数据库中的未删除录像。数据库里已经没有任何录像的设备
+    /// 不再继续占用“有录像”保护位；其中非用户改名、且超过保留期未出现的设备会被清理。
+    /// 只改登记表，不动录像记录、归档和文件。
+    /// </summary>
+    internal int ReconcileActiveDevices(IEnumerable<string>? activeDeviceIds)
+    {
+        var activeIds = new HashSet<string>(
+            (activeDeviceIds ?? [])
+                .Where(item => !string.IsNullOrWhiteSpace(item))
+                .Select(item => item.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+
+        lock (_sync)
+        {
+            DateTime now = _utcNow();
+            bool changed = false;
+            foreach (Entry entry in _entries)
+            {
+                bool hasActiveRecordings = activeIds.Contains(entry.NodeId);
+                if (entry.HasRecordings == hasActiveRecordings)
+                    continue;
+                entry.HasRecordings = hasActiveRecordings;
+                changed = true;
+            }
+
+            int removed = _entries.RemoveAll(item =>
+                item.RemovedAtUtc == default
+                && !item.Customized
+                && !item.HasRecordings
+                && now - item.LastSeenUtc > Retention);
+            changed |= removed > 0;
+            if (!changed)
+                return 0;
+
+            RefreshNicknameSnapshot();
+            SaveOrWarn("后台整理历史设备");
+            return removed;
         }
     }
 
@@ -487,6 +594,7 @@ internal sealed class MobileOrderReceiverRegistry
             || existing.Port != current.Port
             || existing.Customized != current.Customized
             || existing.HasRecordings != current.HasRecordings
+            || existing.RemovedAtUtc != current.RemovedAtUtc
             || !(existing.Capabilities ?? []).SequenceEqual(
                 current.Capabilities ?? [],
                 StringComparer.OrdinalIgnoreCase);
@@ -500,6 +608,8 @@ internal sealed class MobileOrderReceiverRegistry
             return false;
 
         if (_entries.Any(item =>
+            item.RemovedAtUtc == default
+            &&
             !string.Equals(item.NodeId, nodeId, StringComparison.OrdinalIgnoreCase)
             && string.Equals(item.NodeName?.Trim(), value, StringComparison.OrdinalIgnoreCase)))
         {
@@ -543,6 +653,8 @@ internal sealed class MobileOrderReceiverRegistry
         var snapshot = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (Entry entry in _entries)
         {
+            if (entry.RemovedAtUtc != default)
+                continue;
             string entryNodeId = entry.NodeId?.Trim() ?? "";
             if (entryNodeId.Length > 0)
                 snapshot[entryNodeId] = entry.NodeName?.Trim() ?? "";
@@ -569,6 +681,7 @@ internal sealed class MobileOrderReceiverRegistry
     private string CreateNextMobileName(string? reservedName, string prefix)
     {
         IEnumerable<string> names = _entries
+            .Where(item => item.RemovedAtUtc == default)
             .Select(item => item.NodeName?.Trim() ?? "")
             .Append(reservedName?.Trim() ?? "")
             .Where(name => name.StartsWith(prefix, StringComparison.Ordinal));
@@ -598,6 +711,7 @@ internal sealed class MobileOrderReceiverRegistry
         bool changed = false;
         var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (Entry entry in _entries
+            .Where(item => item.RemovedAtUtc == default)
             .OrderByDescending(item => item.Customized)
             .ThenByDescending(item => item.LastSeenUtc)
             .ToArray())
@@ -688,7 +802,9 @@ internal sealed class MobileOrderReceiverRegistry
             : [PackingProofCapabilities.Recording, PackingProofCapabilities.OrderReceiver],
         Online: online,
         Customized: item.Customized,
-        LastSeenUtc: item.LastSeenUtc);
+        LastSeenUtc: item.LastSeenUtc,
+        DeviceKind: item.DeviceKind,
+        Removed: item.RemovedAtUtc != default);
 
     private static int NormalizePort(int port) =>
         port is > 0 and <= 65535 ? port : OrderReceiverPort;
@@ -859,6 +975,9 @@ internal sealed class MobileOrderReceiverRegistry
         /// 昵称映射是录像显示名的唯一来源，清掉它老录像就只剩设备号了。
         /// </summary>
         public bool HasRecordings { get; set; }
+
+        /// <summary>用户解除绑定后保留昵称墓碑；普通心跳不能清除，重新配对才恢复。</summary>
+        public DateTime RemovedAtUtc { get; set; }
     }
 }
 
@@ -870,4 +989,6 @@ internal sealed record MobileOrderReceiverInfo(
     IReadOnlyList<string> Capabilities,
     bool Online,
     bool Customized = false,
-    DateTime LastSeenUtc = default);
+    DateTime LastSeenUtc = default,
+    string DeviceKind = "",
+    bool Removed = false);

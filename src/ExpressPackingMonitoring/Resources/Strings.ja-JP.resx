@@ -229,7 +229,7 @@
   <data name="开始检测" xml:space="preserve"><value>測定を開始</value></data>
   <data name="正在检测，请稍候" xml:space="preserve"><value>測定中です。しばらくお待ちください</value></data>
   <data name="录像编码异常时，用它重新检测电脑能力" xml:space="preserve"><value>録画のエンコードがおかしいときに、パソコンの性能を再測定します</value></data>
-  <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>空き不足時は次のディスクへ保存します。各ディスクには安全領域を確保するため、他ソフトの使用で空きが減る場合があります。調整は右クリックから行います</value></data>
+  <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>本機録画は一覧順に保存します。保存ホストはアップロードを物理ディスクの負荷と空き容量で自動配分し、同じ物理ディスク上の複数ドライブは書き込み能力を共有します。各ディスクには安全領域を確保します</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>録画ページのアクセスキー</value></data>
   <data name="放大取景框内的画面，停留一会儿后恢复全景" xml:space="preserve"><value>拡大枠の中を拡大し、しばらくしてから全体表示に戻します</value></data>
   <data name="智能跟随面单" xml:space="preserve"><value>認識した送り状を追従</value></data>
@@ -384,7 +384,6 @@
   <data name="更新内容：" xml:space="preserve"><value>更新内容: </value></data>
   <data name="回放" xml:space="preserve"><value>再生</value></data>
   <data name="件" xml:space="preserve"><value>件</value></data>
-  <data name="今日" xml:space="preserve"><value>今日</value></data>
   <data name="今日:" xml:space="preserve"><value>今日: </value></data>
   <data name="本机今日:" xml:space="preserve"><value>本機の今日: </value></data>
   <data name="局域网查看视频" xml:space="preserve"><value>LAN で録画を閲覧</value></data>
@@ -1070,7 +1069,6 @@
   <data name="撤销" xml:space="preserve"><value>取り消し</value></data>
   <data name="订单联动设备" xml:space="preserve"><value>注文連携デバイス</value></data>
   <data name="显示可接收联动数据的录像设备；绿点表示当前在线" xml:space="preserve"><value>連携データを受信できる録画デバイスを表示します。緑の点はオンラインを示します</value></data>
-  <data name="设备" xml:space="preserve"><value>デバイス</value></data>
   <data name="最近活动" xml:space="preserve"><value>最近のアクティビティ</value></data>
   <data name="已导入脚本（" xml:space="preserve"><value>インポート済みスクリプト（</value></data>
   <data name="已导入脚本" xml:space="preserve"><value>インポート済みスクリプト</value></data>
@@ -1534,7 +1532,6 @@
   <data name="正在下载扩展包" xml:space="preserve"><value>拡張パッケージをダウンロード中</value></data>
   <data name="正在修复…" xml:space="preserve"><value>修復中…</value></data>
   <data name="正在修复局域网，Windows 可能会请求管理员授权" xml:space="preserve"><value>LAN アクセスを修復中です。Windows が管理者の承認を求める場合があります</value></data>
-  <data name="正在重新连接" xml:space="preserve"><value>再接続中</value></data>
   <data name="正在准备给其他电脑浏览器使用的网址。两台电脑需要在同一局域网内" xml:space="preserve"><value>他のパソコンのブラウザーで使う URL を準備しています。2 台のパソコンが同じ LAN にある必要があります</value></data>
   <data name="至少需要保留一个存储路径" xml:space="preserve"><value>保存先を少なくとも 1 つ保持してください</value></data>
   <data name="至少需要一个本地保存位置，请先添加本地磁盘" xml:space="preserve"><value>ローカルの保存先が少なくとも 1 つ必要です。先にローカル ディスクを追加してください</value></data>
@@ -1871,4 +1868,80 @@
   <data name="截图已保存：{0}" xml:space="preserve"><value>スクリーンショットを保存しました: {0}</value></data>
   <data name="未能保存当前画面" xml:space="preserve"><value>現在の画面を保存できませんでした</value></data>
   <data name="截图失败：{0}" xml:space="preserve"><value>スクリーンショットを保存できませんでした: {0}</value></data>
+  <data name="接收设备" xml:space="preserve"><value>受信デバイス</value></data>
+  <data name="上传任务" xml:space="preserve"><value>アップロード タスク</value></data>
+  <data name="今日" xml:space="preserve"><value>今日</value></data>
+  <data name="今日已上传" xml:space="preserve"><value>本日アップロード済み</value></data>
+  <data name="今日已接收" xml:space="preserve"><value>本日受信</value></data>
+  <data name="今日数量单位" xml:space="preserve"><value>件</value></data>
+  <data name="{0} 台需要处理" xml:space="preserve"><value>{0} 台異常</value></data>
+  <data name="{0} 个异常" xml:space="preserve"><value>{0} 件異常</value></data>
+  <data name="保存主机离线，恢复后自动继续" xml:space="preserve"><value>保存先ホストはオフラインです。復旧後に自動で再開します</value></data>
+  <data name="保存主机空间不足，上传已暂停" xml:space="preserve"><value>保存先ホストの空き容量が不足しています。アップロードを一時停止しました</value></data>
+  <data name="主机写入繁忙，稍后自动继续" xml:space="preserve"><value>ホストの書き込みが混み合っています。後で自動的に再開します</value></data>
+  <data name="正在检查保存主机" xml:space="preserve"><value>保存先ホストを確認中</value></data>
+  <data name="正在检查主机" xml:space="preserve"><value>ホストを確認中</value></data>
+  <data name="{0} 自动重试" xml:space="preserve"><value>{0} に自動再試行</value></data>
+  <data name="设备" xml:space="preserve"><value>デバイス</value></data>
+  <data name="已离线" xml:space="preserve"><value>オフライン</value></data>
+  <data name="空间不足" xml:space="preserve"><value>空き容量不足</value></data>
+  <data name="其余 {0} 台正常" xml:space="preserve"><value>残り {0} 台は正常です</value></data>
+  <data name="重试" xml:space="preserve"><value>再試行</value></data>
+  <data name="重试上传" xml:space="preserve"><value>アップロードを再試行</value></data>
+  <data name="全部重试" xml:space="preserve"><value>すべて再試行</value></data>
+  <data name="正在上传" xml:space="preserve"><value>アップロード中</value></data>
+  <data name="冷却中" xml:space="preserve"><value>冷却中</value></data>
+  <data name="即将上传" xml:space="preserve"><value>まもなくアップロード</value></data>
+  <data name="{0} 秒后上传" xml:space="preserve"><value>{0} 秒後にアップロード</value></data>
+  <data name="{0} 分钟后上传" xml:space="preserve"><value>{0} 分後にアップロード</value></data>
+  <data name="暂无待上传录像" xml:space="preserve"><value>アップロード待ちの録画はありません</value></data>
+  <data name="刚刚" xml:space="preserve"><value>たった今</value></data>
+  <data name="{0} 分钟前" xml:space="preserve"><value>{0} 分前</value></data>
+  <data name="失败录像会保留在本机，修好后可重新上传" xml:space="preserve"><value>失敗した録画はこの端末に保持され、再試行できます</value></data>
+  <data name="还有 {0} 个失败录像" xml:space="preserve"><value>ほかに {0} 件の失敗した録画があります</value></data>
+  <data name="还有 {0} 个待上传" xml:space="preserve"><value>残り {0} 件</value></data>
+  <data name="主机存储空间不足" xml:space="preserve"><value>ホストの保存領域が不足しています</value></data>
+  <data name="设备详情中可继续管理连接方式、定时开关机和更新" xml:space="preserve"><value>デバイス詳細では接続方法、電源スケジュール、更新を管理できます</value></data>
+  <data name="打开设备与传输管理" xml:space="preserve"><value>デバイスと転送の管理を開く</value></data>
+  <data name="打开上传任务管理" xml:space="preserve"><value>アップロード タスク管理を開く</value></data>
+  <data name="上传服务尚未准备完成" xml:space="preserve"><value>アップロード サービスはまだ準備できていません</value></data>
+  <data name="手机/电脑备份服务尚未准备完成" xml:space="preserve"><value>スマートフォン/PC バックアップ サービスはまだ準備できていません</value></data>
+  <data name="设备备份服务尚未准备完成" xml:space="preserve"><value>デバイス バックアップ サービスはまだ準備できていません</value></data>
+  <data name="设备与传输" xml:space="preserve"><value>デバイスと転送</value></data>
+  <data name="保存主机连接中断，稍后自动继续" xml:space="preserve"><value>保存先ホストとの接続が中断しました。後で自動的に再開します</value></data>
+  <data name="收起" xml:space="preserve"><value>折りたたむ</value></data>
+  <data name="展开" xml:space="preserve"><value>展開</value></data>
+  <data name="移除" xml:space="preserve"><value>削除</value></data>
+  <data name="移除设备" xml:space="preserve"><value>デバイスを削除</value></data>
+  <data name="解绑" xml:space="preserve"><value>解除</value></data>
+  <data name="解绑从机" xml:space="preserve"><value>クライアントを解除</value></data>
+  <data name="无法解绑从机" xml:space="preserve"><value>クライアントを解除できません</value></data>
+  <data name="设备不存在或已经解绑" xml:space="preserve"><value>デバイスが存在しないか、すでに解除されています</value></data>
+  <data name="只会移除设备登记和昵称，不会删除录像文件。确定移除“{0}”吗？" xml:space="preserve"><value>クライアントのペアリングを解除してアップロード権限を取り消します。過去の録画とタグは保持されます。「{0}」を解除しますか？</value></data>
+  <data name="设备移除失败，请稍后重试" xml:space="preserve"><value>デバイスの削除に失敗しました。後でもう一度お試しください</value></data>
+  <data name="保存主机已解除本机配对，请重新连接" xml:space="preserve"><value>保存先ホストがこの端末のペアリングを解除しました。再接続してください</value></data>
+  <data name="等待主机允许连接" xml:space="preserve"><value>保存先ホストの許可を待っています</value></data>
+  <data name="等待授权" xml:space="preserve"><value>許可待ち</value></data>
+  <data name="等待主机允许连接，录像仍保存在本机" xml:space="preserve"><value>保存先ホストの許可を待っています。録画は本機に保持されています</value></data>
+  <data name="暂停上传" xml:space="preserve"><value>アップロードを一時停止</value></data>
+  <data name="继续上传" xml:space="preserve"><value>アップロードを再開</value></data>
+  <data name="上传已暂停" xml:space="preserve"><value>アップロード一時停止中</value></data>
+  <data name="已暂停" xml:space="preserve"><value>一時停止中</value></data>
+  <data name="已暂停上传，{0} 个录像保存在本机" xml:space="preserve"><value>アップロードを一時停止しました。{0} 件の録画は本機に保持されています</value></data>
+  <data name="上传已暂停，暂无待上传录像" xml:space="preserve"><value>アップロードは一時停止中です。待機中の録画はありません</value></data>
+  <data name="保存上传状态失败：{0}" xml:space="preserve"><value>アップロード状態を保存できませんでした: {0}</value></data>
+  <data name="保存主机拒绝了本机连接申请，可重新申请或更换保存主机" xml:space="preserve"><value>保存先ホストがこの端末の接続を拒否しました。再試行するか、別のホストを選択してください</value></data>
+  <data name="保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”" xml:space="preserve"><value>保存先ホストが接続を許可していません。再試行し、保存先ホストで「許可」を選択してください</value></data>
+  <data name="等待保存主机允许连接超时，请确认保存主机界面已打开后重新申请" xml:space="preserve"><value>保存先ホストの接続許可待ちがタイムアウトしました。保存先ホストの画面を開いて再試行してください</value></data>
+  <data name="保存主机暂时无法显示连接确认窗口，请打开保存主机界面后重试" xml:space="preserve"><value>保存先ホストで接続確認画面を表示できません。保存先ホストの画面を開いて再試行してください</value></data>
+  <data name="保存主机正在确认其他设备，请稍后重新申请" xml:space="preserve"><value>保存先ホストが別の端末を確認中です。後でもう一度お試しください</value></data>
+  <data name="无法连接保存主机，请检查网络后重试" xml:space="preserve"><value>保存先ホストに接続できません。ネットワークを確認して再試行してください</value></data>
+  <data name="保存主机版本不兼容，请更新后重新连接" xml:space="preserve"><value>保存先ホストのバージョンに対応していません。更新して再接続してください</value></data>
+  <data name="保存主机返回的连接信息无效，请更新保存主机后重试" xml:space="preserve"><value>保存先ホストから無効な接続情報が返されました。更新して再試行してください</value></data>
+  <data name="保存主机暂时无法处理连接申请，请稍后重试" xml:space="preserve"><value>保存先ホストは現在接続要求を処理できません。後でもう一度お試しください</value></data>
+  <data name="需要重新连接保存主机" xml:space="preserve"><value>保存先ホストに再接続してください</value></data>
+  <data name="需要重新连接保存主机：{0}" xml:space="preserve"><value>保存先ホストに再接続してください: {0}</value></data>
+  <data name="需要重新连接" xml:space="preserve"><value>再接続が必要</value></data>
+  <data name="正在重新连接" xml:space="preserve"><value>再接続中</value></data>
+  <data name="无法保存主机连接状态" xml:space="preserve"><value>ホスト接続状態を保存できませんでした</value></data>
 </root>

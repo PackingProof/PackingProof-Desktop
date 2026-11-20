@@ -20,8 +20,11 @@ public sealed partial class WebServer
             // 去重规则与回放窗口共用 VideoSourceFilterOptions，避免两端下拉表现不一致。
             // 名字按设备号取当前昵称，否则设备改名后老名字会一直留在筛选里。
             IReadOnlyDictionary<string, string> currentNames = GetCurrentSourceDeviceNames();
+            IReadOnlySet<string> removedDeviceIds = GetRemovedSourceDeviceIds();
             var data = VideoSourceFilterOptions.Build(
-                    _db.GetVideoSources(),
+                    _db.GetVideoSources().Where(source =>
+                        !string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
+                        || !removedDeviceIds.Contains(source.DeviceId)),
                     source => string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
                         ? ResolveVideoSourceName(
                             source.DeviceId,
@@ -50,8 +53,17 @@ public sealed partial class WebServer
         /// </summary>
         internal IReadOnlyDictionary<string, string> GetCurrentSourceDeviceNames() =>
             RecordingSourceNameLookup.Build(
-                _mobileOrderReceivers.GetKnownRecordingDevices(),
+                _mobileOrderReceivers.GetKnownRecordingDevices(includeRemoved: true),
                 _connectedClients.GetSnapshot());
+
+        internal IReadOnlySet<string> GetRemovedSourceDeviceIds()
+        {
+            var removedDeviceIds = new HashSet<string>(
+                _mobileOrderReceivers.GetRemovedDeviceIds(),
+                StringComparer.OrdinalIgnoreCase);
+            removedDeviceIds.UnionWith(_backupDeviceRemovals.GetRemovedDeviceIds());
+            return removedDeviceIds;
+        }
 
         /// <summary>
         /// 用库里已有的录像来源补齐"设备号 -> 昵称"映射。升级前的昵称只留在记录快照里，
@@ -99,10 +111,10 @@ public sealed partial class WebServer
             {
                 _recordingDeviceShortcuts.Refresh(
                     _mobileBackupRecordingRootResolver(),
-                    _mobileOrderReceivers.GetKnownRecordingDevices(),
+                    _mobileOrderReceivers.GetKnownRecordingDevices(includeRemoved: true),
                     // 电脑工位的名字以电脑昵称表为准：它只在工位上传时才同步到手机登记表，
                     // 只读手机登记表的话，电脑刚改完名那段时间快捷方式还是老名字。
-                    _recordingComputerNicknames.GetKnown());
+                    _recordingComputerNicknames.GetKnown(includeRemoved: true));
             }
             catch (Exception ex)
             {

@@ -162,10 +162,14 @@ public partial class MainViewModel
         IReadOnlyDictionary<string, string> currentSourceNames =
             webServer?.GetCurrentSourceDeviceNames()
             ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        IReadOnlySet<string> removedDeviceIds =
+            webServer?.GetRemovedSourceDeviceIds()
+            ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var statusByDevice = new Dictionary<string, MobileBackupStatusRow>(
             StringComparer.OrdinalIgnoreCase);
         foreach (MobileBackupDailyCount item in counts
-                     .Where(item => BackupDeviceIdentity.IsRemote(item.DeviceId, config.NodeId)))
+                     .Where(item => BackupDeviceIdentity.IsRemote(item.DeviceId, config.NodeId))
+                     .Where(item => !removedDeviceIds.Contains(item.DeviceId)))
         {
             string currentName = RecordingSourceNameLookup.Resolve(
                 currentSourceNames,
@@ -188,6 +192,8 @@ public partial class MainViewModel
                 ? client.ClientId
                 : client.NodeId;
             if (!BackupDeviceIdentity.IsRemote(deviceId, config.NodeId))
+                continue;
+            if (removedDeviceIds.Contains(deviceId))
                 continue;
 
             statusByDevice.TryGetValue(deviceId, out MobileBackupStatusRow existing);

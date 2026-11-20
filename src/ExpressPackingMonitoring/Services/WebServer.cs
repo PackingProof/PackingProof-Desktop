@@ -187,7 +187,9 @@ namespace ExpressPackingMonitoring.Services
 
         /// <summary>录像根目录：设备对照表写在它下面，供用户把"设备-XXXXXX"目录对上昵称。</summary>
         private readonly Func<string> _mobileBackupRecordingRootResolver;
+        private readonly Func<IReadOnlyList<string>> _mobileBackupRecordingRootsResolver;
         private readonly BackupPairingTokenService _backupPairingTokens;
+        private readonly BackupDeviceRemovalStore _backupDeviceRemovals;
         private readonly MobileOrderReceiverRegistry _mobileOrderReceivers;
         private readonly RecordingComputerNicknameRegistry _recordingComputerNicknames;
         private readonly OrderIntegrationActivityRegistry _orderIntegrationActivities;
@@ -316,6 +318,7 @@ namespace ExpressPackingMonitoring.Services
             string mobileBackupComputerName = null,
             string mobileBackupStateDirectory = null,
             Func<string> mobileBackupRecordingRootResolver = null,
+            Func<IReadOnlyList<string>> mobileBackupRecordingRootsResolver = null,
             Func<string> mobileBackupArchiveTargetResolver = null,
             Action mobileBackupArchivePendingCallback = null,
             string nodeId = null,
@@ -376,15 +379,22 @@ namespace ExpressPackingMonitoring.Services
             _backupPairingTokens = new BackupPairingTokenService(
                 resolvedMobileBackupStateDirectory,
                 _accessKey);
+            _backupDeviceRemovals = new BackupDeviceRemovalStore(
+                Path.Combine(
+                    resolvedMobileBackupStateDirectory,
+                    "backup-device-removals.json"));
             _mobileBackupRecordingRootResolver = mobileBackupRecordingRootResolver
                 ?? (() => Path.Combine(AppPaths.UserDataDir, "mobile-backup-recordings"));
+            _mobileBackupRecordingRootsResolver = mobileBackupRecordingRootsResolver
+                ?? (() => [_mobileBackupRecordingRootResolver()]);
             _mobileBackupService = new MobileBackupService(
                 _db,
                 resolvedMobileBackupStateDirectory,
                 _mobileBackupRecordingRootResolver,
                 GetOrderInfo,
                 mobileBackupArchiveTargetResolver,
-                mobileBackupArchivePendingCallback);
+                mobileBackupArchivePendingCallback,
+                recordingRootsResolver: _mobileBackupRecordingRootsResolver);
             _mobileBackupService.ActiveUploadsChanged += hasActive =>
             {
                 try { MobileBackupActivityChanged?.Invoke(hasActive); } catch { }
@@ -533,10 +543,9 @@ namespace ExpressPackingMonitoring.Services
             _listenTask = Task.Run(() => ListenLoop(_cts.Token));
             _videoCodecBackfillTask = Task.Run(() => BackfillVideoCodecsAsync(_cts.Token));
             StartUdpDiscoveryResponder();
-            // 昵称只存在设备登记表里，启动时先用库里已有的录像来源把映射补齐。
-            SeedRecordedDeviceNames();
-            // 启动时先写一次对照表，用户打开录像目录就能看到目录与昵称的对应关系。
-            RefreshRecordingDeviceIndex();
+            // 历史设备对账与录像目录索引可能涉及大库扫描，必须等服务可用后在后台慢慢跑，
+            // 不能挂在主窗口启动或 Web 服务启动路径上。
+            StartBackupDeviceMaintenance();
         }
 
         private async Task BackfillVideoCodecsAsync(CancellationToken cancellationToken)
@@ -1368,6 +1377,8 @@ namespace ExpressPackingMonitoring.Services
                 hostAddress = $"http://{fallbackAuthority}";
             }
 
+            IReadOnlySet<string> removedDeviceIds =
+                GetRemovedSourceDeviceIds();
             return RecordingDeviceCatalog.Build(
                 _deploymentPreset,
                 _nodeId,
@@ -1377,7 +1388,11 @@ namespace ExpressPackingMonitoring.Services
                 includeKnown
                     ? _mobileOrderReceivers.GetKnownRecordingDevices()
                     : _mobileOrderReceivers.GetRecordingDevices(),
-                _connectedClients.GetSnapshot(),
+                _connectedClients.GetSnapshot()
+                    .Where(client => !removedDeviceIds.Contains(
+                        string.IsNullOrWhiteSpace(client.NodeId)
+                            ? client.ClientId
+                            : client.NodeId)),
                 includeOffline: includeKnown,
                 // 复用主机主窗口那张卡片的数据源，口径一致
                 dailyBackupCounts: _db.GetMobileBackupDailyCounts(DateTime.Today));
@@ -1456,7 +1471,10 @@ namespace ExpressPackingMonitoring.Services
             return LanRequestCategory.General;
         }
 
-        private bool TryAuthorizeSignedBackupRequest(HttpListenerContext ctx, out bool missingKey)
+        private bool TryAuthorizeSignedBackupRequest(
+            HttpListenerContext ctx,
+            out bool missingKey,
+            bool registerAuthorizedClient = true)
         {
             string deviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
             if (!_backupPairingTokens.TryGetDeviceCredential(
@@ -1473,7 +1491,8 @@ namespace ExpressPackingMonitoring.Services
                 deviceId,
                 credential,
                 deviceKind,
-                out missingKey);
+                out missingKey,
+                registerAuthorizedClient);
         }
 
         private bool TryAuthorizeSignedRequest(
@@ -1481,7 +1500,8 @@ namespace ExpressPackingMonitoring.Services
             string deviceId,
             string credential,
             string deviceKind,
-            out bool missingKey)
+            out bool missingKey,
+            bool registerAuthorizedClient = true)
         {
             string timestampText = ctx.Request.Headers[BackupRequestAuthentication.TimestampHeader]?.Trim() ?? "";
             string nonce = ctx.Request.Headers[BackupRequestAuthentication.NonceHeader]?.Trim() ?? "";
@@ -1533,7 +1553,8 @@ namespace ExpressPackingMonitoring.Services
             _authenticatedDeviceKeys[ctx] = credential;
             _authenticatedDeviceIds[ctx] = deviceId;
             _authenticatedDeviceKinds[ctx] = NormalizeDeviceKind(deviceKind);
-            RegisterAuthorizedBackupClient(ctx, deviceId);
+            if (registerAuthorizedClient)
+                RegisterAuthorizedBackupClient(ctx, deviceId);
             return true;
         }
 
@@ -1743,7 +1764,10 @@ namespace ExpressPackingMonitoring.Services
                     enrollment.DeviceId,
                     request.DeviceName,
                     deviceKind: request.DeviceKind,
-                    platform: request.Platform);
+                    platform: request.Platform,
+                    restoreRemoved: true);
+                _recordingComputerNicknames.RestoreDevice(enrollment.DeviceId);
+                _backupDeviceRemovals.Restore(enrollment.DeviceId);
             }
             string assignedDeviceName = registeredDevice?.NodeName ?? request.DeviceName;
             string webAccessUrl = ResolveWebAccessUrl();
@@ -1851,6 +1875,8 @@ namespace ExpressPackingMonitoring.Services
                 deviceName,
                 deviceKind: VideoSourceNameResolver.ReadDeviceKind(ctx.Request.Headers),
                 platform: VideoSourceNameResolver.ReadDevicePlatform(ctx.Request.Headers));
+            HostUploadStorageAvailability storage =
+                _mobileBackupService.GetStorageAvailability();
             SendJson(ctx, 200, new
             {
                 protocol = MobileBackupService.ProtocolVersion,
@@ -1861,7 +1887,14 @@ namespace ExpressPackingMonitoring.Services
                 deviceName = registeredDevice?.NodeName ?? deviceName,
                 maxChunkBytes = MobileBackupService.ChunkSizeBytes,
                 supportedFormats = new[] { "video/mp4" },
-                    features = new
+                storageAvailability = new
+                {
+                    available = storage.IsAvailable,
+                    state = storage.State,
+                    retryAfterSeconds = storage.RetryAfterSeconds,
+                    reservedBytes = storage.ReservedBytes
+                },
+                features = new
                     {
                     videoLibrary = true,
                     cursorVideoLibrary = true,
@@ -1869,7 +1902,8 @@ namespace ExpressPackingMonitoring.Services
                     multipleSessionsPerFile = false,
                     libraryScope = "host",
                     deviceVideoClipping = true,
-                    uploadVideoCodec = true
+                    uploadVideoCodec = true,
+                    storageBackpressure = true
                 },
                 retryPolicy = new
                 {
@@ -1884,6 +1918,25 @@ namespace ExpressPackingMonitoring.Services
         {
             try
             {
+                bool hasSignature = !string.IsNullOrWhiteSpace(
+                    ctx.Request.Headers[BackupRequestAuthentication.SignatureHeader]);
+                if (hasSignature
+                    && !TryAuthorizeSignedBackupRequest(
+                        ctx,
+                        out bool missingBackupKey,
+                        registerAuthorizedClient: false))
+                {
+                    SendJson(ctx, missingBackupKey ? 401 : 403, new
+                    {
+                        errorCode = missingBackupKey
+                            ? "enrollment_required"
+                            : "device_token_invalid",
+                        error = missingBackupKey
+                            ? "需要重新连接保存主机"
+                            : "设备令牌无效，请重新连接"
+                    });
+                    return;
+                }
                 ConnectedClientHeartbeat heartbeat = ReadJsonBody<ConnectedClientHeartbeat>(ctx);
                 if (_authenticatedDeviceIds.TryGetValue(ctx, out string authenticatedDeviceId))
                 {
@@ -1956,6 +2009,63 @@ namespace ExpressPackingMonitoring.Services
         }
 
         internal IReadOnlyList<ConnectedClientInfo> GetConnectedClients() => _connectedClients.GetSnapshot();
+
+        internal HostUploadStorageAvailability GetMobileBackupStorageAvailability() =>
+            _mobileBackupService.GetStorageAvailability();
+
+        internal IReadOnlyList<MobileBackupDeviceDirectoryEntry> GetMobileBackupDeviceDirectory()
+        {
+            var devices = new Dictionary<string, MobileBackupDeviceDirectoryEntry>(
+                StringComparer.OrdinalIgnoreCase);
+            IReadOnlySet<string> removedDeviceIds =
+                GetRemovedSourceDeviceIds();
+            foreach (MobileOrderReceiverInfo mobile in _mobileOrderReceivers.GetKnownRecordingDevices())
+            {
+                if (!BackupDeviceIdentity.IsRemote(mobile.NodeId, _nodeId))
+                    continue;
+                DateTimeOffset? lastSeen = mobile.LastSeenUtc == default
+                    ? null
+                    : new DateTimeOffset(
+                        DateTime.SpecifyKind(mobile.LastSeenUtc, DateTimeKind.Utc));
+                devices[mobile.NodeId] = new MobileBackupDeviceDirectoryEntry(
+                    mobile.NodeId,
+                    mobile.NodeName,
+                    mobile.Online,
+                    lastSeen);
+            }
+
+            foreach (ConnectedClientInfo client in _connectedClients.GetSnapshot())
+            {
+                if (!string.Equals(client.ClientType, "mobile-app", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(
+                        client.ClientType,
+                        "recording-workstation",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                string deviceId = string.IsNullOrWhiteSpace(client.NodeId)
+                    ? client.ClientId
+                    : client.NodeId;
+                if (!BackupDeviceIdentity.IsRemote(deviceId, _nodeId)
+                    || removedDeviceIds.Contains(deviceId))
+                    continue;
+                devices.TryGetValue(
+                    deviceId,
+                    out MobileBackupDeviceDirectoryEntry existing);
+                string displayName = client.DisplayName;
+                if (string.IsNullOrWhiteSpace(displayName) && existing != null)
+                    displayName = existing.DisplayName;
+                devices[deviceId] = new MobileBackupDeviceDirectoryEntry(
+                    deviceId,
+                    displayName,
+                    true,
+                    client.LastSeenUtc);
+            }
+
+            return devices.Values.ToArray();
+        }
 
         internal IReadOnlyList<OrderIntegrationDeviceStatus> GetOrderIntegrationDeviceStatuses()
         {
@@ -2045,7 +2155,10 @@ namespace ExpressPackingMonitoring.Services
             try
             {
                 MobileBackupCreateRequest request = ReadJsonBody<MobileBackupCreateRequest>(ctx);
-                MobileBackupCreateResult result = _mobileBackupService.CreateOrResume(request);
+                string sourceDeviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
+                MobileBackupCreateResult result = _mobileBackupService.CreateOrResume(
+                    request,
+                    sourceDeviceId);
                 SendJson(ctx, 200, new
                 {
                     uploadId = result.UploadId,
@@ -2208,12 +2321,25 @@ namespace ExpressPackingMonitoring.Services
         {
             switch (exception)
             {
+                case HostUploadStorageBusyException storageBusy:
+                    ctx.Response.Headers.Add(
+                        "Retry-After",
+                        storageBusy.RetryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    SendJson(ctx, 503, new
+                    {
+                        errorCode = "host_storage_busy",
+                        error = storageBusy.Message,
+                        retryAfterSeconds = storageBusy.RetryAfterSeconds
+                    });
+                    break;
                 case MobileBackupStorageUnavailableException storageUnavailable:
                     // 存储盘未接入、未就绪或空间不足：客户端保留本地录像并按 storage_unavailable 自动重试
+                    ctx.Response.Headers.Add("Retry-After", "15");
                     SendJson(ctx, 503, new
                     {
                         errorCode = "storage_unavailable",
-                        error = storageUnavailable.Message
+                        error = storageUnavailable.Message,
+                        retryAfterSeconds = 15
                     });
                     break;
                 case MobileBackupOffsetException offset:

@@ -19,8 +19,18 @@ internal sealed record RecordingTransferProgress(
     string State,
     string Error = "");
 
+internal sealed record RecordingTransferHostHealth(
+    HostConnectionState State,
+    DateTimeOffset? LastSeenAt,
+    DateTimeOffset? NextProbeAt,
+    string Reason);
+
 internal sealed class RecordingTransferService : IDisposable
 {
+    private readonly record struct ChunkUploadResult(
+        bool Completed,
+        long Offset);
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -39,17 +49,25 @@ internal sealed class RecordingTransferService : IDisposable
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly ManualResetEventSlim _operationsIdle = new(initialState: true);
     private readonly object _lifecycleLock = new();
+    private readonly object _hostHealthLock = new();
     private readonly ConcurrentDictionary<string, bool> _uploadVideoCodecSupport = new(StringComparer.OrdinalIgnoreCase);
     private Task? _worker;
     private int _processing;
     private int _activeOperations;
     private int _resourcesDisposed;
+    private HostConnectionState _hostConnectionState = HostConnectionState.Unknown;
+    private DateTimeOffset? _hostLastSeenAt;
+    private DateTimeOffset? _nextHostProbeAt;
+    private DateTimeOffset? _nextProcessingAt;
+    private string _hostHealthReason = "";
+    private int _hostProbeFailureCount;
     private bool _disposed;
 
     internal TimeSpan ShutdownWaitTimeout { get; set; } = TimeSpan.FromSeconds(2);
     internal bool ResourcesDisposedForTesting => Volatile.Read(ref _resourcesDisposed) != 0;
 
     internal event Action<RecordingTransferProgress>? ProgressChanged;
+    internal event Action<RecordingTransferHostHealth>? HostHealthChanged;
 
     public RecordingTransferService(
         RecordingTransferQueueStore store,
@@ -84,6 +102,16 @@ internal sealed class RecordingTransferService : IDisposable
         if (IsRecordingWorkstation(config)
             && !string.IsNullOrWhiteSpace(config.LastKnownHostNodeId))
         {
+            if (!HasUsableHostCredential(config))
+            {
+                int requeued = _store.RequeueHostApprovalBlocked(DateTime.UtcNow);
+                if (requeued > 0)
+                {
+                    RuntimeLog.Info(
+                        "RecordingTransfer",
+                        $"Host approval pending; restored uploads from failed state count={requeued}");
+                }
+            }
             int revived = _store.ReviveRetryExhaustedAbandoned(
                 config.LastKnownHostNodeId,
                 DateTime.UtcNow);
@@ -103,7 +131,8 @@ internal sealed class RecordingTransferService : IDisposable
         AppConfig config = _configProvider();
         if (!IsRecordingWorkstation(config)
             || string.IsNullOrWhiteSpace(config.LastKnownHostNodeId)
-            || string.IsNullOrWhiteSpace(config.LastKnownHostAddress))
+            || string.IsNullOrWhiteSpace(config.LastKnownHostAddress)
+            || !HasUsableHostCredential(config))
         {
             return 0;
         }
@@ -138,7 +167,77 @@ internal sealed class RecordingTransferService : IDisposable
     public void RetryNow()
     {
         _store.RetryFailedNow(DateTime.UtcNow);
+        lock (_hostHealthLock)
+            _nextHostProbeAt = DateTimeOffset.UtcNow;
         Signal();
+    }
+
+    internal void Wake()
+    {
+        lock (_hostHealthLock)
+        {
+            if (_nextHostProbeAt > DateTimeOffset.UtcNow)
+                _nextHostProbeAt = DateTimeOffset.UtcNow;
+        }
+        Signal();
+    }
+
+    internal void SetUploadPaused(bool paused)
+    {
+        if (!IsRecordingWorkstation(_configProvider()))
+            return;
+
+        if (paused)
+        {
+            SetHostHealth(
+                HostConnectionState.PausedByUser,
+                nextProbeAt: null,
+                reason: AppLanguage.Get("上传已暂停"),
+                lastSeenAt: null,
+                updateLastSeen: false);
+        }
+        else
+        {
+            lock (_hostHealthLock)
+            {
+                _hostProbeFailureCount = 0;
+                _nextHostProbeAt = DateTimeOffset.UtcNow;
+            }
+            SetHostHealth(
+                HostConnectionState.Unknown,
+                DateTimeOffset.UtcNow,
+                reason: "",
+                lastSeenAt: null,
+                updateLastSeen: false);
+        }
+        Signal();
+    }
+
+    internal RecordingTransferHostHealth GetHostHealth()
+    {
+        lock (_hostHealthLock)
+        {
+            return new RecordingTransferHostHealth(
+                _hostConnectionState,
+                _hostLastSeenAt,
+                _nextHostProbeAt,
+                _hostHealthReason);
+        }
+    }
+
+    internal DateTimeOffset? GetNextProcessingAt()
+    {
+        lock (_hostHealthLock)
+            return _nextProcessingAt;
+    }
+
+    internal async Task<bool> ProbeHostNowAsync(
+        CancellationToken cancellationToken = default)
+    {
+        lock (_hostHealthLock)
+            _nextHostProbeAt = DateTimeOffset.UtcNow;
+        return await EnsureHostReadyForProcessingAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -169,12 +268,57 @@ internal sealed class RecordingTransferService : IDisposable
 
         try
         {
+            AppConfig config = _configProvider();
+            if (IsRecordingWorkstation(config))
+            {
+                if (config.RecordingUploadPaused)
+                {
+                    SetHostHealth(
+                        HostConnectionState.PausedByUser,
+                        nextProbeAt: null,
+                        reason: AppLanguage.Get("上传已暂停"),
+                        lastSeenAt: null,
+                        updateLastSeen: false);
+                    return 0;
+                }
+                if (string.IsNullOrWhiteSpace(config.LastKnownHostNodeId)
+                    || string.IsNullOrWhiteSpace(config.LastKnownHostAddress))
+                {
+                    ScheduleHostProbeFailure(
+                        HostConnectionState.Offline,
+                        "尚未选择保存主机");
+                    return 0;
+                }
+                if (!HasUsableHostCredential(config))
+                {
+                    if (RecordingHostApprovalPolicy.IsPending(
+                            config,
+                            DateTimeOffset.UtcNow))
+                    {
+                        ScheduleHostProbeFailure(
+                            HostConnectionState.AwaitingApproval,
+                            AppLanguage.Get("等待主机允许连接"));
+                    }
+                    else
+                    {
+                        ScheduleHostProbeFailure(
+                            HostConnectionState.Offline,
+                            RecordingHostApprovalPolicy.BuildReconnectReason(config));
+                    }
+                    return 0;
+                }
+            }
+            if (!await EnsureHostReadyForProcessingAsync(cancellationToken).ConfigureAwait(false))
+                return 0;
+
             int processed = 0;
             foreach (RecordingTransferTask task in _store.GetReady(DateTime.UtcNow))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await ProcessTaskAsync(task, cancellationToken).ConfigureAwait(false);
                 processed++;
+                if (IsHostProcessingPaused())
+                    break;
             }
             return processed;
         }
@@ -193,7 +337,25 @@ internal sealed class RecordingTransferService : IDisposable
             {
                 EnqueueCompletedRecordings();
                 await ProcessReadyOnceAsync(cancellationToken).ConfigureAwait(false);
-                await _wakeSignal.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false);
+                TimeSpan wait = TimeSpan.FromSeconds(15);
+                RecordingTransferHostHealth health = GetHostHealth();
+                if (health.NextProbeAt is DateTimeOffset probeAt)
+                {
+                    TimeSpan untilProbe = probeAt - DateTimeOffset.UtcNow;
+                    if (untilProbe > TimeSpan.Zero && untilProbe < wait)
+                        wait = untilProbe;
+                }
+                lock (_hostHealthLock)
+                    _nextProcessingAt = DateTimeOffset.UtcNow.Add(wait);
+                try
+                {
+                    await _wakeSignal.WaitAsync(wait, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    lock (_hostHealthLock)
+                        _nextProcessingAt = null;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -214,6 +376,8 @@ internal sealed class RecordingTransferService : IDisposable
         try
         {
             AppConfig config = _configProvider();
+            if (IsRecordingUploadPaused(config))
+                return;
             ValidateTaskTarget(task, config);
             // 用包含已删除的读法，才能把"用户删了这条"和"记录不存在"分开告诉用户。
             VideoRecord? record = _database.GetVideoByIdIncludingDeleted(task.LocalVideoRecordId);
@@ -250,6 +414,9 @@ internal sealed class RecordingTransferService : IDisposable
                 throw new InvalidOperationException("目标主机不支持录像接收");
             if (!BackupCompatibilityPolicy.IsCompatibleHost(node.BackupCompatibility))
                 throw new InvalidOperationException("保存主机版本过旧，请更新保存主机电脑");
+            if (IsRecordingUploadPaused(config))
+                return;
+            MarkHostOnline();
             bool supportsUploadVideoCodec = await SupportsUploadVideoCodecAsync(
                 task,
                 config,
@@ -261,6 +428,8 @@ internal sealed class RecordingTransferService : IDisposable
                 sha256 = await ComputeFileSha256Async(filePath, cancellationToken).ConfigureAwait(false);
                 _store.SetHash(task.Id, sha256, DateTime.UtcNow);
             }
+            if (IsRecordingUploadPaused(config))
+                return;
 
             long totalBytes = new FileInfo(filePath).Length;
             MobileBackupCreateResponse create = await CreateOrResumeAsync(
@@ -271,6 +440,11 @@ internal sealed class RecordingTransferService : IDisposable
                 cancellationToken).ConfigureAwait(false);
             if (create.Offset < 0 || create.Offset > totalBytes)
                 throw new InvalidDataException("主机返回的断点位置无效");
+            if (IsRecordingUploadPaused(config))
+            {
+                DeferTaskForUserPause(task, create.Offset, totalBytes);
+                return;
+            }
 
             _store.MarkUploading(task.Id, create.Offset, DateTime.UtcNow);
             ProgressChanged?.Invoke(new RecordingTransferProgress(
@@ -278,7 +452,7 @@ internal sealed class RecordingTransferService : IDisposable
 
             if (!create.FileReady && create.Offset < totalBytes)
             {
-                await UploadChunksAsync(
+                ChunkUploadResult chunkResult = await UploadChunksAsync(
                     task,
                     config,
                     filePath,
@@ -288,6 +462,17 @@ internal sealed class RecordingTransferService : IDisposable
                     create.ChunkSize,
                     totalBytes,
                     cancellationToken).ConfigureAwait(false);
+                if (!chunkResult.Completed)
+                {
+                    DeferTaskForUserPause(task, chunkResult.Offset, totalBytes);
+                    return;
+                }
+            }
+
+            if (IsRecordingUploadPaused(config))
+            {
+                DeferTaskForUserPause(task, totalBytes, totalBytes);
+                return;
             }
 
             MobileBackupCompleteResponse completed = await CompleteAsync(
@@ -339,14 +524,60 @@ internal sealed class RecordingTransferService : IDisposable
 
             int retryCount = task.RetryCount + 1;
             string stopReason = RecordingTransferFailurePolicy.ClassifyFailure(ex);
+            string failureKind = RecordingTransferFailurePolicy.ClassifyFailureKind(ex);
             if (stopReason.Length > 0)
             {
-                AbandonTask(task, stopReason, now);
+                AbandonTask(task, stopReason, now, failureKind);
+                return;
+            }
+
+            if (IsHostPauseFailure(failureKind))
+            {
+                int retryAfterSeconds = ex is RecordingTransferHostException host
+                    ? host.RetryAfterSeconds
+                    : 0;
+                _store.DeferForHost(task.Id, ex.Message, failureKind, now);
+                PauseHost(failureKind, ex.Message, now, retryAfterSeconds);
+                ProgressChanged?.Invoke(new RecordingTransferProgress(
+                    task.Id,
+                    task.ServerOffset,
+                    GetExistingLength(task.LocalFilePath),
+                    RecordingTransferStates.Pending,
+                    ex.Message));
+                RuntimeLog.Warn(
+                    "RecordingTransfer",
+                    $"Host paused localRecord={task.LocalVideoRecordId}, kind={failureKind}, error={ex.Message}");
                 return;
             }
 
             TimeSpan backoff = GetBackoff(retryCount, task.Id);
-            _store.MarkFailed(task.Id, retryCount, ex.Message, now.Add(backoff), now);
+            if (failureKind == RecordingTransferFailureKinds.HostWriteBusy)
+            {
+                DateTime nextAttemptAt = now.Add(backoff);
+                _store.DeferForRetry(
+                    task.Id,
+                    ex.Message,
+                    failureKind,
+                    nextAttemptAt,
+                    now);
+                ProgressChanged?.Invoke(new RecordingTransferProgress(
+                    task.Id,
+                    task.ServerOffset,
+                    GetExistingLength(task.LocalFilePath),
+                    RecordingTransferStates.Pending,
+                    ex.Message));
+                RuntimeLog.Info(
+                    "RecordingTransfer",
+                    $"Host disk busy, deferred localRecord={task.LocalVideoRecordId}, next={nextAttemptAt:O}");
+                return;
+            }
+            _store.MarkFailed(
+                task.Id,
+                retryCount,
+                ex.Message,
+                now.Add(backoff),
+                now,
+                failureKind);
             ProgressChanged?.Invoke(new RecordingTransferProgress(
                 task.Id, task.ServerOffset, GetExistingLength(task.LocalFilePath),
                 RecordingTransferStates.Failed, ex.Message));
@@ -400,9 +631,13 @@ internal sealed class RecordingTransferService : IDisposable
             $"Whole-file upload retry localRecord={task.LocalVideoRecordId}, attempt={attemptCount}/{maxAttempts}, error={reason}");
     }
 
-    private void AbandonTask(RecordingTransferTask task, string reason, DateTime now)
+    private void AbandonTask(
+        RecordingTransferTask task,
+        string reason,
+        DateTime now,
+        string failureKind = RecordingTransferFailureKinds.ActionRequired)
     {
-        _store.MarkAbandoned(task.Id, reason, now);
+        _store.MarkAbandoned(task.Id, reason, now, failureKind);
         ProgressChanged?.Invoke(new RecordingTransferProgress(
             task.Id,
             task.ServerOffset,
@@ -412,6 +647,31 @@ internal sealed class RecordingTransferService : IDisposable
         RuntimeLog.Warn(
             "RecordingTransfer",
             $"Upload abandoned localRecord={task.LocalVideoRecordId}, error={reason}");
+    }
+
+    private void DeferTaskForUserPause(
+        RecordingTransferTask task,
+        long offset,
+        long totalBytes)
+    {
+        DateTime now = DateTime.UtcNow;
+        string reason = AppLanguage.Get("上传已暂停");
+        _store.DeferForUserPause(task.Id, offset, reason, now);
+        SetHostHealth(
+            HostConnectionState.PausedByUser,
+            nextProbeAt: null,
+            reason,
+            lastSeenAt: null,
+            updateLastSeen: false);
+        ProgressChanged?.Invoke(new RecordingTransferProgress(
+            task.Id,
+            offset,
+            totalBytes,
+            RecordingTransferStates.Pending,
+            reason));
+        RuntimeLog.Info(
+            "RecordingTransfer",
+            $"Upload paused by user localRecord={task.LocalVideoRecordId}, offset={offset}");
     }
 
     private async Task<MobileBackupCreateResponse> CreateOrResumeAsync(
@@ -434,7 +694,7 @@ internal sealed class RecordingTransferService : IDisposable
         return await SendAsync<MobileBackupCreateResponse>(request, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task UploadChunksAsync(
+    private async Task<ChunkUploadResult> UploadChunksAsync(
         RecordingTransferTask task,
         AppConfig config,
         string filePath,
@@ -453,6 +713,9 @@ internal sealed class RecordingTransferService : IDisposable
 
         while (offset < totalBytes)
         {
+            if (IsRecordingUploadPaused(config))
+                return new ChunkUploadResult(false, offset);
+
             int requested = (int)Math.Min(buffer.Length, totalBytes - offset);
             int read = await stream.ReadAsync(buffer.AsMemory(0, requested), cancellationToken).ConfigureAwait(false);
             if (read <= 0)
@@ -479,7 +742,11 @@ internal sealed class RecordingTransferService : IDisposable
             _store.UpdateOffset(task.Id, offset, DateTime.UtcNow);
             ProgressChanged?.Invoke(new RecordingTransferProgress(
                 task.Id, offset, totalBytes, RecordingTransferStates.Uploading));
+            if (IsRecordingUploadPaused(config))
+                return new ChunkUploadResult(false, offset);
         }
+
+        return new ChunkUploadResult(true, offset);
     }
 
     private async Task<MobileBackupCompleteResponse> CompleteAsync(
@@ -660,6 +927,7 @@ internal sealed class RecordingTransferService : IDisposable
         {
             (string errorCode, string message, bool retryWholeFile, int maxFileAttempts) =
                 RecordingTransferFailurePolicy.TryReadError(body);
+            int retryAfterSeconds = ReadRetryAfterSeconds(response);
             string text = string.IsNullOrWhiteSpace(message)
                 ? $"主机请求失败：HTTP {(int)response.StatusCode}"
                 : message;
@@ -670,10 +938,23 @@ internal sealed class RecordingTransferService : IDisposable
                     text,
                     response.StatusCode,
                     retryWholeFile,
-                    maxFileAttempts);
+                    maxFileAttempts,
+                    retryAfterSeconds);
         }
         T? result = JsonSerializer.Deserialize<T>(body, JsonOptions);
         return result ?? throw new InvalidDataException("主机返回空响应");
+    }
+
+    private static int ReadRetryAfterSeconds(HttpResponseMessage response)
+    {
+        if (response.Headers.RetryAfter?.Delta is TimeSpan delta)
+            return Math.Clamp((int)Math.Ceiling(delta.TotalSeconds), 1, 900);
+        if (response.Headers.RetryAfter?.Date is DateTimeOffset date)
+            return Math.Clamp(
+                (int)Math.Ceiling((date - DateTimeOffset.UtcNow).TotalSeconds),
+                1,
+                900);
+        return 0;
     }
 
     private static void ValidateTaskTarget(RecordingTransferTask task, AppConfig config)
@@ -731,6 +1012,216 @@ internal sealed class RecordingTransferService : IDisposable
         return node;
     }
 
+    private async Task<bool> EnsureHostReadyForProcessingAsync(
+        CancellationToken cancellationToken)
+    {
+        RecordingTransferHostHealth health = GetHostHealth();
+        if (!IsHostPauseState(health.State))
+            return true;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (health.NextProbeAt is DateTimeOffset probeAt && probeAt > now)
+            return false;
+        return await ProbeHostHealthAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<bool> ProbeHostHealthAsync(CancellationToken cancellationToken)
+    {
+        RecordingTransferTask? task = _store.GetFirstUnfinishedTarget();
+        if (task == null)
+        {
+            MarkHostOnline();
+            return true;
+        }
+
+        RecordingTransferHostHealth previous = GetHostHealth();
+        try
+        {
+            AppConfig config = _configProvider();
+            PackingProofNodeInfo? node = await ResolveTaskHostAsync(
+                    task,
+                    config,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (node == null
+                || !node.Capabilities.Contains(
+                    PackingProofCapabilities.MobileBackup,
+                    StringComparer.OrdinalIgnoreCase))
+            {
+                ScheduleHostProbeFailure(
+                    previous.State == HostConnectionState.Unknown
+                        ? HostConnectionState.Offline
+                        : previous.State,
+                    "保存主机离线");
+                return false;
+            }
+
+            using var capabilitiesRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{BaseUrl(task.TargetAddress)}/api/mobile-backup/capabilities");
+            AddAuthenticationHeaders(capabilitiesRequest, config, ReadOnlySpan<byte>.Empty);
+            MobileBackupCapabilitiesResponse capabilities =
+                await SendAsync<MobileBackupCapabilitiesResponse>(
+                        capabilitiesRequest,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            if (capabilities.StorageAvailability is { Available: false } storage)
+            {
+                HostConnectionState storageState = string.Equals(
+                    storage.State,
+                    "storage_unavailable",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? HostConnectionState.StorageBlocked
+                    : HostConnectionState.WriteBusy;
+                ScheduleHostProbeFailure(
+                    storageState,
+                    storage.State,
+                    storage.RetryAfterSeconds);
+                return false;
+            }
+
+            MarkHostOnline();
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            ScheduleHostProbeFailure(
+                previous.State == HostConnectionState.Unknown
+                    ? HostConnectionState.Offline
+                    : previous.State,
+                ex.Message);
+            return false;
+        }
+    }
+
+    private bool IsHostProcessingPaused() =>
+        IsHostPauseState(GetHostHealth().State);
+
+    private static bool IsHostPauseState(HostConnectionState state) =>
+        state is HostConnectionState.Offline
+            or HostConnectionState.AwaitingApproval
+            or HostConnectionState.PausedByUser
+            or HostConnectionState.StorageBlocked
+            or HostConnectionState.WriteBusy;
+
+    private static bool IsHostPauseFailure(string failureKind) =>
+        failureKind is RecordingTransferFailureKinds.HostOffline
+            or RecordingTransferFailureKinds.HostApprovalRequired
+            or RecordingTransferFailureKinds.HostStorageUnavailable;
+
+    private void PauseHost(
+        string failureKind,
+        string reason,
+        DateTime now,
+        int retryAfterSeconds)
+    {
+        HostConnectionState state = failureKind switch
+        {
+            RecordingTransferFailureKinds.HostStorageUnavailable =>
+                HostConnectionState.StorageBlocked,
+            RecordingTransferFailureKinds.HostWriteBusy =>
+                HostConnectionState.WriteBusy,
+            RecordingTransferFailureKinds.HostApprovalRequired =>
+                HostConnectionState.AwaitingApproval,
+            _ => HostConnectionState.Offline
+        };
+        int delaySeconds;
+        lock (_hostHealthLock)
+        {
+            _hostProbeFailureCount = Math.Min(_hostProbeFailureCount + 1, 8);
+            delaySeconds = retryAfterSeconds > 0
+                ? Math.Clamp(retryAfterSeconds, 1, 900)
+                : GetHostProbeDelaySeconds(_hostProbeFailureCount);
+        }
+        SetHostHealth(
+            state,
+            DateTimeOffset.UtcNow.AddSeconds(delaySeconds),
+            reason,
+            lastSeenAt: null,
+            updateLastSeen: false);
+        RuntimeLog.Warn(
+            "RecordingTransfer",
+            $"Host circuit opened state={state}, retryAfter={delaySeconds}s, reason={reason}");
+    }
+
+    private void ScheduleHostProbeFailure(
+        HostConnectionState state,
+        string reason,
+        int retryAfterSeconds = 0)
+    {
+        int delaySeconds;
+        lock (_hostHealthLock)
+        {
+            _hostProbeFailureCount = Math.Min(_hostProbeFailureCount + 1, 8);
+            delaySeconds = retryAfterSeconds > 0
+                ? Math.Clamp(retryAfterSeconds, 1, 900)
+                : GetHostProbeDelaySeconds(_hostProbeFailureCount);
+        }
+        SetHostHealth(
+            state,
+            DateTimeOffset.UtcNow.AddSeconds(delaySeconds),
+            reason,
+            lastSeenAt: null,
+            updateLastSeen: false);
+    }
+
+    private static int GetHostProbeDelaySeconds(int failureCount) =>
+        (int)Math.Min(
+            900,
+            5 * Math.Pow(2, Math.Clamp(failureCount - 1, 0, 8)));
+
+    private void MarkHostOnline()
+    {
+        lock (_hostHealthLock)
+            _hostProbeFailureCount = 0;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        SetHostHealth(
+            HostConnectionState.Online,
+            nextProbeAt: null,
+            reason: "",
+            lastSeenAt: now,
+            updateLastSeen: true);
+    }
+
+    private static bool HasUsableHostCredential(AppConfig config) =>
+        !string.IsNullOrWhiteSpace(config.LastKnownHostAccessKey)
+        && config.LastKnownHostBackupAuthVersion
+            >= BackupRequestAuthentication.CurrentVersion;
+
+    private void SetHostHealth(
+        HostConnectionState state,
+        DateTimeOffset? nextProbeAt,
+        string reason,
+        DateTimeOffset? lastSeenAt,
+        bool updateLastSeen)
+    {
+        RecordingTransferHostHealth health;
+        bool changed;
+        lock (_hostHealthLock)
+        {
+            changed = _hostConnectionState != state
+                || _nextHostProbeAt != nextProbeAt
+                || !string.Equals(_hostHealthReason, reason, StringComparison.Ordinal)
+                || (updateLastSeen && _hostLastSeenAt != lastSeenAt);
+            _hostConnectionState = state;
+            _nextHostProbeAt = nextProbeAt;
+            _hostHealthReason = reason ?? "";
+            if (updateLastSeen)
+                _hostLastSeenAt = lastSeenAt;
+            health = new RecordingTransferHostHealth(
+                _hostConnectionState,
+                _hostLastSeenAt,
+                _nextHostProbeAt,
+                _hostHealthReason);
+        }
+        if (!changed)
+            return;
+        try { HostHealthChanged?.Invoke(health); } catch { }
+    }
+
     private static string ResolveCurrentFilePath(RecordingTransferTask task, VideoRecord record)
     {
         if (File.Exists(record.FilePath))
@@ -765,6 +1256,9 @@ internal sealed class RecordingTransferService : IDisposable
             config.DeploymentPreset,
             DeploymentPresets.RecordingWorkstation,
             StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsRecordingUploadPaused(AppConfig config) =>
+        IsRecordingWorkstation(config) && config.RecordingUploadPaused;
 
     private static TimeSpan GetBackoff(int retryCount, long taskId)
     {
@@ -948,10 +1442,18 @@ internal sealed class RecordingTransferService : IDisposable
     private sealed class MobileBackupCapabilitiesResponse
     {
         public MobileBackupFeaturesResponse? Features { get; set; }
+        public MobileBackupStorageAvailabilityResponse? StorageAvailability { get; set; }
     }
 
     private sealed class MobileBackupFeaturesResponse
     {
         public bool UploadVideoCodec { get; set; }
+    }
+
+    private sealed class MobileBackupStorageAvailabilityResponse
+    {
+        public bool Available { get; set; }
+        public string State { get; set; } = "";
+        public int RetryAfterSeconds { get; set; }
     }
 }

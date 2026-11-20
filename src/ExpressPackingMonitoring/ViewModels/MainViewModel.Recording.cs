@@ -330,6 +330,15 @@ namespace ExpressPackingMonitoring.ViewModels
         private string ResolveBackupStoragePath() =>
             ResolveBestStoragePlan(allowDefaultFallback: false).WorkingRootPath;
 
+        private IReadOnlyList<string> ResolveBackupStoragePaths()
+        {
+            if (IsRecordingWorkstation)
+                return [ResolveBackupStoragePath()];
+            return StorageLocationResolver.ResolveUsableLocalRoots(
+                Config,
+                allowDefaultFallback: false);
+        }
+
         private RecordingStoragePlan ResolveBestStoragePlan(bool allowDefaultFallback = true)
         {
             if (IsRecordingWorkstation)

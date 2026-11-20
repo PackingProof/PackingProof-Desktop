@@ -221,6 +221,7 @@ namespace ExpressPackingMonitoring.UI
         private readonly string _computerName;
         /// <summary>设备号→主机当前分配的昵称。记录里存的是写入当时的名字，改名后要靠它归并。</summary>
         private readonly IReadOnlyDictionary<string, string>? _currentSourceDeviceNames;
+        private readonly Func<IReadOnlySet<string>>? _removedSourceDeviceIdsProvider;
         private readonly VideoDatabase? _db;
         private readonly bool _showDeletedVideos;
         /// <summary>当前工位能不能删除录像（纯查看端不给这个入口）。</summary>
@@ -306,6 +307,7 @@ namespace ExpressPackingMonitoring.UI
             Action? videosImported = null,
             string localComputerName = "",
             IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null,
+            Func<IReadOnlySet<string>>? removedSourceDeviceIdsProvider = null,
             bool canDeleteRecords = false,
             Func<
                 VideoItem,
@@ -318,6 +320,7 @@ namespace ExpressPackingMonitoring.UI
             _folderPath = folderPath;
             _computerName = localComputerName ?? "";
             _currentSourceDeviceNames = currentSourceDeviceNames;
+            _removedSourceDeviceIdsProvider = removedSourceDeviceIdsProvider;
             _db = db;
             _showDeletedVideos = showDeletedVideos;
             _canDeleteRecords = canDeleteRecords;
@@ -342,6 +345,11 @@ namespace ExpressPackingMonitoring.UI
             TimeLabel.Text = "正在加载列表...";
             _excludeUnavailableRecords = !showDeletedVideos;
             Loaded += PlaybackWindow_Loaded;
+            Activated += (_, _) =>
+            {
+                if (IsLoaded && !_isClosing)
+                    _ = LoadSourceFilterOptionsAsync(preserveSelection: true);
+            };
             VideoList.AddHandler(
                 ScrollViewer.ScrollChangedEvent,
                 new ScrollChangedEventHandler((_, _) => UpdateStickyDateHeader()),
@@ -948,18 +956,26 @@ namespace ExpressPackingMonitoring.UI
         /// 填充来源下拉。设备列表来自数据库里出现过的来源，
         /// 没有录像时只保留"全部设备"。
         /// </summary>
-        private async Task LoadSourceFilterOptionsAsync()
+        private async Task LoadSourceFilterOptionsAsync(
+            bool preserveSelection = false)
         {
             VideoDatabase? database = _db;
             IReadOnlyList<VideoSourceFilterOption> grouped = [];
+            VideoSourceOption? previousSelection =
+                preserveSelection ? SourceFilterBox.SelectedItem as VideoSourceOption : null;
             if (database != null)
             {
                 try
                 {
                     IReadOnlyList<VideoSourceInfo> sources =
                         await Task.Run(database.GetVideoSources);
+                    IReadOnlySet<string> removedDeviceIds =
+                        _removedSourceDeviceIdsProvider?.Invoke()
+                        ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     grouped = VideoSourceFilterOptions.Build(
-                        sources,
+                        sources.Where(source =>
+                            !string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
+                            || !removedDeviceIds.Contains(source.DeviceId)),
                         source => string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
                             ? GetSourceDeviceDisplayName(
                                 source.DeviceId,
@@ -985,7 +1001,28 @@ namespace ExpressPackingMonitoring.UI
             try
             {
                 SourceFilterBox.ItemsSource = options;
-                SourceFilterBox.SelectedIndex = 0;
+                int selectedIndex = 0;
+                if (previousSelection != null)
+                {
+                    for (int index = 0; index < options.Count; index++)
+                    {
+                        VideoSourceOption candidate = options[index];
+                        if (candidate.IsAll == previousSelection.IsAll
+                            && string.Equals(
+                                candidate.SourceType,
+                                previousSelection.SourceType,
+                                StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(
+                                candidate.DeviceId,
+                                previousSelection.DeviceId,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            selectedIndex = index;
+                            break;
+                        }
+                    }
+                }
+                SourceFilterBox.SelectedIndex = selectedIndex;
             }
             finally
             {

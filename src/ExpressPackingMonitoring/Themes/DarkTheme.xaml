@@ -9,6 +9,7 @@
     <!-- Text -->
     <SolidColorBrush x:Key="TextPrimary" Color="{DynamicResource Slate50Color}"/>
     <SolidColorBrush x:Key="TextSecondary" Color="{DynamicResource Slate400Color}"/>
+    <SolidColorBrush x:Key="TextSecondaryStrong" Color="{DynamicResource Slate300Color}"/>
     <SolidColorBrush x:Key="TextMuted" Color="{DynamicResource Slate500Color}"/>
     <SolidColorBrush x:Key="TextInvert" Color="{DynamicResource Slate800Color}"/>
 
@@ -23,8 +24,12 @@
     <SolidColorBrush x:Key="AccentGreen" Color="{DynamicResource Green500Color}"/>
     <SolidColorBrush x:Key="AccentRed" Color="{DynamicResource Red500Color}"/>
     <SolidColorBrush x:Key="AccentOrange" Color="{DynamicResource Amber500Color}"/>
+    <SolidColorBrush x:Key="TransferAttentionText" Color="{DynamicResource Amber300Color}"/>
+    <SolidColorBrush x:Key="TransferInfoText" Color="{DynamicResource Blue400Color}"/>
     <SolidColorBrush x:Key="AccentPurple" Color="{DynamicResource Purple500Color}"/>
     <SolidColorBrush x:Key="AccentCyan" Color="{DynamicResource Cyan600Color}"/>
+    <SolidColorBrush x:Key="TransferAttentionSurface" Color="{DynamicResource TransferAttentionSurfaceDarkColor}"/>
+    <SolidColorBrush x:Key="TransferFailureSurface" Color="{DynamicResource TransferFailureSurfaceDarkColor}"/>
     <SolidColorBrush x:Key="ActionHoverBackground" Color="{DynamicResource Blue600Color}"/>
     <SolidColorBrush x:Key="ActionHoverBorder" Color="{DynamicResource Blue600Color}"/>
     <SolidColorBrush x:Key="ActionHoverForeground" Color="{DynamicResource WhiteColor}"/>

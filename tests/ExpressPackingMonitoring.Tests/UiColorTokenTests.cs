@@ -29,7 +29,7 @@ public sealed class UiColorTokenTests
             "#[0-9A-Fa-f]{3,8}\\b|" +
             "(?:Background|Foreground|BorderBrush|Fill|Stroke|Color)=\"(?:White|Black|Transparent|Gray|Red|Green|Blue|Orange|Yellow|Purple|Cyan)\"|" +
             "Setter\\s+Property=\"(?:Background|Foreground|BorderBrush|Fill|Stroke)\"\\s+Value=\"(?:White|Black|Transparent|Gray|Red|Green|Blue|Orange|Yellow|Purple|Cyan)\"|" +
-            "(?:Brushes\\.[A-Za-z]+|Colors\\.[A-Za-z]+|ColorConverter\\.ConvertFromString)",
+            "(?:Brushes\\.[A-Za-z]+|(?<!System)Colors\\.[A-Za-z]+|ColorConverter\\.ConvertFromString)",
             RegexOptions.CultureInvariant);
 
         string[] violations = xamlFiles.Concat(codeFiles)

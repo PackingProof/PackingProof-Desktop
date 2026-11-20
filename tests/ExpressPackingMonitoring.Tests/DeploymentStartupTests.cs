@@ -86,7 +86,10 @@ public sealed class DeploymentStartupTests
         Assert.Contains("Click=\"CopyTestFlightUrl_Click\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Content=\"电脑打开下载页\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Content=\"电脑打开 TestFlight 加入页\"", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("CloseButton", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "DialogWindowChrome.UseCloseButtonOnly(this);",
+            source,
+            StringComparison.Ordinal);
         Assert.Contains("Key.Escape", source, StringComparison.Ordinal);
         Assert.Contains("RepairLanButton.IsEnabled = false", source, StringComparison.Ordinal);
         Assert.Contains("RepairLanButton.Content = \"正在修复…\"", source, StringComparison.Ordinal);
@@ -145,27 +148,38 @@ public sealed class DeploymentStartupTests
     [Fact]
     public void SingleInstanceCoordinatorIsGlobalWithinEdition()
     {
-        string? previousScope = Environment.GetEnvironmentVariable("EPM_INSTANCE_SCOPE");
-        string? previousSkipLegacy =
-            Environment.GetEnvironmentVariable("EPM_SKIP_LEGACY_INSTANCE_LOCK");
-        Environment.SetEnvironmentVariable("EPM_INSTANCE_SCOPE", $"deployment{Guid.NewGuid():N}");
-        Environment.SetEnvironmentVariable("EPM_SKIP_LEGACY_INSTANCE_LOCK", "1");
-        try
+        string scope = $"deployment{Guid.NewGuid():N}";
+        string legacyMutexName =
+            $@"Local\ExpressPackingMonitoring.LegacyTest.{Guid.NewGuid():N}.Mutex";
+        Assert.True(WorkstationInstanceCoordinator.TryCreateForTest(
+            out WorkstationInstanceCoordinator? first,
+            out _,
+            scope,
+            legacyMutexName,
+            packaged: false,
+            acquireLegacyAlias: false));
+        using (first)
         {
-            Assert.True(WorkstationInstanceCoordinator.TryCreate(out WorkstationInstanceCoordinator? first));
-            using (first)
-            {
-                Assert.True(WorkstationInstanceCoordinator.IsRunning());
-                Assert.False(WorkstationInstanceCoordinator.TryCreate(out WorkstationInstanceCoordinator? second));
-                Assert.Null(second);
-            }
-            Assert.False(WorkstationInstanceCoordinator.IsRunning());
+            Assert.False(WorkstationInstanceCoordinator.TryCreateForTest(
+                out WorkstationInstanceCoordinator? second,
+                out InstanceStartConflict conflict,
+                scope,
+                legacyMutexName,
+                packaged: false,
+                acquireLegacyAlias: false));
+            Assert.Null(second);
+            Assert.Equal(InstanceStartConflict.AlreadyRunning, conflict);
         }
-        finally
-        {
-            Environment.SetEnvironmentVariable("EPM_INSTANCE_SCOPE", previousScope);
-            Environment.SetEnvironmentVariable("EPM_SKIP_LEGACY_INSTANCE_LOCK", previousSkipLegacy);
-        }
+
+        Assert.True(WorkstationInstanceCoordinator.TryCreateForTest(
+            out WorkstationInstanceCoordinator? afterRelease,
+            out _,
+            scope,
+            legacyMutexName,
+            packaged: false,
+            acquireLegacyAlias: false));
+        Assert.NotNull(afterRelease);
+        afterRelease!.Dispose();
     }
 
     [Fact]
@@ -712,6 +726,18 @@ public sealed class DeploymentStartupTests
         Assert.Matches(
             "x:Name=\"BindingChangeHostButton\"[\\s\\S]*?StaticResource FluentDatabaseIcon",
             viewerXaml);
+        Assert.Contains(
+            "ItemContainerStyle=\"{StaticResource HostListItemStyle}\"",
+            viewerXaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Property=\"IsSelected\"",
+            viewerXaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Value=\"{DynamicResource BadgePackBg}\"",
+            viewerXaml,
+            StringComparison.Ordinal);
         Assert.Matches(
             "x:Name=\"BindSelectedButton\"[\\s\\S]*?StaticResource FluentWifiIcon",
             viewerXaml);
@@ -1034,6 +1060,11 @@ public sealed class DeploymentStartupTests
             "x:Name=\"RecordingWorkstationHostCard\"",
             mainWindow,
             StringComparison.Ordinal);
+        Assert.Equal(
+            1,
+            mainWindow.Split(
+                "x:Name=\"RecordingWorkstationHostCard\"",
+                StringSplitOptions.None).Length - 1);
         Assert.Contains(
             "x:Name=\"RecordingWorkstationUploadCard\"",
             mainWindow,
@@ -1050,11 +1081,6 @@ public sealed class DeploymentStartupTests
             "x:Name=\"ReceivedOrdersCard\"",
             mainWindow,
             StringComparison.Ordinal);
-        Assert.Equal(
-            1,
-            mainWindow.Split(
-                "x:Name=\"RecordingWorkstationHostCard\"",
-                StringSplitOptions.None).Length - 1);
         Assert.Equal(
             1,
             mainWindow.Split(
@@ -1182,13 +1208,9 @@ public sealed class DeploymentStartupTests
         int compactStatus = mainWindow.IndexOf(
             "x:Name=\"RecordingWorkstationCompactStatus\"",
             StringComparison.Ordinal);
-        int hostCard = mainWindow.IndexOf(
-            "x:Name=\"RecordingWorkstationHostCard\"",
-            compactStatus,
-            StringComparison.Ordinal);
         int uploadCard = mainWindow.IndexOf(
             "x:Name=\"RecordingWorkstationUploadCard\"",
-            hostCard,
+            compactStatus,
             StringComparison.Ordinal);
         int orderCard = mainWindow.IndexOf(
             "x:Name=\"ReceivedOrdersCard\"",
@@ -1200,8 +1222,7 @@ public sealed class DeploymentStartupTests
             StringComparison.Ordinal);
         Assert.True(nicknameHeading >= 0);
         Assert.True(compactStatus > nicknameHeading);
-        Assert.True(hostCard > compactStatus);
-        Assert.True(uploadCard > hostCard);
+        Assert.True(uploadCard > compactStatus);
         Assert.True(orderCard > uploadCard);
         Assert.True(existingButtons > orderCard);
         Assert.Contains(
@@ -1216,7 +1237,6 @@ public sealed class DeploymentStartupTests
         Assert.Contains("CardIcon=\"{StaticResource FluentPrinterIcon}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("CardTitle=\"手机/电脑备份\"", mainWindow, StringComparison.Ordinal);
         string orderMarkup = mainWindow[orderCard..existingButtons];
-        string hostMarkup = mainWindow[hostCard..uploadCard];
         string uploadMarkup = mainWindow[uploadCard..orderCard];
         Assert.Contains("Value=\"检查中\"", statusCard, StringComparison.Ordinal);
         Assert.Contains("Value=\"在线\"", statusCard, StringComparison.Ordinal);
@@ -1550,11 +1570,31 @@ public sealed class DeploymentStartupTests
             DeploymentPreset = preset,
             LastKnownHostNodeId = nodeId,
             LastKnownHostAddress = address,
-            LastKnownHostAccessKey = accessKey
+            LastKnownHostAccessKey = accessKey,
+            LastKnownHostBackupAuthVersion = string.IsNullOrWhiteSpace(accessKey)
+                ? 0
+                : BackupRequestAuthentication.CurrentVersion
         };
 
         Assert.Equal(
             expected,
+            MainViewModel.ShouldPromptRecordingWorkstationHostBinding(config));
+    }
+
+    [Fact]
+    public void StartupHostBindingPromptDoesNotReopenAfterRecordedApprovalFailure()
+    {
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+            LastKnownHostNodeId = "node-1",
+            LastKnownHostAddress = "192.168.1.20:5280",
+            LastKnownHostAccessKey = "",
+            LastRecordingHostApprovalFailureCode =
+                nameof(BackupDeviceEnrollmentFailureKind.TimedOut)
+        };
+
+        Assert.False(
             MainViewModel.ShouldPromptRecordingWorkstationHostBinding(config));
     }
 

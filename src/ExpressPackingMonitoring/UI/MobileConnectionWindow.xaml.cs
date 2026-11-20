@@ -31,6 +31,7 @@ public partial class MobileConnectionWindow : Window
         Func<Task<MobileConnectionRepairResult>>? repairLanAccessAsync = null)
     {
         InitializeComponent();
+        DialogWindowChrome.UseCloseButtonOnly(this);
         _url = "";
         _accessProtected = accessProtected;
         _repairLanAccessAsync = repairLanAccessAsync;

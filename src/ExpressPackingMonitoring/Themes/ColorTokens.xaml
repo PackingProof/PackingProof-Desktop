@@ -32,10 +32,15 @@
     <Color x:Key="Red100Color">#FFFEE2E2</Color>
     <Color x:Key="Red900Color">#FF7F1D1D</Color>
     <Color x:Key="Amber600Color">#FFD97706</Color>
+    <Color x:Key="Amber700Color">#FFB45309</Color>
     <Color x:Key="Amber500Color">#FFF59E0B</Color>
     <Color x:Key="Amber300Color">#FFFCD34D</Color>
     <Color x:Key="Amber100Color">#FFFEF3C7</Color>
     <Color x:Key="Amber900Color">#FF78350F</Color>
+    <Color x:Key="TransferAttentionSurfaceLightColor">#FFFFF7E6</Color>
+    <Color x:Key="TransferAttentionSurfaceDarkColor">#FF2B251D</Color>
+    <Color x:Key="TransferFailureSurfaceLightColor">#FFFFF9EC</Color>
+    <Color x:Key="TransferFailureSurfaceDarkColor">#FF25201B</Color>
     <Color x:Key="Purple500Color">#FF8B5CF6</Color>
     <Color x:Key="Cyan600Color">#FF0EA5E9</Color>
     <Color x:Key="SourceTag1BgDarkColor">#FF172F52</Color>

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
@@ -27,6 +28,8 @@ public partial class MainViewModel
     private double _recordingTransferProgress;
     private string _lastRecordingTransferError = "";
     private string _boundHostOnlineStatusText = "检查中";
+    private bool? _boundHostOnline;
+    private TransferManagementWindow? _transferManagementWindow;
     private string _recordingCacheUsageText = "正在检查本地缓存";
     private string _recordingCacheStatusText = "本地缓存会在接近上限时自动清理";
     private double _recordingCacheUsagePercent;
@@ -47,6 +50,10 @@ public partial class MainViewModel
     private DateTime _nextRecordingWorkstationDiscoveryAt = DateTime.MinValue;
     private int _recordingWorkstationDiscoveryFailureCount;
     private int _recordingWorkstationHeartbeatInProgress;
+    private bool _recordingHostNeedsRepair;
+    private bool _recordingHostRepairPromptShown;
+    private bool _recordingHostAwaitingApproval;
+    private bool _recordingHostPausedByUser;
     private int _recordingCacheCleanupQueued;
     private readonly object _recordingCacheMaintenanceLock = new();
     private string _recordingCacheInventoryRoot = "";
@@ -147,6 +154,7 @@ public partial class MainViewModel
                 hostAddressChanged: PersistResolvedRecordingHost);
             InitializeRecordingTransferProgressUi();
             _recordingTransferService.ProgressChanged += OnRecordingTransferProgressChanged;
+            _recordingTransferService.HostHealthChanged += OnRecordingTransferHostHealthChanged;
             _recordingTransferService.Start();
             RefreshRecordingTransferSummary();
             RunRecordingCacheCleanup();
@@ -181,6 +189,54 @@ public partial class MainViewModel
         _recordingTransferService?.RetryNow();
         RecordingTransferShortStatusText = "检查中";
         RecordingTransferStatusText = "正在重新连接";
+    }
+
+    public bool IsRecordingUploadPaused => Config.RecordingUploadPaused;
+
+    public string RecordingUploadPauseButtonText =>
+        AppLanguage.Get(IsRecordingUploadPaused ? "继续上传" : "暂停上传");
+
+    internal async Task<bool> ToggleRecordingUploadPauseAsync()
+    {
+        if (!IsRecordingWorkstation)
+            return false;
+        bool paused = !Config.RecordingUploadPaused;
+        (AppConfig Saved, string Error, bool Succeeded) result = await Task.Run(
+            () =>
+            {
+                bool succeeded = WorkstationConfigStore.TryUpdate(
+                    config => config.RecordingUploadPaused = paused,
+                    out AppConfig saved,
+                    out string error);
+                return (saved, error, succeeded);
+            });
+        if (!result.Succeeded)
+        {
+            ShowToast(
+                AppLanguage.Format("保存上传状态失败：{0}", result.Error),
+                ToastSeverity.Warning);
+            return false;
+        }
+
+        Config.RecordingUploadPaused = result.Saved.RecordingUploadPaused;
+        _recordingHostPausedByUser = result.Saved.RecordingUploadPaused;
+        _boundHostOnline = result.Saved.RecordingUploadPaused ? false : _boundHostOnline;
+        BoundHostOnlineStatusText = result.Saved.RecordingUploadPaused
+            ? AppLanguage.Get("已暂停")
+            : AppLanguage.Get("检查中");
+        LastRecordingTransferError = result.Saved.RecordingUploadPaused
+            ? AppLanguage.Get("上传已暂停")
+            : AppLanguage.Get("正在重新连接");
+        _recordingTransferService?.SetUploadPaused(result.Saved.RecordingUploadPaused);
+        OnPropertyChanged(nameof(IsRecordingUploadPaused));
+        OnPropertyChanged(nameof(RecordingUploadPauseButtonText));
+        RefreshRecordingTransferSummary();
+        ShowToast(
+            AppLanguage.Get(Config.RecordingUploadPaused
+                ? "上传已暂停"
+                : "继续上传"),
+            ToastSeverity.Information);
+        return true;
     }
 
     public string RecordingCacheUsageText
@@ -268,7 +324,9 @@ public partial class MainViewModel
                 Config.NodeName,
                 Config.WebServerPort,
                 connected: true,
-                nicknameCustomized: Config.NodeNameCustomized);
+                nicknameCustomized: Config.NodeNameCustomized,
+                accessKey: Config.LastKnownHostAccessKey,
+                authVersion: Config.LastKnownHostBackupAuthVersion);
             if (heartbeat.Online)
             {
                 _recordingWorkstationDiscoveryFailureCount = 0;
@@ -293,7 +351,9 @@ public partial class MainViewModel
                         Config.NodeName,
                         Config.WebServerPort,
                         connected: true,
-                        nicknameCustomized: Config.NodeNameCustomized);
+                        nicknameCustomized: Config.NodeNameCustomized,
+                        accessKey: Config.LastKnownHostAccessKey,
+                        authVersion: Config.LastKnownHostBackupAuthVersion);
                 }
 
                 if (heartbeat.Online)
@@ -317,7 +377,36 @@ public partial class MainViewModel
                 if (_isDisposed) return;
                 if (heartbeat.Online)
                     ApplyAssignedComputerNickname(heartbeat.AssignedDisplayName);
-                BoundHostOnlineStatusText = heartbeat.Online ? "在线" : "离线";
+                bool transportPaused = _recordingTransferService?.GetHostHealth().State
+                    is HostConnectionState.Offline
+                        or HostConnectionState.AwaitingApproval
+                        or HostConnectionState.PausedByUser
+                        or HostConnectionState.StorageBlocked
+                        or HostConnectionState.WriteBusy;
+                if (heartbeat.NeedsRepair)
+                {
+                    _recordingHostNeedsRepair = true;
+                    _boundHostOnline = false;
+                    BoundHostOnlineStatusText = "需要重新连接";
+                    if (!_recordingHostRepairPromptShown)
+                    {
+                        _recordingHostRepairPromptShown = true;
+                        ShowToast(
+                            "保存主机已解除本机配对，请重新连接",
+                            ToastSeverity.Warning);
+                    }
+                }
+                else if (!transportPaused)
+                {
+                    if (heartbeat.Online)
+                    {
+                        _recordingHostNeedsRepair = false;
+                        _recordingHostRepairPromptShown = false;
+                    _recordingHostAwaitingApproval = false;
+                    }
+                    BoundHostOnlineStatusText = heartbeat.Online ? "在线" : "离线";
+                    _boundHostOnline = heartbeat.Online;
+                }
                 RefreshRecordingTransferSummary();
             });
         }
@@ -400,7 +489,11 @@ public partial class MainViewModel
             StringComparison.Ordinal)
         && (string.IsNullOrWhiteSpace(config?.LastKnownHostNodeId)
             || string.IsNullOrWhiteSpace(config.LastKnownHostAddress)
-            || string.IsNullOrWhiteSpace(config.LastKnownHostAccessKey));
+            || string.IsNullOrWhiteSpace(config.LastKnownHostAccessKey)
+            || config.LastKnownHostBackupAuthVersion
+                < BackupRequestAuthentication.CurrentVersion)
+        && string.IsNullOrWhiteSpace(
+            config?.LastRecordingHostApprovalFailureCode);
 
     private async Task RunRecordingWorkstationHostBindingPromptIfNeededAsync(Window owner)
     {
@@ -463,6 +556,59 @@ public partial class MainViewModel
             ShowMobileConnection(owner);
     }
 
+    public void OpenTransferManagement(Window? owner = null)
+    {
+        if (_isDisposed || _db == null)
+            return;
+        if (_transferManagementWindow is { IsLoaded: true } existing)
+        {
+            if (existing.WindowState == WindowState.Minimized)
+                existing.WindowState = WindowState.Normal;
+            existing.Activate();
+            return;
+        }
+
+        TransferManagementMode mode = IsRecordingWorkstation
+            ? TransferManagementMode.RecordingTransfer
+            : TransferManagementMode.HostDevices;
+        if (mode == TransferManagementMode.RecordingTransfer
+            && _recordingTransferStore == null)
+        {
+            ShowToast("上传服务尚未准备完成", ToastSeverity.Warning);
+            return;
+        }
+        if (mode == TransferManagementMode.HostDevices && _webServer == null)
+        {
+            ShowToast("手机/电脑备份服务尚未准备完成", ToastSeverity.Warning);
+            return;
+        }
+
+        var service = new TransferManagementSnapshotService(
+            mode,
+            Config,
+            _db,
+            _webServer,
+            _recordingTransferStore,
+            _recordingTransferService,
+            () => IsRecordingWorkstation
+                ? _recordingTransferService?.GetHostHealth()
+                : null);
+        var window = new TransferManagementWindow(
+            service,
+            isUploadPaused: () => IsRecordingWorkstation && IsRecordingUploadPaused,
+            toggleUploadPause: ToggleRecordingUploadPauseAsync)
+        {
+            Owner = owner ?? Application.Current?.MainWindow
+        };
+        window.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_transferManagementWindow, window))
+                _transferManagementWindow = null;
+        };
+        _transferManagementWindow = window;
+        window.Show();
+    }
+
     private void OnRecordingTransferProgressChanged(RecordingTransferProgress progress)
     {
         if (_isDisposed)
@@ -490,6 +636,54 @@ public partial class MainViewModel
         dispatcher.BeginInvoke(
             new Action(StartRecordingTransferProgressTimer),
             System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    private void OnRecordingTransferHostHealthChanged(
+        RecordingTransferHostHealth health)
+    {
+        Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            if (_isDisposed)
+                return;
+            _boundHostOnline = health.State switch
+            {
+                HostConnectionState.Online => true,
+                HostConnectionState.Offline
+                    or HostConnectionState.AwaitingApproval
+                    or HostConnectionState.PausedByUser
+                    or HostConnectionState.StorageBlocked
+                    or HostConnectionState.WriteBusy => false,
+                _ => null
+            };
+            _recordingHostAwaitingApproval =
+                health.State == HostConnectionState.AwaitingApproval;
+            _recordingHostPausedByUser =
+                health.State == HostConnectionState.PausedByUser;
+            BoundHostOnlineStatusText =
+                IsReconnectRequiredError(health.Reason)
+                    ? AppLanguage.Get("需要重新连接")
+                    : health.State switch
+                {
+                    HostConnectionState.AwaitingApproval =>
+                        AppLanguage.Get("等待授权"),
+                    HostConnectionState.PausedByUser =>
+                        AppLanguage.Get("已暂停"),
+                    _ => _boundHostOnline switch
+                    {
+                        true => "在线",
+                        false => "离线",
+                        _ => "检查中"
+                    }
+                };
+            LastRecordingTransferError = health.Reason;
+            RefreshRecordingTransferSummary();
+        });
+    }
+
+    internal void NotifyRecordingHostApprovalStateChanged()
+    {
+        _recordingTransferService?.Wake();
+        RefreshRecordingTransferSummary();
     }
 
     private void InitializeRecordingTransferProgressUi()
@@ -637,8 +831,11 @@ public partial class MainViewModel
     {
         PendingRecordingTransferCount =
             summary.PendingCount + summary.UploadingCount + summary.FailedCount;
-        LastRecordingTransferError = summary.LastError;
-        bool requiresReconnect = IsReconnectRequiredError(summary.LastError);
+        LastRecordingTransferError = _recordingHostPausedByUser
+            ? AppLanguage.Get("上传已暂停")
+            : summary.LastError;
+        bool requiresReconnect = _recordingHostNeedsRepair
+            || IsReconnectRequiredError(summary.LastError);
         RecordingTransferCardState cardState = BuildRecordingTransferCardState(
             summary.PendingCount,
             summary.UploadingCount,
@@ -647,7 +844,9 @@ public partial class MainViewModel
             RecordingTransferProgress,
             string.Equals(BoundHostOnlineStatusText, "离线", StringComparison.Ordinal),
             recentlyUploaded,
-            requiresReconnect);
+            requiresReconnect,
+            hostAwaitingApproval: _recordingHostAwaitingApproval,
+            pausedByUser: _recordingHostPausedByUser);
         RecordingTransferShortStatusText = cardState.ShortStatusText;
         RecordingTransferStatusText = cardState.DetailText;
     }
@@ -718,31 +917,44 @@ public partial class MainViewModel
         double progress,
         bool hostOffline,
         bool recentlyUploaded,
-        bool requiresReconnect = false)
+        bool requiresReconnect = false,
+        bool hostAwaitingApproval = false,
+        bool pausedByUser = false)
     {
         int totalCount = Math.Max(0, pendingCount)
             + Math.Max(0, uploadingCount)
             + Math.Max(0, failedCount);
         // 停止重试的录像不占卡片状态，只并进现有明细，避免多出一种卡片口径。
         string stoppedSuffix = abandonedCount > 0 ? $" · {abandonedCount} 个已停止上传" : "";
+        if (pausedByUser)
+        {
+            return new RecordingTransferCardState(
+                AppLanguage.Get("上传已暂停"),
+                totalCount > 0
+                    ? AppLanguage.Format(
+                        "已暂停上传，{0} 个录像保存在本机",
+                        totalCount)
+                    : AppLanguage.Get("上传已暂停，暂无待上传录像"));
+        }
         if (uploadingCount > 0)
         {
             return new RecordingTransferCardState(
                 "上传中",
-                $"正在上传 {Math.Clamp(progress, 0, 100):F0}% · 共 {totalCount} 个待上传");
+                $"正在上传 {Math.Clamp(progress, 0, 100):F0}% · 共 {totalCount} 个待上传{stoppedSuffix}");
         }
 
-        if (failedCount > 0)
+        if (requiresReconnect)
         {
-            if (requiresReconnect)
-            {
-                return new RecordingTransferCardState(
-                    "需要重新连接",
-                    "需要重新连接保存主机，录像仍保存在本机");
-            }
             return new RecordingTransferCardState(
-                "上传失败",
-                $"{totalCount} 个录像等待重试{stoppedSuffix}，录像仍保存在本机");
+                "需要重新连接",
+                "需要重新连接保存主机，录像仍保存在本机");
+        }
+
+        if (hostAwaitingApproval && totalCount > 0)
+        {
+            return new RecordingTransferCardState(
+                AppLanguage.Get("等待授权"),
+                AppLanguage.Get("等待主机允许连接，录像仍保存在本机"));
         }
 
         if (totalCount > 0)
@@ -751,6 +963,8 @@ public partial class MainViewModel
                 "待上传",
                 hostOffline
                     ? $"{totalCount} 个录像已保存在本机，联网后自动上传{stoppedSuffix}"
+                    : failedCount > 0
+                        ? $"{totalCount} 个录像稍后自动重试{stoppedSuffix}，录像仍保存在本机"
                     : $"{totalCount} 个录像等待上传{stoppedSuffix}");
         }
 
@@ -1239,10 +1453,15 @@ public partial class MainViewModel
                 Config.NodeName,
                 Config.WebServerPort,
                 connected: false,
-                nicknameCustomized: Config.NodeNameCustomized);
+                nicknameCustomized: Config.NodeNameCustomized,
+                accessKey: Config.LastKnownHostAccessKey,
+                authVersion: Config.LastKnownHostBackupAuthVersion);
         }
         if (_recordingTransferService != null)
+        {
             _recordingTransferService.ProgressChanged -= OnRecordingTransferProgressChanged;
+            _recordingTransferService.HostHealthChanged -= OnRecordingTransferHostHealthChanged;
+        }
         try { _recordingTransferService?.Dispose(); } catch { }
         _recordingTransferService = null;
         _recordingTransferStore = null;

@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
@@ -9,6 +10,38 @@ namespace ExpressPackingMonitoring.Tests;
 [Collection("Web server tests")]
 public sealed class ViewerWebAccessClientTests
 {
+    [Fact]
+    public void ViewerChangeHostModeDoesNotAutoRecoverTheOldHost()
+    {
+        Assert.False(ViewerClientWindow.CanAutoRecoverViewer(
+            bindingOnly: false,
+            choosingHost: true,
+            savedHostNodeId: "host-1"));
+        Assert.True(ViewerClientWindow.CanAutoRecoverViewer(
+            bindingOnly: false,
+            choosingHost: false,
+            savedHostNodeId: "host-1"));
+    }
+
+    [Fact]
+    public void RecordingWorkstationRequiresHostApprovalUntilCredentialExists()
+    {
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+            LastKnownHostAddress = "http://192.168.1.20:5280",
+            LastKnownHostNodeId = "host-1",
+            LastKnownHostAccessKey = "",
+            LastKnownHostBackupAuthVersion = 0
+        };
+        Assert.True(ViewerClientWindow.ShouldRequestRecordingHostApproval(config));
+
+        config.LastKnownHostAccessKey = new string('a', 64);
+        config.LastKnownHostBackupAuthVersion =
+            BackupRequestAuthentication.CurrentVersion;
+        Assert.False(ViewerClientWindow.ShouldRequestRecordingHostApproval(config));
+    }
+
     [Theory]
     [InlineData("http://192.168.1.20:5280/", true)]
     [InlineData("http://192.168.1.20:5280", true)]

@@ -3,6 +3,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 
 namespace ExpressPackingMonitoring.Services;
@@ -27,10 +28,10 @@ internal sealed class MobileBackupService
 
     private readonly VideoDatabase _database;
     private readonly string _stateDirectory;
-    private readonly Func<string> _recordingRootResolver;
     private readonly Func<string, OrderInfo?> _orderInfoResolver;
     private readonly Func<string?>? _archiveTargetResolver;
     private readonly Action? _archivePendingCallback;
+    private readonly MobileBackupStoragePlacement _storagePlacement;
     internal const int UploadLockStripeCount = 256;
     private readonly object[] _uploadLocks = Enumerable.Range(0, UploadLockStripeCount)
         .Select(_ => new object())
@@ -56,23 +57,39 @@ internal sealed class MobileBackupService
         Func<string> recordingRootResolver,
         Func<string, OrderInfo?>? orderInfoResolver = null,
         Func<string?>? archiveTargetResolver = null,
-        Action? archivePendingCallback = null)
+        Action? archivePendingCallback = null,
+        HostUploadStorageAdmissionController? storageAdmission = null,
+        Func<string, StorageVolumeInfo?>? storageVolumeProbe = null,
+        Func<IReadOnlyList<string>>? recordingRootsResolver = null)
     {
         _database = database ?? throw new ArgumentNullException(nameof(database));
         _stateDirectory = string.IsNullOrWhiteSpace(stateDirectory)
             ? throw new ArgumentException("上传状态目录不能为空", nameof(stateDirectory))
             : Path.GetFullPath(stateDirectory);
-        _recordingRootResolver = recordingRootResolver
-            ?? throw new ArgumentNullException(nameof(recordingRootResolver));
+        ArgumentNullException.ThrowIfNull(recordingRootResolver);
         _orderInfoResolver = orderInfoResolver ?? (_ => null);
         _archiveTargetResolver = archiveTargetResolver;
         _archivePendingCallback = archivePendingCallback;
+        var resolvedStorageAdmission =
+            storageAdmission ?? new HostUploadStorageAdmissionController();
+        Func<string, StorageVolumeInfo?> resolvedStorageVolumeProbe =
+            storageVolumeProbe ?? (path =>
+            StorageVolumeInfo.TryGet(path, out StorageVolumeInfo volume)
+                ? volume
+                : null);
+        _storagePlacement = new MobileBackupStoragePlacement(
+            _stateDirectory,
+            recordingRootsResolver ?? (() => [recordingRootResolver()]),
+            resolvedStorageAdmission,
+            resolvedStorageVolumeProbe);
         Directory.CreateDirectory(_stateDirectory);
         CleanupExpiredUploads();
         new MobileBackupSharedFileMigrator(_database).Run();
     }
 
-    public MobileBackupCreateResult CreateOrResume(MobileBackupCreateRequest request)
+    public MobileBackupCreateResult CreateOrResume(
+        MobileBackupCreateRequest request,
+        string? sourceDeviceId = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         string sha256 = NormalizeSha256(request.FileSha256);
@@ -94,10 +111,6 @@ internal sealed class MobileBackupService
                 }
             }
 
-            // 备份分片必须落在目标存储卷：磁盘未接入、未就绪或空间不足时立即拒收，
-            // 客户端保留本地录像并按 storage_unavailable 自动重试。
-            string stagingDirectory = EnsureStagingDirectory();
-
             MobileBackupUploadState? state = LoadState(uploadId);
             if (state != null)
             {
@@ -114,16 +127,70 @@ internal sealed class MobileBackupService
                     return new MobileBackupCreateResult(uploadId, completedSize, ChunkSizeBytes, true);
                 }
 
-                long offset = File.Exists(PartPath(uploadId)) ? new FileInfo(PartPath(uploadId)).Length : 0;
-                EnsureStagingFreeSpace(stagingDirectory, request.TotalBytes - offset);
-                state.ReceivedBytes = offset;
-                state.UpdatedAtUtc = DateTime.UtcNow;
-                SaveState(state);
-                MarkUploadActive(uploadId);
-                return new MobileBackupCreateResult(uploadId, offset, ChunkSizeBytes, false);
+                bool usesLegacyPart = File.Exists(
+                    Path.Combine(_stateDirectory, $"{uploadId}.part"));
+                string uploadRoot = _storagePlacement.ResolveUploadRootForExistingState(
+                    uploadId,
+                    state);
+                if (string.IsNullOrWhiteSpace(uploadRoot))
+                {
+                    uploadRoot = _storagePlacement.ReserveNewUploadOnBestDisk(
+                        uploadId,
+                        string.IsNullOrWhiteSpace(sourceDeviceId)
+                            ? state.SourceDeviceId
+                            : sourceDeviceId,
+                        request.TotalBytes,
+                        receivedBytes: 0);
+                }
+                else
+                {
+                    string partPath = _storagePlacement.PartPath(uploadId, state);
+                    long offset = File.Exists(partPath)
+                        ? new FileInfo(partPath).Length
+                        : state.ReceivedBytes;
+                    _storagePlacement.ReserveAdmissionSpace(
+                        uploadId,
+                        string.IsNullOrWhiteSpace(sourceDeviceId)
+                            ? state.SourceDeviceId
+                            : sourceDeviceId,
+                        uploadRoot,
+                        request.TotalBytes,
+                        offset);
+                }
+                try
+                {
+                    _ = _storagePlacement.EnsureStagingDirectory(uploadRoot);
+                    _storagePlacement.BindUploadRoot(state, uploadRoot);
+                    state.UsesLegacyPart = usesLegacyPart;
+                    _storagePlacement.MigrateLegacyPart(uploadId, state, uploadRoot);
+                    string currentPartPath = _storagePlacement.PartPath(uploadId, state);
+                    long currentOffset = File.Exists(currentPartPath)
+                        ? new FileInfo(currentPartPath).Length
+                        : 0;
+                    state.ReceivedBytes = currentOffset;
+                    if (!string.IsNullOrWhiteSpace(sourceDeviceId))
+                        state.SourceDeviceId = sourceDeviceId.Trim();
+                    state.UpdatedAtUtc = DateTime.UtcNow;
+                    SaveState(state);
+                    MarkUploadActive(uploadId);
+                    return new MobileBackupCreateResult(
+                        uploadId,
+                        currentOffset,
+                        ChunkSizeBytes,
+                        false);
+                }
+                catch
+                {
+                    _storagePlacement.ReleaseUpload(uploadId);
+                    throw;
+                }
             }
 
-            EnsureStagingFreeSpace(stagingDirectory, request.TotalBytes);
+            string selectedRoot = _storagePlacement.ReserveNewUploadOnBestDisk(
+                uploadId,
+                sourceDeviceId,
+                request.TotalBytes,
+                receivedBytes: 0);
             state = new MobileBackupUploadState
             {
                 UploadId = uploadId,
@@ -131,12 +198,23 @@ internal sealed class MobileBackupService
                 TotalBytes = request.TotalBytes,
                 ReceivedBytes = 0,
                 MimeType = request.MimeType.Trim().ToLowerInvariant(),
+                SourceDeviceId = sourceDeviceId?.Trim() ?? "",
+                UploadRoot = selectedRoot,
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             };
-            SaveState(state);
-            MarkUploadActive(uploadId);
-            return new MobileBackupCreateResult(uploadId, 0, ChunkSizeBytes, false);
+            try
+            {
+                _storagePlacement.BindUploadRoot(state, selectedRoot);
+                SaveState(state);
+                MarkUploadActive(uploadId);
+                return new MobileBackupCreateResult(uploadId, 0, ChunkSizeBytes, false);
+            }
+            catch
+            {
+                _storagePlacement.ReleaseUpload(uploadId);
+                throw;
+            }
         }
     }
 
@@ -149,6 +227,9 @@ internal sealed class MobileBackupService
             ? idleTask.WaitAsync(cancellationToken)
             : idleTask;
     }
+
+    internal HostUploadStorageAvailability GetStorageAvailability()
+        => _storagePlacement.GetStorageAvailability();
 
     public long AppendChunk(
         string uploadId,
@@ -172,9 +253,10 @@ internal sealed class MobileBackupService
             if (expectedLength != content.LongLength || content.Length > ChunkSizeBytes)
                 throw new MobileBackupValidationException("invalid_chunk_size", "分块长度不正确或超过服务端上限");
 
-            // 存储卷不可用时不得写入分片，避免落到系统盘或错误位置
-            EnsureStagingDirectory();
-            string partPath = PartPath(uploadId);
+            string uploadRoot = _storagePlacement.ResolveStoredUploadRoot(state);
+            _ = _storagePlacement.EnsureStagingDirectory(uploadRoot);
+            _storagePlacement.MigrateLegacyPart(uploadId, state, uploadRoot);
+            string partPath = _storagePlacement.PartPath(uploadId, state);
             long expectedOffset = File.Exists(partPath) ? new FileInfo(partPath).Length : 0;
             if (start != expectedOffset)
                 throw new MobileBackupOffsetException(expectedOffset);
@@ -183,15 +265,48 @@ internal sealed class MobileBackupService
             if (!string.Equals(actualChunkSha, normalizedChunkSha, StringComparison.Ordinal))
                 throw new MobileBackupValidationException("chunk_sha256_mismatch", "分块 SHA256 校验失败");
 
-            using (var stream = new FileStream(partPath, FileMode.Append, FileAccess.Write, FileShare.None))
+            string volumeKey = _storagePlacement.ReserveAdmissionSpace(
+                uploadId,
+                state.SourceDeviceId,
+                Path.GetDirectoryName(partPath) ?? _stateDirectory,
+                state.TotalBytes,
+                expectedOffset);
+            using HostUploadWriteLease writeLease = _storagePlacement.AcquireWrite(
+                uploadId,
+                string.IsNullOrWhiteSpace(state.SourceDeviceId)
+                    ? uploadId
+                    : state.SourceDeviceId,
+                volumeKey);
+            try
             {
-                stream.Write(content, 0, content.Length);
-                stream.Flush(flushToDisk: true);
+                using (var stream = new FileStream(partPath, FileMode.Append, FileAccess.Write, FileShare.None))
+                {
+                    stream.Write(content, 0, content.Length);
+                    stream.Flush(flushToDisk: true);
+                }
+                writeLease.Commit(content.Length);
+            }
+            catch (Exception ex) when (
+                ex is IOException or UnauthorizedAccessException)
+            {
+                writeLease.Fail();
+                string message = NetworkArchiveSpacePolicy.IsDiskFullException(ex)
+                    ? "录像保存磁盘空间不足，上传已暂停等待空间恢复"
+                    : $"录像保存磁盘写入失败：{ex.Message}";
+                throw new MobileBackupStorageUnavailableException(message);
             }
 
             state.ReceivedBytes = expectedOffset + content.Length;
             state.UpdatedAtUtc = DateTime.UtcNow;
-            SaveState(state);
+            try
+            {
+                SaveState(state);
+            }
+            catch
+            {
+                _storagePlacement.ReleaseUpload(uploadId);
+                throw;
+            }
             return state.ReceivedBytes;
         }
     }
@@ -209,27 +324,90 @@ internal sealed class MobileBackupService
 
         lock (GetUploadLock(uploadId))
         {
+            try
+            {
             VideoRecord? completed = _database.GetVideoBySourceSession(request.SourceDeviceId, session.Id);
             if (completed != null)
             {
                 if (!string.Equals(completed.ContentSha256, fileSha256, StringComparison.OrdinalIgnoreCase))
                     throw new MobileBackupValidationException("session_conflict", "该设备录像 ID 已绑定其他文件");
+                if (!File.Exists(completed.FilePath))
+                {
+                    throw new MobileBackupValidationException(
+                        "host_file_missing",
+                        "保存主机上的录像文件不存在，请重新上传或联系管理员");
+                }
+                if ((completed.FileSizeBytes > 0
+                     && new FileInfo(completed.FilePath).Length != completed.FileSizeBytes)
+                    || !FileMatchesSha256(completed.FilePath, fileSha256))
+                {
+                    throw new MobileBackupValidationException(
+                        "host_file_corrupt",
+                        "保存主机上的录像文件校验失败，请重新上传或联系管理员");
+                }
                 MarkUploadCompleted(uploadId);
                 return new MobileBackupCompleteResult("verified", fileSha256, completed.Id, true);
             }
 
-            // 完成落盘前再次确认存储卷可用：磁盘被拔掉时按 storage_unavailable 拒收，
-            // 客户端保留上传状态，磁盘接回后继续完成
-            EnsureStagingDirectory();
+            MobileBackupUploadState? state = LoadState(uploadId);
+            VideoRecord? existingFile = _database.GetVideoByContentSha256(fileSha256);
+            if (state == null && existingFile == null)
+            {
+                throw new MobileBackupValidationException(
+                    "upload_not_found",
+                    "上传任务不存在或已过期");
+            }
+            if (state == null && !File.Exists(existingFile!.FilePath))
+            {
+                throw new MobileBackupValidationException(
+                    "host_file_missing",
+                    "保存主机上的录像文件不存在，请重新上传或联系管理员");
+            }
+            if (state == null
+                && !FileMatchesSha256(existingFile!.FilePath, fileSha256))
+            {
+                throw new MobileBackupValidationException(
+                    "host_file_corrupt",
+                    "保存主机上的录像文件校验失败，请重新上传或联系管理员");
+            }
+            string uploadRoot = state == null
+                ? ""
+                : _storagePlacement.ResolveUploadRootForExistingState(uploadId, state);
+            if (string.IsNullOrWhiteSpace(uploadRoot))
+            {
+                long totalBytes = state?.TotalBytes
+                    ?? existingFile?.FileSizeBytes
+                    ?? 0;
+                uploadRoot = _storagePlacement.ReserveNewUploadOnBestDisk(
+                    uploadId,
+                    request.SourceDeviceId,
+                    totalBytes,
+                    state?.ReceivedBytes ?? 0);
+            }
+            else
+            {
+                _storagePlacement.ReserveAdmissionSpace(
+                    uploadId,
+                    request.SourceDeviceId,
+                    uploadRoot,
+                    state?.TotalBytes ?? 0,
+                    state?.ReceivedBytes ?? 0);
+            }
+            _ = _storagePlacement.EnsureStagingDirectory(uploadRoot);
+            if (state != null)
+            {
+                _storagePlacement.BindUploadRoot(state, uploadRoot);
+                _storagePlacement.MigrateLegacyPart(uploadId, state, uploadRoot);
+            }
 
             string finalPath;
             long fileSize;
-            VideoRecord? existingFile = _database.GetVideoByContentSha256(fileSha256);
             if (existingFile != null
                 && File.Exists(existingFile.FilePath)
                 && FileMatchesSha256(existingFile.FilePath, fileSha256))
             {
                 finalPath = ResolveFinalPath(
+                    uploadRoot,
                     session,
                     fileSha256,
                     request.SourceDeviceId,
@@ -244,15 +422,19 @@ internal sealed class MobileBackupService
                     throw new IOException("目标备份文件已存在但校验值不一致");
                 fileSize = new FileInfo(finalPath).Length;
             }
-            else if (TryUseStateFinalFile(LoadState(uploadId), out finalPath, out fileSize))
+            else if (TryUseStateFinalFile(state, out finalPath, out fileSize))
             {
                 // 文件已原子移动但数据库写入失败时，重试完成请求可继续落库。
             }
             else
             {
-                MobileBackupUploadState state = LoadState(uploadId)
-                    ?? throw new MobileBackupValidationException("upload_not_found", "上传任务不存在或已过期");
-                string partPath = PartPath(uploadId);
+                if (state == null)
+                {
+                    throw new MobileBackupValidationException(
+                        "upload_not_found",
+                        "上传任务不存在或已过期");
+                }
+                string partPath = _storagePlacement.PartPath(uploadId, state);
                 if (!File.Exists(partPath) || new FileInfo(partPath).Length != state.TotalBytes)
                     throw new MobileBackupOffsetException(File.Exists(partPath) ? new FileInfo(partPath).Length : 0);
 
@@ -264,12 +446,14 @@ internal sealed class MobileBackupService
                 }
 
                 finalPath = ResolveFinalPath(
+                    uploadRoot,
                     session,
                     fileSha256,
                     request.SourceDeviceId,
                     request.SourceDeviceName,
                     request.SourceDeviceKind);
                 state.FinalPath = finalPath;
+                _storagePlacement.BindUploadRoot(state, uploadRoot);
                 state.UpdatedAtUtc = DateTime.UtcNow;
                 SaveState(state);
                 Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
@@ -323,6 +507,19 @@ internal sealed class MobileBackupService
             DeleteStateFile(uploadId);
             MarkUploadCompleted(uploadId);
             return new MobileBackupCompleteResult("verified", fileSha256, recordId, false);
+            }
+            catch (Exception ex) when (
+                ex is IOException or UnauthorizedAccessException)
+            {
+                _storagePlacement.ReleaseUpload(uploadId);
+                throw new MobileBackupStorageUnavailableException(
+                    $"完成录像落盘失败，文件仍保留以便重试：{ex.Message}");
+            }
+            catch
+            {
+                _storagePlacement.ReleaseUpload(uploadId);
+                throw;
+            }
         }
     }
 
@@ -381,6 +578,8 @@ internal sealed class MobileBackupService
             {
                 if (File.GetLastWriteTimeUtc(statePath) < cutoff)
                 {
+                    _storagePlacement.ReleaseUpload(
+                        Path.GetFileNameWithoutExtension(statePath));
                     try { File.Delete(statePath); } catch { }
                 }
             }
@@ -416,7 +615,7 @@ internal sealed class MobileBackupService
     /// </summary>
     private void CleanupOrphanStagingParts()
     {
-        foreach (string directory in EnumeratePartDirectories())
+        foreach (string directory in _storagePlacement.EnumeratePartDirectories())
         {
             try
             {
@@ -439,13 +638,6 @@ internal sealed class MobileBackupService
         }
     }
 
-    private IEnumerable<string> EnumeratePartDirectories()
-    {
-        string? stagingDirectory = TryResolveStagingDirectory();
-        if (stagingDirectory != null) yield return stagingDirectory;
-        yield return _stateDirectory;
-    }
-
     private object GetUploadLock(string uploadId) => _uploadLocks[GetUploadLockStripeIndex(uploadId)];
 
     internal static int GetUploadLockStripeIndex(string uploadId)
@@ -456,94 +648,6 @@ internal sealed class MobileBackupService
     }
 
     private string StatePath(string uploadId) => Path.Combine(_stateDirectory, $"{uploadId}.json");
-
-    /// <summary>
-    /// 暂存分片路径。优先使用目标存储卷的暂存目录；旧版本遗留在状态目录的分片继续用到完成，
-    /// 不打断升级前正在进行的上传。这里只做路径计算，解析失败也不会创建任何目录。
-    /// </summary>
-    private string PartPath(string uploadId)
-    {
-        string? stagingDirectory = TryResolveStagingDirectory();
-        if (stagingDirectory != null
-            && File.Exists(Path.Combine(stagingDirectory, $"{uploadId}.part")))
-        {
-            return Path.Combine(stagingDirectory, $"{uploadId}.part");
-        }
-
-        string legacy = Path.Combine(_stateDirectory, $"{uploadId}.part");
-        if (File.Exists(legacy) || stagingDirectory == null) return legacy;
-        return Path.Combine(stagingDirectory, $"{uploadId}.part");
-    }
-
-    /// <summary>
-    /// 解析并准备暂存目录；存储位置不可用时抛 <see cref="MobileBackupStorageUnavailableException"/>。
-    /// 录像根目录由 StorageLocationResolver 做 fail-closed 校验，挂载点断开时不会回退到系统盘上的同名目录。
-    /// </summary>
-    private string EnsureStagingDirectory()
-    {
-        string root;
-        try
-        {
-            root = _recordingRootResolver()?.Trim() ?? "";
-        }
-        catch (Exception ex)
-        {
-            throw new MobileBackupStorageUnavailableException($"录像保存位置不可用：{ex.Message}");
-        }
-        if (string.IsNullOrWhiteSpace(root))
-            throw new MobileBackupStorageUnavailableException("录像保存位置为空，无法接收备份");
-
-        string directory = Path.Combine(root, StagingDirectoryName);
-        try
-        {
-            Directory.CreateDirectory(directory);
-        }
-        catch (Exception ex)
-        {
-            throw new MobileBackupStorageUnavailableException($"无法在 {root} 下创建暂存目录：{ex.Message}");
-        }
-        return directory;
-    }
-
-    private string? TryResolveStagingDirectory()
-    {
-        try
-        {
-            return EnsureStagingDirectory();
-        }
-        catch (MobileBackupStorageUnavailableException)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// 剩余空间不足时提前拒收，避免在目标盘上写入半截分片；读不到空间信息时不阻断上传。
-    /// </summary>
-    private static void EnsureStagingFreeSpace(string stagingDirectory, long requiredBytes)
-    {
-        if (requiredBytes <= 0) return;
-        try
-        {
-            string? root = Path.GetPathRoot(Path.GetFullPath(stagingDirectory));
-            if (string.IsNullOrWhiteSpace(root)) return;
-            var drive = new DriveInfo(root);
-            if (!drive.IsReady)
-                throw new MobileBackupStorageUnavailableException($"存储位置 {root} 未就绪");
-            long availableBytes = drive.AvailableFreeSpace;
-            if (availableBytes >= requiredBytes) return;
-            throw new MobileBackupStorageUnavailableException(
-                $"存储位置剩余空间不足，本次备份还需约 {requiredBytes / (1024 * 1024)} MB，当前可用约 {availableBytes / (1024 * 1024)} MB");
-        }
-        catch (MobileBackupStorageUnavailableException)
-        {
-            throw;
-        }
-        catch
-        {
-            // 读不到空间信息时交由后续写入与完成校验兜底
-        }
-    }
 
     private bool TryUseStateFinalFile(MobileBackupUploadState? state, out string finalPath, out long fileSize)
     {
@@ -557,6 +661,7 @@ internal sealed class MobileBackupService
     }
 
     private string ResolveFinalPath(
+        string uploadRoot,
         MobileBackupSessionRequest session,
         string fileSha256,
         string sourceDeviceId,
@@ -567,20 +672,11 @@ internal sealed class MobileBackupService
         string trackingNumber = session.TrackingNumber?.Trim().ToUpperInvariant() ?? "";
         if (string.IsNullOrWhiteSpace(trackingNumber)) trackingNumber = ArchivePathBuilder.UnknownOrderId;
         DateTime startedAt = session.StartedAt.ToLocalTime().DateTime;
-        string root;
-        try
-        {
-            root = _recordingRootResolver()?.Trim() ?? "";
-        }
-        catch (Exception ex)
-        {
-            throw new MobileBackupStorageUnavailableException($"录像保存位置不可用：{ex.Message}");
-        }
-        if (string.IsNullOrWhiteSpace(root))
+        if (string.IsNullOrWhiteSpace(uploadRoot))
             throw new MobileBackupStorageUnavailableException("电脑录像存储路径为空，无法接收备份");
 
         string dateDirectory = Path.Combine(
-            Path.GetFullPath(root),
+            Path.GetFullPath(uploadRoot),
             string.Equals(sourceDeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
                 ? ArchivePathBuilder.PcUploadDirectory
                 : ArchivePathBuilder.PhoneBackupDirectory,
@@ -651,7 +747,8 @@ internal sealed class MobileBackupService
 
     private void ResetUpload(string uploadId)
     {
-        TryDelete(PartPath(uploadId));
+        MobileBackupUploadState? state = LoadState(uploadId);
+        TryDelete(_storagePlacement.PartPath(uploadId, state));
         DeleteStateFile(uploadId);
     }
 
@@ -679,6 +776,7 @@ internal sealed class MobileBackupService
 
     private void MarkUploadCompleted(string uploadId)
     {
+        _storagePlacement.ReleaseUpload(uploadId);
         TaskCompletionSource<bool>? completed = null;
         bool changed;
         lock (_activeUploadsLock)
@@ -845,6 +943,11 @@ internal sealed class MobileBackupUploadState
     public long TotalBytes { get; set; }
     public long ReceivedBytes { get; set; }
     public string MimeType { get; set; } = "";
+    public string SourceDeviceId { get; set; } = "";
+    public string UploadRoot { get; set; } = "";
+    public string UploadVolumeId { get; set; } = "";
+    public string UploadPhysicalDiskId { get; set; } = "";
+    public bool UsesLegacyPart { get; set; }
     public string FinalPath { get; set; } = "";
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }

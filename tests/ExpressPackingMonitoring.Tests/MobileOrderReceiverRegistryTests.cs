@@ -1,4 +1,5 @@
 using System.Net;
+using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
 using Xunit;
 
@@ -952,6 +953,222 @@ public sealed class MobileOrderReceiverRegistryTests
             if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
     }
+
+    [Fact]
+    public void RemovedDeviceKeepsNicknameTombstoneAndOnlyPairingRestoresIt()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            $"mobile-receivers-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "order-receivers.json");
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(path);
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "安卓1",
+                deviceKind: "mobile",
+                platform: "android");
+
+            Assert.True(registry.TryForgetDevice("android-device-0001"));
+            var reloaded = new MobileOrderReceiverRegistry(path);
+            Assert.Empty(reloaded.GetKnownRecordingDevices());
+            MobileOrderReceiverInfo tombstone = Assert.Single(
+                reloaded.GetKnownRecordingDevices(includeRemoved: true));
+            Assert.True(tombstone.Removed);
+            Assert.Equal("安卓1", tombstone.NodeName);
+
+            // 普通心跳不能把用户移除的设备重新冒出来。
+            reloaded.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "安卓1",
+                deviceKind: "mobile",
+                platform: "android");
+            Assert.Empty(reloaded.GetKnownRecordingDevices());
+
+            // 重新扫码配对走显式恢复。
+            reloaded.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "安卓1",
+                deviceKind: "mobile",
+                platform: "android",
+                restoreRemoved: true);
+            Assert.Equal(
+                "安卓1",
+                Assert.Single(reloaded.GetKnownRecordingDevices()).NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void RemovedDeviceReleasesNicknameForAnotherActiveDevice()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            $"mobile-receivers-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "order-receivers.json");
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(path);
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "打包手机",
+                deviceKind: "mobile",
+                platform: "android",
+                customized: true);
+            Assert.True(registry.TryForgetDevice("android-device-0001"));
+
+            MobileOrderReceiverInfo replacement = Assert.IsType<MobileOrderReceiverInfo>(
+                registry.Register(
+                    IPAddress.Parse("192.168.31.202"),
+                    "android-device-0002",
+                    "打包手机",
+                    deviceKind: "mobile",
+                    platform: "android",
+                    customized: true));
+            Assert.Equal("打包手机", replacement.NodeName);
+
+            // 旧设备重新配对时不能与新的当前设备重名。
+            MobileOrderReceiverInfo restored = Assert.IsType<MobileOrderReceiverInfo>(
+                registry.Register(
+                    IPAddress.Parse("192.168.31.201"),
+                    "android-device-0001",
+                    "",
+                    deviceKind: "mobile",
+                    platform: "android",
+                    restoreRemoved: true));
+            Assert.NotEqual("打包手机", restored.NodeName);
+            Assert.Equal(
+                2,
+                registry.GetKnownRecordingDevices()
+                    .Select(device => device.NodeName)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count());
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void ReconcileRecordedDevicesClearsOldHistoryWithoutActiveVideos()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            $"mobile-receivers-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "order-receivers.json");
+        try
+        {
+            DateTime now = new(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+            var registry = new MobileOrderReceiverRegistry(path, () => now);
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "old-device-0001",
+                "从机1",
+                hasRecordings: true);
+
+            now = now.AddDays(31);
+            int removed = registry.ReconcileActiveDevices([]);
+
+            Assert.Equal(1, removed);
+            Assert.DoesNotContain(
+                registry.GetKnownRecordingDevices(),
+                item => item.NodeId == "old-device-0001");
+            Assert.Empty(new MobileOrderReceiverRegistry(path, () => now)
+                .GetKnownRecordingDevices());
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void ReconcileRecordedDevicesKeepsExplicitRemovalTombstone()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            $"mobile-receivers-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "order-receivers.json");
+        try
+        {
+            DateTime now = new(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+            var registry = new MobileOrderReceiverRegistry(path, () => now);
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "removed-device-0001",
+                "安卓1",
+                deviceKind: "mobile",
+                platform: "android",
+                hasRecordings: true);
+            Assert.True(registry.TryForgetDevice("removed-device-0001"));
+
+            now = now.AddDays(31);
+            Assert.Equal(0, registry.ReconcileActiveDevices([]));
+
+            MobileOrderReceiverInfo tombstone = Assert.Single(
+                registry.GetKnownRecordingDevices(includeRemoved: true));
+            Assert.True(tombstone.Removed);
+            Assert.Equal("安卓1", tombstone.NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ReconcileRecordedDevicesKeepsActiveAndCustomizedDevices()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            $"mobile-receivers-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "order-receivers.json");
+        try
+        {
+            DateTime now = new(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+            var registry = new MobileOrderReceiverRegistry(path, () => now);
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "active-device-0001",
+                "安卓1",
+                deviceKind: "mobile",
+                platform: "android",
+                hasRecordings: true);
+            registry.Register(
+                IPAddress.Parse("192.168.31.202"),
+                "named-device-0001",
+                "打包电脑",
+                deviceKind: "pc",
+                customized: true);
+
+            now = now.AddDays(31);
+            registry.ReconcileActiveDevices(["active-device-0001"]);
+
+            IReadOnlyList<MobileOrderReceiverInfo> known =
+                registry.GetKnownRecordingDevices();
+            Assert.Contains(
+                known,
+                item => item.NodeId == "active-device-0001");
+            Assert.Contains(
+                known,
+                item => item.NodeId == "named-device-0001");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
     /// <summary>
     /// 条数上限是硬上限：淘汰跑在插入之前，不给新设备预留位置的话插入后会多出一条。
     /// 有录像的设备最后才被淘汰。

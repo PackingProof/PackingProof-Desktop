@@ -762,6 +762,61 @@ namespace ExpressPackingMonitoring.Data
             }
         }
 
+        public IReadOnlyList<MobileBackupDeviceSummary> GetMobileBackupDeviceSummaries(DateTime day)
+        {
+            DateTime start = day.Date;
+            DateTime end = start.AddDays(1);
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT SourceDeviceId,
+                           MAX(SourceDeviceName),
+                           MAX(SourceDeviceKind),
+                           SUM(CASE
+                               WHEN BackupCompletedAt IS NOT NULL
+                                AND BackupCompletedAt <> ''
+                                AND BackupCompletedAt >= @start
+                                AND BackupCompletedAt < @end
+                               THEN 1 ELSE 0 END),
+                           MAX(CASE
+                               WHEN BackupCompletedAt IS NOT NULL
+                                AND BackupCompletedAt <> ''
+                               THEN BackupCompletedAt ELSE NULL END)
+                    FROM VideoRecords
+                    WHERE IsDeleted = 0
+                      AND SourceType = 'external'
+                      AND SourceDeviceId <> ''
+                    GROUP BY SourceDeviceId
+                    ORDER BY MAX(BackupCompletedAt) DESC, SourceDeviceId;";
+                cmd.Parameters.AddWithValue("@start", start.ToString("yyyy-MM-dd HH:mm:ss"));
+                cmd.Parameters.AddWithValue("@end", end.ToString("yyyy-MM-dd HH:mm:ss"));
+                using var reader = cmd.ExecuteReader();
+                var result = new List<MobileBackupDeviceSummary>();
+                while (reader.Read())
+                {
+                    DateTime? lastActivityAt = null;
+                    if (!reader.IsDBNull(4)
+                        && DateTime.TryParse(
+                            reader.GetString(4),
+                            out DateTime parsedLastActivity))
+                    {
+                        lastActivityAt = DateTime.SpecifyKind(
+                            parsedLastActivity,
+                            DateTimeKind.Local);
+                    }
+
+                    result.Add(new MobileBackupDeviceSummary(
+                        reader.GetString(0),
+                        reader.IsDBNull(1) ? "" : reader.GetString(1),
+                        reader.IsDBNull(2) ? "" : reader.GetString(2),
+                        reader.IsDBNull(3) ? 0 : Convert.ToInt32(reader.GetValue(3)),
+                        lastActivityAt));
+                }
+                return result;
+            }
+        }
+
         public MobileBackupOverview GetMobileBackupOverview(DateTime day)
         {
             DateTime start = day.Date;
@@ -3653,6 +3708,13 @@ namespace ExpressPackingMonitoring.Data
         IReadOnlyList<MobileBackupDailyCount> DeviceCounts,
         int TodayCount,
         int TotalCount);
+
+    public sealed record MobileBackupDeviceSummary(
+        string DeviceId,
+        string DeviceName,
+        string DeviceKind,
+        int TodayCount,
+        DateTime? LastActivityAt);
 
     public sealed record VideoSourceInfo(
         string SourceType,

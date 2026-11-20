@@ -57,7 +57,8 @@ public static class WorkstationConfigStore
                 var config = JsonSerializer.Deserialize<AppConfig>(rawText) ?? new AppConfig();
                 // 记下加载时的原文，保存时用它做三方合并的基线
                 config.LoadedJson = rawText;
-                bool changed = AppConfig.NormalizeAfterLoad(config);
+                bool changed = NodeIdentityAnchorStore.Apply(config);
+                changed = AppConfig.NormalizeAfterLoad(config) || changed;
                 changed = EnsureAppRootDirectory(config, AppContext.BaseDirectory) || changed;
                 if (changed)
                 {
@@ -87,6 +88,7 @@ public static class WorkstationConfigStore
         }
 
         var defaultConfig = new AppConfig();
+        NodeIdentityAnchorStore.Apply(defaultConfig);
         AppConfig.NormalizeAfterLoad(defaultConfig);
         EnsureAppRootDirectory(defaultConfig, AppContext.BaseDirectory);
         try { Save(defaultConfig); }
@@ -681,7 +683,9 @@ public static class WorkstationNetwork
         int orderReceiverPort,
         bool connected = true,
         bool nicknameCustomized = false,
-        CancellationToken token = default)
+        CancellationToken token = default,
+        string? accessKey = null,
+        int authVersion = 0)
     {
         address = NormalizeAddress(address);
         if (string.IsNullOrWhiteSpace(address) || string.IsNullOrWhiteSpace(nodeId))
@@ -701,38 +705,102 @@ public static class WorkstationNetwork
                 orderReceiverPort,
                 capabilities = new[] { "recording", "order-receiver" }
             };
-            using var content = new StringContent(
-                JsonSerializer.Serialize(payload),
-                Encoding.UTF8,
-                "application/json");
+            byte[] payloadBytes = JsonSerializer.SerializeToUtf8Bytes(payload);
+            using var content = new ByteArrayContent(payloadBytes);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+                "application/json")
+            {
+                CharSet = "utf-8"
+            };
+            string normalizedAccessKey = accessKey?.Trim() ?? "";
+            if (normalizedAccessKey.Length > 0)
+            {
+                if (authVersion < BackupRequestAuthentication.CurrentVersion)
+                    return new RecordingWorkstationHeartbeatResult(false, "", true);
+                long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                string nonce = Convert.ToHexString(
+                    RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+                string contentHash =
+                    BackupRequestAuthentication.ComputeContentHash(payloadBytes);
+                string path = $"{ToUrl(address)}/api/connections/heartbeat";
+                string signature = BackupRequestAuthentication.CreateRequestSignature(
+                    normalizedAccessKey,
+                    HttpMethod.Post.Method,
+                    new Uri(path).PathAndQuery,
+                    timestamp,
+                    nonce,
+                    contentHash,
+                    nodeId);
+                HttpRequestMessage request = new(HttpMethod.Post, path)
+                {
+                    Content = content
+                };
+                request.Headers.TryAddWithoutValidation("X-EPM-Device-Id", nodeId);
+                request.Headers.TryAddWithoutValidation("X-EPM-Device-Kind", "pc");
+                request.Headers.TryAddWithoutValidation(
+                    BackupRequestAuthentication.VersionHeader,
+                    BackupRequestAuthentication.CurrentVersion.ToString());
+                request.Headers.TryAddWithoutValidation(
+                    BackupRequestAuthentication.TimestampHeader,
+                    timestamp.ToString());
+                request.Headers.TryAddWithoutValidation(
+                    BackupRequestAuthentication.NonceHeader,
+                    nonce);
+                request.Headers.TryAddWithoutValidation(
+                    BackupRequestAuthentication.ContentHashHeader,
+                    contentHash);
+                request.Headers.TryAddWithoutValidation(
+                    BackupRequestAuthentication.SignatureHeader,
+                    signature);
+                using HttpResponseMessage signedResponse =
+                    await Client.SendAsync(request, token);
+                return await ReadRecordingWorkstationHeartbeatResponseAsync(
+                    signedResponse,
+                    token);
+            }
             using var response = await Client.PostAsync(
                 $"{ToUrl(address)}/api/connections/heartbeat",
                 content,
                 token);
-            if (!response.IsSuccessStatusCode)
-                return new RecordingWorkstationHeartbeatResult(false, "");
-
-            string assignedDisplayName = "";
-            try
-            {
-                string responseBody = await response.Content.ReadAsStringAsync(token);
-                using JsonDocument document = JsonDocument.Parse(responseBody);
-                if (document.RootElement.TryGetProperty("assignedDisplayName", out JsonElement assignedElement)
-                    && assignedElement.ValueKind == JsonValueKind.String)
-                {
-                    assignedDisplayName = assignedElement.GetString()?.Trim() ?? "";
-                }
-            }
-            catch
-            {
-                // 旧主机可能不返回该字段或返回空响应，在线状态仍然有效。
-            }
-            return new RecordingWorkstationHeartbeatResult(true, assignedDisplayName);
+            return await ReadRecordingWorkstationHeartbeatResponseAsync(response, token);
         }
         catch
         {
             return new RecordingWorkstationHeartbeatResult(false, "");
         }
+    }
+
+    private static async Task<RecordingWorkstationHeartbeatResult>
+        ReadRecordingWorkstationHeartbeatResponseAsync(
+            HttpResponseMessage response,
+            CancellationToken token)
+    {
+        if (response.StatusCode is HttpStatusCode.Unauthorized
+            or HttpStatusCode.Forbidden)
+        {
+            return new RecordingWorkstationHeartbeatResult(false, "", true);
+        }
+        if (!response.IsSuccessStatusCode)
+            return new RecordingWorkstationHeartbeatResult(false, "");
+
+        string assignedDisplayName = "";
+        try
+        {
+            string responseBody = await response.Content.ReadAsStringAsync(token);
+            using JsonDocument document = JsonDocument.Parse(responseBody);
+            if (document.RootElement.TryGetProperty(
+                    "assignedDisplayName",
+                    out JsonElement assignedElement)
+                && assignedElement.ValueKind == JsonValueKind.String)
+            {
+                assignedDisplayName = assignedElement.GetString()?.Trim() ?? "";
+            }
+        }
+        catch
+        {
+            // 旧主机可能不返回该字段或返回空响应，在线状态仍然有效。
+        }
+        return new RecordingWorkstationHeartbeatResult(true, assignedDisplayName);
     }
 
     internal static async Task<BackupDeviceEnrollmentResult> EnrollBackupDeviceAsync(
@@ -743,84 +811,172 @@ public static class WorkstationNetwork
         CancellationToken token = default,
         Func<TimeSpan, CancellationToken, Task>? retryDelay = null,
         string? clientVersion = null,
-        string? platform = null)
+        string? platform = null,
+        TimeSpan? requestTimeout = null)
     {
         address = NormalizeAddress(address);
         if (address.Length == 0 || string.IsNullOrWhiteSpace(deviceId))
             throw new InvalidOperationException("保存主机地址或本机身份无效");
-        using var client = CreateLanHttpClient(TimeSpan.FromSeconds(90));
+        using var client = CreateLanHttpClient(
+            requestTimeout ?? TimeSpan.FromSeconds(90));
         retryDelay ??= Task.Delay;
         string resolvedClientVersion = string.IsNullOrWhiteSpace(clientVersion)
             ? BackupCompatibilityPolicy.MinimumDesktopVersion
             : clientVersion.Trim();
-        for (int attempt = 0; ; attempt++)
+        try
         {
-            using var request = new HttpRequestMessage(
-                HttpMethod.Post,
-                $"{ToUrl(address)}/api/mobile-backup/enroll")
+            for (int attempt = 0; ; attempt++)
             {
-                Content = JsonContent.Create(new
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"{ToUrl(address)}/api/mobile-backup/enroll")
                 {
-                    deviceId = deviceId.Trim(),
-                    deviceName = deviceName?.Trim() ?? "",
-                    deviceKind = string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
-                        ? "pc"
-                        : string.Equals(deviceKind, "viewer", StringComparison.OrdinalIgnoreCase)
-                            ? "viewer"
-                            : "mobile",
-                    platform = platform ?? "",
-                    clientVersion = resolvedClientVersion,
-                    clientBuildNumber = 0,
-                    backupProtocol = BackupCompatibilityPolicy.BackupProtocol,
-                    enrollmentVersion = BackupCompatibilityPolicy.EnrollmentVersion,
-                    authVersion = BackupCompatibilityPolicy.AuthenticationVersion
-                })
-            };
-            using HttpResponseMessage response = await client.SendAsync(request, token);
-            if (response.StatusCode == HttpStatusCode.NotFound)
-                throw new InvalidOperationException("保存主机版本过旧，请先更新电脑端");
-            if ((int)response.StatusCode == 429)
-            {
-                BackupCompatibilityError? busy = await response.Content.ReadFromJsonAsync<BackupCompatibilityError>(
-                    NetworkJsonOptions,
-                    token);
-                if (string.Equals(busy?.ErrorCode, "enrollment_approval_busy", StringComparison.OrdinalIgnoreCase)
-                    && attempt < 24)
+                    Content = JsonContent.Create(new
+                    {
+                        deviceId = deviceId.Trim(),
+                        deviceName = deviceName?.Trim() ?? "",
+                        deviceKind = string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+                            ? "pc"
+                            : string.Equals(deviceKind, "viewer", StringComparison.OrdinalIgnoreCase)
+                                ? "viewer"
+                                : "mobile",
+                        platform = platform ?? "",
+                        clientVersion = resolvedClientVersion,
+                        clientBuildNumber = 0,
+                        backupProtocol = BackupCompatibilityPolicy.BackupProtocol,
+                        enrollmentVersion = BackupCompatibilityPolicy.EnrollmentVersion,
+                        authVersion = BackupCompatibilityPolicy.AuthenticationVersion
+                    })
+                };
+                using HttpResponseMessage response = await client.SendAsync(request, token);
+                if (response.StatusCode == HttpStatusCode.NotFound)
                 {
-                    await retryDelay(TimeSpan.FromSeconds(3), token);
-                    continue;
+                    throw new BackupDeviceEnrollmentException(
+                        BackupDeviceEnrollmentFailureKind.Incompatible,
+                        AppLanguage.Get("保存主机版本过旧，请先更新电脑端"));
                 }
-                throw new InvalidOperationException("连接请求过于频繁，请稍后重试");
+                if ((int)response.StatusCode == 429)
+                {
+                    BackupCompatibilityError? busy = await ReadEnrollmentErrorAsync(
+                        response,
+                        token);
+                    if (string.Equals(
+                            busy?.ErrorCode,
+                            "enrollment_approval_busy",
+                            StringComparison.OrdinalIgnoreCase)
+                        && attempt < 24)
+                    {
+                        await retryDelay(TimeSpan.FromSeconds(3), token);
+                        continue;
+                    }
+                    throw new BackupDeviceEnrollmentException(
+                        BackupDeviceEnrollmentFailureKind.Busy,
+                        AppLanguage.Get("保存主机正在确认其他设备，请稍后重新申请"));
+                }
+                if (response.StatusCode == HttpStatusCode.Forbidden)
+                {
+                    BackupCompatibilityError? denied = await ReadEnrollmentErrorAsync(
+                        response,
+                        token);
+                    bool explicitlyDenied = string.Equals(
+                        denied?.ErrorCode,
+                        "enrollment_denied",
+                        StringComparison.OrdinalIgnoreCase);
+                    throw new BackupDeviceEnrollmentException(
+                        explicitlyDenied
+                            ? BackupDeviceEnrollmentFailureKind.Denied
+                            : BackupDeviceEnrollmentFailureKind.Failed,
+                        explicitlyDenied
+                            ? AppLanguage.Get("保存主机拒绝了本机连接申请，可重新申请或更换保存主机")
+                            : AppLanguage.Get("保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”"));
+                }
+                if (response.StatusCode == HttpStatusCode.Conflict)
+                {
+                    throw new BackupDeviceEnrollmentException(
+                        BackupDeviceEnrollmentFailureKind.Incompatible,
+                        AppLanguage.Get("这台电脑当前不是录像文件备份主机"));
+                }
+                if ((int)response.StatusCode == 426)
+                {
+                    BackupCompatibilityError? error = await ReadEnrollmentErrorAsync(
+                        response,
+                        token);
+                    throw new BackupDeviceEnrollmentException(
+                        BackupDeviceEnrollmentFailureKind.Incompatible,
+                        string.IsNullOrWhiteSpace(error?.Error)
+                            ? AppLanguage.Get("当前录制工位版本过低，请更新电脑端后重新连接")
+                            : error.Error);
+                }
+                if (response.StatusCode == HttpStatusCode.ServiceUnavailable)
+                {
+                    BackupCompatibilityError? unavailable = await ReadEnrollmentErrorAsync(
+                        response,
+                        token);
+                    throw new BackupDeviceEnrollmentException(
+                        BackupDeviceEnrollmentFailureKind.ApprovalUnavailable,
+                        string.Equals(
+                            unavailable?.ErrorCode,
+                            "enrollment_approval_unavailable",
+                            StringComparison.OrdinalIgnoreCase)
+                            ? AppLanguage.Get("保存主机暂时无法显示连接确认窗口，请打开保存主机界面后重试")
+                            : AppLanguage.Get("保存主机暂时无法处理连接申请，请稍后重试"));
+                }
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new BackupDeviceEnrollmentException(
+                        BackupDeviceEnrollmentFailureKind.Failed,
+                        AppLanguage.Get("保存主机暂时无法处理连接申请，请稍后重试"));
+                }
+                BackupDeviceEnrollmentResult? result =
+                    await response.Content.ReadFromJsonAsync<BackupDeviceEnrollmentResult>(
+                        NetworkJsonOptions,
+                        token);
+                if (result == null
+                    || result.Protocol != "mobile-backup-v2"
+                    || result.Version != 2
+                    || result.AuthVersion != BackupRequestAuthentication.CurrentVersion
+                    || result.DeviceToken.Length < 32
+                    || !string.Equals(result.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new BackupDeviceEnrollmentException(
+                        BackupDeviceEnrollmentFailureKind.InvalidResponse,
+                        AppLanguage.Get("保存主机返回的连接信息无效，请更新保存主机后重试"));
+                }
+                return result;
             }
-            if (response.StatusCode == HttpStatusCode.Forbidden)
-                throw new InvalidOperationException("保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”");
-            if (response.StatusCode == HttpStatusCode.Conflict)
-                throw new InvalidOperationException("这台电脑当前不是录像文件备份主机");
-            if ((int)response.StatusCode == 426)
-            {
-                BackupCompatibilityError? error = await response.Content.ReadFromJsonAsync<BackupCompatibilityError>(
-                    NetworkJsonOptions,
-                    token);
-                throw new InvalidOperationException(
-                    string.IsNullOrWhiteSpace(error?.Error)
-                        ? "当前录制工位版本过低，请更新电脑端后重新连接"
-                        : error.Error);
-            }
-            if (!response.IsSuccessStatusCode)
-                throw new InvalidOperationException("保存主机暂时无法处理连接申请，请稍后重试");
-            BackupDeviceEnrollmentResult? result = await response.Content.ReadFromJsonAsync<BackupDeviceEnrollmentResult>(
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            throw new BackupDeviceEnrollmentException(
+                BackupDeviceEnrollmentFailureKind.TimedOut,
+                AppLanguage.Get("等待保存主机允许连接超时，请确认保存主机界面已打开后重新申请"));
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new BackupDeviceEnrollmentException(
+                BackupDeviceEnrollmentFailureKind.Unreachable,
+                AppLanguage.Get("无法连接保存主机，请检查网络后重试"),
+                ex);
+        }
+    }
+
+    private static async Task<BackupCompatibilityError?> ReadEnrollmentErrorAsync(
+        HttpResponseMessage response,
+        CancellationToken token)
+    {
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<BackupCompatibilityError>(
                 NetworkJsonOptions,
                 token);
-            if (result == null
-                || result.Protocol != "mobile-backup-v2"
-                || result.Version != 2
-                || result.AuthVersion != BackupRequestAuthentication.CurrentVersion
-                || result.DeviceToken.Length < 32
-                || !string.Equals(result.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException("保存主机返回的设备令牌无效");
-            }
-            return result;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -1519,7 +1675,8 @@ public static class WorkstationNetwork
 
 public readonly record struct RecordingWorkstationHeartbeatResult(
     bool Online,
-    string AssignedDisplayName);
+    string AssignedDisplayName,
+    bool NeedsRepair = false);
 
 internal sealed class BackupDeviceEnrollmentResult
 {

@@ -74,6 +74,7 @@ public partial class PrintWorkstationWindow : Window
     private readonly CoalescingBackgroundRefresh _archiveSummaryRefresh = new();
     private StatisticsWindow? _statisticsWindow;
     private PlaybackWindow? _playbackWindow;
+    private TransferManagementWindow? _transferManagementWindow;
     private bool _loaded;
     private bool _exitRequestedFromTray;
     private bool _deploymentSetupPersisted;
@@ -271,6 +272,55 @@ public partial class PrintWorkstationWindow : Window
 
     private void OpenWeb_Click(object sender, RoutedEventArgs e) => OpenLocalPlayback();
 
+    private void MobileBackupStatusCard_PreviewMouseLeftButtonUp(
+        object sender,
+        System.Windows.Input.MouseButtonEventArgs e)
+    {
+        OpenTransferManagement();
+        e.Handled = true;
+    }
+
+    private void MobileBackupStatusCard_PreviewKeyDown(
+        object sender,
+        System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is not (System.Windows.Input.Key.Enter or System.Windows.Input.Key.Space))
+            return;
+        OpenTransferManagement();
+        e.Handled = true;
+    }
+
+    private void OpenTransferManagement()
+    {
+        if (_transferManagementWindow is { IsLoaded: true } existing)
+        {
+            if (existing.WindowState == WindowState.Minimized)
+                existing.WindowState = WindowState.Normal;
+            existing.Activate();
+            return;
+        }
+
+        TransferManagementSnapshotService? snapshotService =
+            _host.CreateTransferManagementSnapshotService();
+        if (snapshotService == null)
+        {
+            ShowToast("设备备份服务尚未准备完成", ToastSeverity.Warning);
+            return;
+        }
+
+        var window = new TransferManagementWindow(snapshotService)
+        {
+            Owner = this
+        };
+        window.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_transferManagementWindow, window))
+                _transferManagementWindow = null;
+        };
+        _transferManagementWindow = window;
+        window.ShowDialog();
+    }
+
     private void OpenStatistics_Click(object sender, RoutedEventArgs e)
     {
         if (_statisticsWindow is { IsLoaded: true })
@@ -314,6 +364,8 @@ public partial class PrintWorkstationWindow : Window
                     out _);
             },
             localComputerName: _config.NodeName,
+            currentSourceDeviceNames: _host.GetCurrentRecordingDeviceNames(),
+            removedSourceDeviceIdsProvider: _host.GetRemovedRecordingDeviceIds,
             // 打包工位自己就是备份主机（会写录像数据），可以删除回放里的录像。
             canDeleteRecords: DeploymentCapabilities
                 .ForPreset(DeploymentPresets.MobileBackupHost)
@@ -452,7 +504,8 @@ public partial class PrintWorkstationWindow : Window
                         overview.DeviceCounts,
                         host.GetRecordingDevices(),
                         config.NodeId,
-                        host.GetCurrentRecordingDeviceNames());
+                        host.GetCurrentRecordingDeviceNames(),
+                        host.GetRemovedRecordingDeviceIds());
                 snapshot = new DeviceSummarySnapshot(
                     userscriptStatus,
                     shortStatus,
@@ -553,10 +606,13 @@ public partial class PrintWorkstationWindow : Window
         IEnumerable<MobileBackupDailyCount> counts,
         IEnumerable<RecordingDeviceInfo> devices,
         string localNodeId,
-        IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
+        IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null,
+        IReadOnlySet<string>? removedDeviceIds = null)
     {
+        removedDeviceIds ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var statuses = counts
             .Where(item => BackupDeviceIdentity.IsRemote(item.DeviceId, localNodeId))
+            .Where(item => !removedDeviceIds.Contains(item.DeviceId))
             .ToDictionary(
             item => item.DeviceId,
             item =>
@@ -579,7 +635,8 @@ public partial class PrintWorkstationWindow : Window
             .Where(device => device.Online
                 && (string.Equals(device.DeviceType, "mobile", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(device.DeviceType, "pc", StringComparison.OrdinalIgnoreCase))
-                && BackupDeviceIdentity.IsRemote(device.NodeId, localNodeId)))
+                && BackupDeviceIdentity.IsRemote(device.NodeId, localNodeId)
+                && !removedDeviceIds.Contains(device.NodeId)))
         {
             statuses.TryGetValue(device.NodeId, out var existing);
             statuses[device.NodeId] = (
@@ -767,8 +824,10 @@ public partial class PrintWorkstationWindow : Window
     {
         try { _statisticsWindow?.Close(); } catch { }
         try { _playbackWindow?.Close(); } catch { }
+        try { _transferManagementWindow?.Close(); } catch { }
         _statisticsWindow = null;
         _playbackWindow = null;
+        _transferManagementWindow = null;
     }
 
     private void InstallTool_Click(object sender, RoutedEventArgs e)

@@ -15,6 +15,211 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class RecordingWorkstationLoopbackIntegrationTests
 {
     [Fact]
+    public async Task UnpairedWorkstationHeartbeatReportsRepairRequired()
+    {
+        string root = CreateTempDirectory();
+        string stateDirectory = Path.Combine(root, "host-state");
+        Directory.CreateDirectory(stateDirectory);
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(root, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupComputerName: "测试主机",
+                mobileBackupStateDirectory: stateDirectory,
+                mobileBackupRecordingRootResolver: () => Path.Combine(root, "recordings"),
+                nodeId: Guid.NewGuid().ToString("D"),
+                nodeName: "测试主机",
+                deploymentPreset: DeploymentPresets.MobileBackupHost,
+                backupDeviceEnrollmentApprover: _ =>
+                    BackupDeviceEnrollmentApprovalDecision.Approved);
+            server.Start(allowAccessSetup: false);
+
+            string deviceId = Guid.NewGuid().ToString("D");
+            BackupDeviceEnrollmentResult enrollment =
+                await WorkstationNetwork.EnrollBackupDeviceAsync(
+                    $"127.0.0.1:{port}",
+                    deviceId,
+                    "电脑1",
+                    "pc",
+                    TestContext.Current.CancellationToken,
+                    platform: "windows");
+            RecordingWorkstationHeartbeatResult online =
+                await WorkstationNetwork.SendRecordingWorkstationHeartbeatAsync(
+                    $"127.0.0.1:{port}",
+                    deviceId,
+                    "电脑1",
+                    5280,
+                    accessKey: enrollment.DeviceToken,
+                    authVersion: enrollment.AuthVersion,
+                    token: TestContext.Current.CancellationToken);
+            Assert.True(online.Online);
+            Assert.False(online.NeedsRepair);
+
+            Assert.Equal(
+                BackupDeviceRemovalStatus.Removed,
+                server.TryForgetKnownBackupDevice(deviceId).Status);
+
+            RecordingWorkstationHeartbeatResult unpaired =
+                await WorkstationNetwork.SendRecordingWorkstationHeartbeatAsync(
+                    $"127.0.0.1:{port}",
+                    deviceId,
+                    "电脑1",
+                    5280,
+                    accessKey: enrollment.DeviceToken,
+                    authVersion: enrollment.AuthVersion,
+                    token: TestContext.Current.CancellationToken);
+            Assert.False(unpaired.Online);
+            Assert.True(unpaired.NeedsRepair);
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(root);
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task DeniedRecordingHostEnrollmentReturnsActionableFailure()
+    {
+        string root = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(root, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: Path.Combine(root, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(root, "recordings"),
+                nodeId: Guid.NewGuid().ToString("D"),
+                deploymentPreset: DeploymentPresets.RecordingHost,
+                backupDeviceEnrollmentApprover: _ =>
+                    BackupDeviceEnrollmentApprovalDecision.Denied);
+            server.Start(allowAccessSetup: false);
+
+            BackupDeviceEnrollmentException error = await Assert.ThrowsAsync<
+                BackupDeviceEnrollmentException>(() =>
+                WorkstationNetwork.EnrollBackupDeviceAsync(
+                    $"127.0.0.1:{port}",
+                    Guid.NewGuid().ToString("D"),
+                    "电脑1",
+                    "pc",
+                    TestContext.Current.CancellationToken));
+
+            Assert.Equal(BackupDeviceEnrollmentFailureKind.Denied, error.Kind);
+            Assert.Contains("拒绝", error.Message);
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(root);
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task UnavailableRecordingHostApprovalReturnsNotPendingError()
+    {
+        string root = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(root, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: Path.Combine(root, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(root, "recordings"),
+                nodeId: Guid.NewGuid().ToString("D"),
+                deploymentPreset: DeploymentPresets.RecordingHost,
+                backupDeviceEnrollmentApprover: _ =>
+                    BackupDeviceEnrollmentApprovalDecision.Unavailable);
+            server.Start(allowAccessSetup: false);
+
+            BackupDeviceEnrollmentException error = await Assert.ThrowsAsync<
+                BackupDeviceEnrollmentException>(() =>
+                WorkstationNetwork.EnrollBackupDeviceAsync(
+                    $"127.0.0.1:{port}",
+                    Guid.NewGuid().ToString("D"),
+                    "电脑1",
+                    "pc",
+                    TestContext.Current.CancellationToken));
+
+            Assert.Equal(
+                BackupDeviceEnrollmentFailureKind.ApprovalUnavailable,
+                error.Kind);
+            Assert.Contains("无法显示连接确认窗口", error.Message);
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(root);
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task UnresponsiveRecordingHostEnrollmentTimesOutInsteadOfWaitingForever()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var serverCancellation = new CancellationTokenSource();
+        Task hangingServer = Task.Run(async () =>
+        {
+            using TcpClient client = await listener.AcceptTcpClientAsync(
+                serverCancellation.Token);
+            await Task.Delay(Timeout.InfiniteTimeSpan, serverCancellation.Token);
+        }, serverCancellation.Token);
+        try
+        {
+            BackupDeviceEnrollmentException error = await Assert.ThrowsAsync<
+                BackupDeviceEnrollmentException>(() =>
+                WorkstationNetwork.EnrollBackupDeviceAsync(
+                    $"127.0.0.1:{port}",
+                    Guid.NewGuid().ToString("D"),
+                    "电脑1",
+                    "pc",
+                    TestContext.Current.CancellationToken,
+                    requestTimeout: TimeSpan.FromMilliseconds(250)));
+
+            Assert.Equal(BackupDeviceEnrollmentFailureKind.TimedOut, error.Kind);
+            Assert.Contains("超时", error.Message);
+        }
+        finally
+        {
+            serverCancellation.Cancel();
+            listener.Stop();
+            try { await hangingServer; } catch (OperationCanceledException) { }
+        }
+    }
+
+    [Fact]
+    public void RecordingHostApprovalPendingWindowExpires()
+    {
+        var config = new AppConfig
+        {
+            RecordingHostApprovalPending = true,
+            RecordingHostApprovalRequestedAtUtc = DateTime.UtcNow
+        };
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        Assert.True(RecordingHostApprovalPolicy.IsPending(config, now));
+
+        config.RecordingHostApprovalRequestedAtUtc =
+            DateTime.UtcNow - RecordingHostApprovalPolicy.PendingLifetime
+                - TimeSpan.FromSeconds(1);
+        Assert.False(RecordingHostApprovalPolicy.IsPending(config, now));
+    }
+
+    [Fact]
     public async Task SameMachineLoopbackTransfer_CachesBeforeBindingAndUploadsAfterBinding()
     {
         string root = CreateTempDirectory();

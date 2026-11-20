@@ -95,6 +95,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     },
                     localComputerName: Config.NodeName,
                     currentSourceDeviceNames: _webServer?.GetCurrentSourceDeviceNames(),
+                    removedSourceDeviceIdsProvider:
+                        _webServer == null
+                            ? null
+                            : () => _webServer.GetRemovedSourceDeviceIds(),
                     // 删除会改录像记录，纯查看端不给这个入口。
                     canDeleteRecords: DeploymentCapabilities
                         .ForPreset(Config.DeploymentPreset)

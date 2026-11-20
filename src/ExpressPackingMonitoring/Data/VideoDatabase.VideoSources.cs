@@ -61,4 +61,72 @@ public partial class VideoDatabase
             return result;
         }
     }
+
+    /// <summary>
+    /// 统计某台外部设备仍可回放的录像数。清理设备登记前只认数据库的未删除记录，
+    /// 不根据文件是否存在猜测归属；录像文件即使被外部移走，也要先走现有的缺失修复/删除流程。
+    /// </summary>
+    public int CountActiveExternalVideosByDevice(string? deviceId)
+    {
+        string normalizedDeviceId = deviceId?.Trim() ?? "";
+        if (normalizedDeviceId.Length == 0)
+            return 0;
+
+        lock (_lock)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = @"
+                SELECT COUNT(1)
+                FROM VideoRecords
+                WHERE IsDeleted = 0
+                  AND SourceType = 'external'
+                  AND SourceDeviceId = @deviceId COLLATE NOCASE;";
+            cmd.Parameters.AddWithValue("@deviceId", normalizedDeviceId);
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        }
+    }
+
+    /// <summary>
+    /// 只查询登记设备中仍有未删除录像的设备号。IN 列表最多只有设备登记表的硬上限，
+    /// 可命中外部会话索引；不要在周期对账中反复对整张录像表做窗口聚合。
+    /// </summary>
+    public IReadOnlyList<string> GetActiveExternalDeviceIds(
+        IEnumerable<string>? deviceIds)
+    {
+        string[] normalizedDeviceIds = (deviceIds ?? [])
+            .Select(item => item?.Trim() ?? "")
+            .Where(item => item.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(512)
+            .ToArray();
+        if (normalizedDeviceIds.Length == 0)
+            return [];
+
+        lock (_lock)
+        {
+            using var cmd = _connection.CreateCommand();
+            string[] parameterNames = new string[normalizedDeviceIds.Length];
+            for (int index = 0; index < normalizedDeviceIds.Length; index++)
+            {
+                parameterNames[index] = $"@device{index}";
+                cmd.Parameters.AddWithValue(
+                    parameterNames[index],
+                    normalizedDeviceIds[index]);
+            }
+            cmd.CommandText = $@"
+                SELECT DISTINCT SourceDeviceId
+                FROM VideoRecords
+                WHERE IsDeleted = 0
+                  AND SourceType = 'external'
+                  AND SourceDeviceId IN ({string.Join(", ", parameterNames)});";
+            using var reader = cmd.ExecuteReader();
+            var result = new List<string>();
+            while (reader.Read())
+            {
+                if (!reader.IsDBNull(0))
+                    result.Add(reader.GetString(0));
+            }
+            return result;
+        }
+    }
 }

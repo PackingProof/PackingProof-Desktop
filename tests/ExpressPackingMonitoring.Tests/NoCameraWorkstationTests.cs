@@ -381,6 +381,25 @@ public sealed class NoCameraWorkstationTests : IDisposable
     }
 
     [Fact]
+    public void MobileBackupStatus_HidesUnpairedDevicesFromCurrentList()
+    {
+        IReadOnlyList<PrintWorkstationWindow.MobileBackupStatusItem> statuses =
+            PrintWorkstationWindow.BuildMobileBackupStatuses(
+                [
+                    new MobileBackupDailyCount("phone-1", "安卓1", 3),
+                    new MobileBackupDailyCount("phone-2", "安卓2", 2)
+                ],
+                [],
+                "host-1",
+                removedDeviceIds: new HashSet<string>(
+                    ["phone-1"],
+                    StringComparer.OrdinalIgnoreCase));
+
+        PrintWorkstationWindow.MobileBackupStatusItem item = Assert.Single(statuses);
+        Assert.Equal("phone-2", item.DeviceId);
+    }
+
+    [Fact]
     public async Task HostStartsLocalPlaybackMobileBackupAndLocalOrderReceiver()
     {
         string directory = CreateTempDirectory();

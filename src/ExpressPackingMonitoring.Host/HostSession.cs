@@ -62,6 +62,10 @@ internal static class HostSession
             // 不会在系统盘上原地建出同名目录继续写
             mobileBackupRecordingRootResolver: () =>
                 StorageLocationResolver.Resolve(config, allowDefaultFallback: false),
+            mobileBackupRecordingRootsResolver: () =>
+                StorageLocationResolver.ResolveUsableLocalRoots(
+                    config,
+                    allowDefaultFallback: false),
             nodeId: config.NodeId,
             nodeName: config.NodeName,
             deploymentPreset: DeploymentPresets.MobileBackupHost,

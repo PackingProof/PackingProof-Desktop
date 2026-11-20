@@ -47,6 +47,7 @@ public sealed class VideoSourceFilterEndpointTests
                 nodeName: "来源筛选测试主机",
                 deploymentPreset: DeploymentPresets.MobileBackupHost);
             server.Start();
+            server.SeedRecordedDeviceNames();
 
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
             using JsonDocument doc = JsonDocument.Parse(await client.GetStringAsync(
@@ -104,6 +105,7 @@ public sealed class VideoSourceFilterEndpointTests
                 nodeName: "来源筛选测试主机",
                 deploymentPreset: DeploymentPresets.MobileBackupHost);
             server.Start();
+            server.SeedRecordedDeviceNames();
 
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
             using JsonDocument sources = JsonDocument.Parse(await client.GetStringAsync(
@@ -130,6 +132,78 @@ public sealed class VideoSourceFilterEndpointTests
                 $"/api/videos?key={accessKey}&sourceType=external&deviceIds=phone-a,phone-b&size=20",
                 TestContext.Current.CancellationToken));
             Assert.Equal(3, videos.RootElement.GetProperty("total").GetInt32());
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task RemovedDeviceDisappearsFromSourceFilterButHistoryRemainsSearchable()
+    {
+        const string accessKey = "secret-web-access-key";
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            $"epm-video-sources-removed-{Guid.NewGuid():N}");
+        string stateDirectory = Path.Combine(directory, "state");
+        Directory.CreateDirectory(stateDirectory);
+        int port = TestPortAllocator.GetFreeTcpPort();
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(
+                Path.Combine(stateDirectory, "order-receivers.json"));
+            registry.Register(
+                System.Net.IPAddress.Parse("192.168.31.201"),
+                "phone-removed",
+                "安卓1",
+                deviceKind: "mobile",
+                platform: "android",
+                hasRecordings: true);
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            database.InsertMobileBackupRecord(
+                "ORDER-KEEP",
+                Path.Combine(directory, "kept.mp4"),
+                1,
+                DateTime.Now,
+                3,
+                "phone-removed",
+                "安卓1",
+                "session-keep",
+                "sha-keep");
+            using var server = new WebServer(
+                database,
+                port,
+                requireAccessKey: true,
+                accessKey: accessKey,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: stateDirectory,
+                mobileBackupRecordingRootResolver: () => directory,
+                nodeId: Guid.NewGuid().ToString("D"),
+                nodeName: "来源筛选测试主机",
+                deploymentPreset: DeploymentPresets.MobileBackupHost);
+            server.Start();
+            server.SeedRecordedDeviceNames();
+
+            BackupDeviceRemovalResult removal =
+                server.TryForgetKnownBackupDevice("phone-removed");
+            Assert.Equal(BackupDeviceRemovalStatus.Removed, removal.Status);
+            Assert.Contains("phone-removed", server.GetRemovedSourceDeviceIds());
+
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            using JsonDocument sources = JsonDocument.Parse(await client.GetStringAsync(
+                $"/api/video-sources?key={accessKey}",
+                TestContext.Current.CancellationToken));
+            Assert.DoesNotContain(
+                sources.RootElement.GetProperty("data").EnumerateArray(),
+                item => item.GetProperty("deviceId").GetString() == "phone-removed");
+
+            using JsonDocument searched = JsonDocument.Parse(await client.GetStringAsync(
+                $"/api/videos?key={accessKey}&keyword=ORDER-KEEP&size=20",
+                TestContext.Current.CancellationToken));
+            Assert.Equal(1, searched.RootElement.GetProperty("total").GetInt32());
         }
         finally
         {
@@ -180,6 +254,7 @@ public sealed class VideoSourceFilterEndpointTests
                 nodeName: "来源筛选测试主机",
                 deploymentPreset: DeploymentPresets.MobileBackupHost);
             server.Start();
+            server.SeedRecordedDeviceNames();
 
             IReadOnlyDictionary<string, string> names = server.GetCurrentSourceDeviceNames();
             Assert.Equal("安卓1", names["phone-a"]);

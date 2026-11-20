@@ -128,6 +128,68 @@ public sealed class RecordingComputerNicknameTests
         }
     }
 
+    [Fact]
+    public void RegistryKeepsRemovedWorkstationNicknameUntilExplicitRestore()
+    {
+        string directory = CreateTemporaryDirectory();
+        string path = Path.Combine(directory, "computer-nicknames.json");
+        try
+        {
+            var registry = new RecordingComputerNicknameRegistry(path);
+            registry.Assign("workstation-a", "电脑1", customized: false);
+
+            Assert.True(registry.TryForgetDevice("workstation-a"));
+            Assert.DoesNotContain(
+                registry.GetKnown(),
+                item => item.NodeId == "workstation-a");
+            Assert.Contains(
+                registry.GetKnown(includeRemoved: true),
+                item => item.NodeId == "workstation-a");
+            Assert.True(registry.RestoreDevice("workstation-a"));
+            Assert.Contains(
+                registry.GetKnown(),
+                item => item.NodeId == "workstation-a");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void RemovedWorkstationReleasesNicknameAndRestoresWithUniqueName()
+    {
+        string directory = CreateTemporaryDirectory();
+        string path = Path.Combine(directory, "computer-nicknames.json");
+        try
+        {
+            var registry = new RecordingComputerNicknameRegistry(path);
+            registry.Assign("workstation-a", "打包电脑", customized: true);
+            Assert.True(registry.TryForgetDevice("workstation-a"));
+
+            Assert.Equal(
+                "打包电脑",
+                registry.Assign("workstation-b", "打包电脑", customized: true));
+            string restored = registry.Assign(
+                "workstation-a",
+                "",
+                customized: false,
+                restoreRemoved: true);
+
+            Assert.NotEqual("打包电脑", restored);
+            Assert.Equal(
+                2,
+                registry.GetKnown()
+                    .Select(item => item.DisplayName)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count());
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData(" 电脑2 ", true, "电脑2")]
     [InlineData("", false, "")]

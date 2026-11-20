@@ -89,6 +89,17 @@ internal sealed class BackupPairingTokenService
         }
     }
 
+    internal bool ForgetDevice(string? deviceId)
+    {
+        lock (_gate)
+        {
+            bool removed = _deviceCredentials.Remove(deviceId?.Trim() ?? "");
+            if (removed)
+                Save();
+            return removed;
+        }
+    }
+
     private static byte[] LoadOrCreateRootKey(string stateDirectory)
     {
         string path = Path.Combine(stateDirectory, "backup-device-root.key");

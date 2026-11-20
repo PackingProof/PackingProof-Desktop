@@ -70,6 +70,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Config\EarlyStartupConfig.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\EditionCoexistenceDetector.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\PackagingIdentity.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\NodeIdentityAnchorStore.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\PreRecordBufferPolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\StorageCapacityPolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\StorageLocationMetadata.cs" />
@@ -101,6 +102,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Localization\AppLanguage.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Logging\RuntimeLog.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\AlertService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\AdaptiveWriteConcurrencyPolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\AppPatchDownloadService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ArchiveBackupCardModel.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ArchivePathBuilder.cs" />
@@ -109,6 +111,8 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\ArchiveWorkerOptions.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\BackupCompatibilityPolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\BackupDeviceIdentity.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\BackupDeviceRemovalStore.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\BackupDeviceMaintenanceStateStore.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\BackupPairingTokenService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\BackupRequestAuthentication.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\BackupStorageLocationPolicy.cs" />
@@ -137,6 +141,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionScanResultSubmissionCoordinator.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionScanTaskBroker.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\FfmpegWorkLimiter.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\HostUploadStorageAdmissionController.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\IArchiveProvider.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\JdBarcodePolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\LanNetworkCandidateRanking.cs" />
@@ -151,6 +156,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\MobileAppUpdatePolicyProvider.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\MobileAppUpdateRefreshScheduler.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\MobileBackupService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\MobileBackupStoragePlacement.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\StorageFolderAliases.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\MobileBackupSharedFileMigrator.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\MobileConnectionService.cs" />
@@ -183,6 +189,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingTransferFailurePolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingTransferProgressAccumulator.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingTransferService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\TransferManagementSnapshotService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingWorkstationCachePolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RemoteFileProbe.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RootLauncherStartupService.cs" />
@@ -204,6 +211,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\VideoFolderImportService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\VideoLifecycleCoordinator.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.BackupDevices.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\OrderPushDiagnostics.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RuntimeLogThrottle.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ScanAuditRecorder.cs" />
@@ -215,6 +223,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Workstations\PrintToolInstallGuide.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Workstations\ViewerConnectionStatusText.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Workstations\WorkstationLauncher.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Workstations\RecordingHostApprovalPolicy.cs" />
   </ItemGroup>
 
 </Project>

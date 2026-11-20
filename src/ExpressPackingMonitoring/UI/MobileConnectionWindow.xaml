@@ -5,9 +5,10 @@
         Width="976"
         SizeToContent="Height"
         MaxHeight="740"
-        WindowStyle="ToolWindow"
+        WindowStyle="SingleBorderWindow"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
+        Icon="/app.ico"
         Background="{DynamicResource PanelBackground}"
         Foreground="{DynamicResource TextPrimary}"
         PreviewKeyDown="Window_PreviewKeyDown">

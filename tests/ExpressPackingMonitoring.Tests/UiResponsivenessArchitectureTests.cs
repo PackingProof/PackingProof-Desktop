@@ -317,6 +317,66 @@ public sealed class UiResponsivenessArchitectureTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void HistoricalDeviceReconciliationRunsAfterServerStartupInBackground()
+    {
+        string server = ReadProjectFile("Services", "WebServer.cs");
+        string maintenance = ReadProjectFile(
+            "Services",
+            "WebServer.BackupDevices.cs");
+
+        Assert.Contains(
+            "StartBackupDeviceMaintenance();",
+            server,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "SeedRecordedDeviceNames();",
+            server,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_backupDeviceMaintenanceTask = Task.Run(",
+            maintenance,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "TimeSpan.FromHours(12)",
+            maintenance,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_backupDeviceMaintenanceState?.LoadCheckpoint()",
+            maintenance,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_backupDeviceMaintenanceState?.SaveCheckpoint(",
+            maintenance,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_db.GetActiveExternalDeviceIds(knownDeviceIds)",
+            maintenance,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_mobileOrderReceivers.ReconcileActiveDevices(activeDeviceIds)",
+            maintenance,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ConfigLoadRestoresIndependentNodeIdentityBeforeNormalizing()
+    {
+        string source = ReadProjectFile(
+            "Workstations",
+            "WorkstationLauncher.cs");
+        int anchorIndex = source.IndexOf(
+            "NodeIdentityAnchorStore.Apply(config)",
+            StringComparison.Ordinal);
+        int normalizeIndex = source.IndexOf(
+            "AppConfig.NormalizeAfterLoad(config)",
+            anchorIndex,
+            StringComparison.Ordinal);
+
+        Assert.True(anchorIndex >= 0);
+        Assert.True(normalizeIndex > anchorIndex);
+    }
+
     private static string ReadProjectFile(params string[] relativePathParts) =>
         File.ReadAllText(
             Path.Combine(

@@ -257,6 +257,13 @@ namespace ExpressPackingMonitoring.Config
         // 查看端保存主机的网页访问密钥；与录制工位使用的设备令牌 LastKnownHostAccessKey 区分。
         public string LastKnownHostWebAccessKey { get; set; } = "";
         public int LastKnownHostBackupAuthVersion { get; set; }
+        /// <summary>录像从机用户主动暂停上传；只影响上传调度，不删本地录像或队列。</summary>
+        public bool RecordingUploadPaused { get; set; }
+        /// <summary>保存主机连接申请正在进行；只在这个窗口内显示等待授权。</summary>
+        public bool RecordingHostApprovalPending { get; set; }
+        public DateTime? RecordingHostApprovalRequestedAtUtc { get; set; }
+        /// <summary>上次连接申请的稳定错误码；界面按当前语言生成文案。</summary>
+        public string LastRecordingHostApprovalFailureCode { get; set; } = "";
         public int BackupConnectionSchemaVersion { get; set; }
         public string RecordingCachePolicy { get; set; } = "KeepWithinSize";
         public int RecordingCacheKeepDays { get; set; } = 3;

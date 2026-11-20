@@ -7,7 +7,9 @@ using System.Windows.Threading;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Localization;
+using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.UI.Controls;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -144,6 +146,8 @@ public sealed class UiScreenshotTests
 
     private static void CaptureStandalone(string outputDirectory)
     {
+        CaptureTransferManagement(outputDirectory);
+        CaptureViewerHostSelection(outputDirectory);
         TryCapture("statistics", outputDirectory, () => new StatisticsWindow(new VideoDatabase(":memory:")));
         TryCapture("workstation-selection", outputDirectory, () => new WorkstationSelectionWindow());
         TryCapture(
@@ -209,6 +213,296 @@ public sealed class UiScreenshotTests
         // 扩展市场构造时会去拉远端目录，截图时容易被网络重试卡住，先跳过。
     }
 
+    private static void CaptureViewerHostSelection(string outputDirectory)
+    {
+        TryCapture(
+            "viewer-host-selected",
+            outputDirectory,
+            () =>
+            {
+                var window = new ViewerClientWindow(
+                    new AppConfig
+                    {
+                        DeploymentPreset = DeploymentPresets.RecordingWorkstation
+                    },
+                    DeploymentPresets.RecordingWorkstation);
+                var hosts = Assert.IsType<ListBox>(window.FindName("HostsList"));
+                hosts.ItemsSource = new[]
+                {
+                    new PackingProofNodeInfo
+                    {
+                        NodeName = "Macmini",
+                        Address = "http://192.168.31.26:5280"
+                    }
+                };
+                hosts.SelectedIndex = 0;
+                hosts.IsEnabled = false;
+                return window;
+            });
+    }
+
+    private static void CaptureTransferManagement(string outputDirectory)
+    {
+        TryCapture(
+            "transfer-host-compact",
+            outputDirectory,
+            () =>
+            {
+                var window = CreateTransferManagementWindow(
+                    TransferManagementMode.HostDevices);
+                var viewModel = (TransferManagementWindowViewModel)window.DataContext;
+                DateTimeOffset now = DateTimeOffset.Now;
+                viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
+                    HostConnectionState.Online,
+                    38,
+                    0,
+                    2,
+                    null,
+                    null,
+                    null,
+                    null,
+                    [],
+                    0,
+                    null,
+                    [
+                        new HostDeviceRow(
+                            "phone-2",
+                            "手机2",
+                            false,
+                            100,
+                            now.AddMinutes(-2),
+                            DeviceAttentionKind.Offline),
+                        new HostDeviceRow(
+                            "pc-1",
+                            "电脑1",
+                            false,
+                            1,
+                            now.AddMinutes(-4),
+                            DeviceAttentionKind.Offline),
+                        new HostDeviceRow(
+                            "phone-1",
+                            "手机1",
+                            true,
+                            10000,
+                            now,
+                            DeviceAttentionKind.None),
+                        new HostDeviceRow(
+                            "pc-2",
+                            "电脑2",
+                            true,
+                            10,
+                            now.AddMinutes(-2),
+                            DeviceAttentionKind.None),
+                        new HostDeviceRow(
+                            "phone-3",
+                            "手机3",
+                            true,
+                            100,
+                            now.AddMinutes(-8),
+                            DeviceAttentionKind.None),
+                        new HostDeviceRow(
+                            "phone-4",
+                            "手机4",
+                            true,
+                            1,
+                            now.AddMinutes(-15),
+                            DeviceAttentionKind.None),
+                        new HostDeviceRow(
+                            "pc-3",
+                            "电脑3",
+                            true,
+                            0,
+                            now.AddHours(-1),
+                            DeviceAttentionKind.None)
+                    ]));
+                return window;
+            });
+
+        TryCapture(
+            "transfer-slave-compact",
+            outputDirectory,
+            () =>
+            {
+                var window = CreateTransferManagementWindow(
+                    TransferManagementMode.RecordingTransfer,
+                    isUploadPaused: () => false,
+                    toggleUploadPause: () => Task.FromResult(true));
+                var viewModel = (TransferManagementWindowViewModel)window.DataContext;
+                DateTimeOffset now = DateTimeOffset.Now;
+                viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
+                    HostConnectionState.StorageBlocked,
+                    162,
+                    50000,
+                    2,
+                    new TransferTaskRow(
+                        1,
+                        "AUTO_WEB_0142",
+                        1264 * 1024 * 1024,
+                        795 * 1024 * 1024,
+                        ""),
+                    null,
+                    null,
+                    null,
+                    [
+                        new TransferTaskRow(
+                            2,
+                            "AUTO_WEB_0138",
+                            1264 * 1024 * 1024,
+                            0,
+                            "保存主机空间不足，上传已暂停"),
+                        new TransferTaskRow(
+                            3,
+                            "AUTO_WEB_0131",
+                            92 * 1024 * 1024,
+                            0,
+                            "保存主机连接中断，稍后自动继续")
+                    ],
+                    0,
+                    now.AddSeconds(10),
+                    []));
+                return window;
+            });
+
+        TryCapture(
+            "transfer-slave-paused",
+            outputDirectory,
+            () =>
+            {
+                var window = CreateTransferManagementWindow(
+                    TransferManagementMode.RecordingTransfer,
+                    isUploadPaused: () => true,
+                    toggleUploadPause: () => Task.FromResult(true));
+                var viewModel = (TransferManagementWindowViewModel)window.DataContext;
+                viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
+                    HostConnectionState.PausedByUser,
+                    0,
+                    728,
+                    0,
+                    null,
+                    new TransferTaskRow(
+                        4,
+                        "AUTO_WEB_0140",
+                        624 * 1024 * 1024,
+                        100 * 1024 * 1024,
+                        ""),
+                    null,
+                    null,
+                    [],
+                    0,
+                    null,
+                    []));
+                return window;
+            });
+
+        TryCapture(
+            "transfer-slave-pending",
+            outputDirectory,
+            () =>
+            {
+                var window = CreateTransferManagementWindow(
+                    TransferManagementMode.RecordingTransfer,
+                    isUploadPaused: () => false,
+                    toggleUploadPause: () => Task.FromResult(true));
+                var viewModel = (TransferManagementWindowViewModel)window.DataContext;
+                DateTimeOffset now = DateTimeOffset.Now;
+                viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
+                    HostConnectionState.Online,
+                    0,
+                    707,
+                    0,
+                    null,
+                    null,
+                    new TransferTaskRow(
+                        5,
+                        "AUTO_WEB_0139",
+                        384 * 1024 * 1024,
+                        0,
+                        ""),
+                    now.AddSeconds(15),
+                    [],
+                    0,
+                    null,
+                    []));
+                return window;
+            });
+
+        TryCapture(
+            "transfer-slave-paused-queued",
+            outputDirectory,
+            () =>
+            {
+                var window = CreateTransferManagementWindow(
+                    TransferManagementMode.RecordingTransfer,
+                    isUploadPaused: () => true,
+                    toggleUploadPause: () => Task.FromResult(true));
+                var viewModel = (TransferManagementWindowViewModel)window.DataContext;
+                viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
+                    HostConnectionState.PausedByUser,
+                    219,
+                    657,
+                    0,
+                    null,
+                    null,
+                    new TransferTaskRow(
+                        6,
+                        "AUTO_WEB_0137",
+                        276 * 1024 * 1024,
+                        0,
+                        ""),
+                    null,
+                    [],
+                    0,
+                    null,
+                    []));
+                return window;
+            });
+
+        TryCapture(
+            "transfer-slave-checking",
+            outputDirectory,
+            () =>
+            {
+                var window = CreateTransferManagementWindow(
+                    TransferManagementMode.RecordingTransfer,
+                    isUploadPaused: () => false,
+                    toggleUploadPause: () => Task.FromResult(true));
+                var viewModel = (TransferManagementWindowViewModel)window.DataContext;
+                viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
+                    HostConnectionState.Unknown,
+                    129,
+                    599,
+                    0,
+                    null,
+                    null,
+                    new TransferTaskRow(
+                        7,
+                        "AUTO_WEB_0136",
+                        414 * 1024 * 1024,
+                        0,
+                        ""),
+                    null,
+                    [],
+                    0,
+                    null,
+                    []));
+                return window;
+            });
+    }
+
+    private static TransferManagementWindow CreateTransferManagementWindow(
+        TransferManagementMode mode,
+        Func<bool>? isUploadPaused = null,
+        Func<Task<bool>>? toggleUploadPause = null) =>
+        new(new TransferManagementSnapshotService(
+            mode,
+            new AppConfig(),
+            new VideoDatabase(":memory:"),
+            webServer: null,
+            queueStore: null,
+            transferService: null),
+            isUploadPaused,
+            toggleUploadPause);
+
     private static BitmapSource CreateScreenshotDialogPreview(int width, int height)
     {
         var visual = new DrawingVisual();
@@ -250,7 +544,54 @@ public sealed class UiScreenshotTests
             window.WindowStartupLocation = WindowStartupLocation.Manual;
             window.Left = -20000;
             window.Top = -20000;
+            ApplyContentHeight(window);
             AttachToSource(window);
+            if (window is TransferManagementWindow)
+            {
+                if (window.FindName("CurrentUploadProgress") is not SmoothProgressBar progress)
+                {
+                    throw new InvalidOperationException("找不到当前上传进度条");
+                }
+                if (window.DataContext is TransferManagementWindowViewModel
+                    { UploadSlot.Progress: > 0 } viewModel)
+                {
+                    progress.ApplyTemplate();
+                    progress.SetCurrentValue(
+                        System.Windows.Controls.Primitives.RangeBase.ValueProperty,
+                        viewModel.UploadSlot.Progress);
+                    progress.UpdateLayout();
+                    if (progress.Value <= 0)
+                        throw new InvalidOperationException("当前上传进度条没有显示目标值");
+                    if (progress.IsIndeterminate)
+                        throw new InvalidOperationException("当前上传进度条错误地处于不确定状态");
+                    if (progress.Style != Application.Current?.TryFindResource("RoundedSmoothProgressBar"))
+                        throw new InvalidOperationException("当前上传进度条没有使用共享圆角样式");
+                    if (progress.Template.FindName("PART_Track", progress)
+                        is not FrameworkElement track
+                        || track.ActualHeight < 5)
+                    {
+                        throw new InvalidOperationException("当前上传进度条共享模板没有正确布局");
+                    }
+                    if (progress.Template.FindName("PART_Indicator", progress)
+                        is not FrameworkElement indicator
+                        || indicator.ActualWidth <= 0
+                        || indicator.ActualHeight < 5)
+                    {
+                        throw new InvalidOperationException("当前上传进度条没有渲染填充轨道");
+                    }
+                    if (indicator.Opacity <= 0)
+                        throw new InvalidOperationException("当前上传进度条填充轨道透明");
+                    if (indicator is not Border
+                        {
+                            Background: SolidColorBrush indicatorBrush
+                        }
+                        || indicatorBrush.Color != Color.FromRgb(0x3B, 0x82, 0xF6))
+                    {
+                        throw new InvalidOperationException(
+                            $"当前上传进度条填充色不正确：{indicator}");
+                    }
+                }
+            }
             Save(window, Path.Combine(outputDirectory, $"{name}.png"));
         }
         catch (Exception ex)
@@ -258,6 +599,7 @@ public sealed class UiScreenshotTests
             File.WriteAllText(
                 Path.Combine(outputDirectory, $"{name}.error.txt"),
                 ex.ToString());
+            throw;
         }
         finally
         {
@@ -267,6 +609,22 @@ public sealed class UiScreenshotTests
     }
 
     private static readonly List<System.Windows.Interop.HwndSource> Sources = [];
+
+    private static void ApplyContentHeight(Window window)
+    {
+        if (window.SizeToContent != SizeToContent.Height
+            || window.Content is not FrameworkElement content)
+        {
+            return;
+        }
+
+        double width = window.Width > 0 ? window.Width : 456;
+        content.Measure(new Size(width, double.PositiveInfinity));
+        window.SizeToContent = SizeToContent.Manual;
+        window.Height = Math.Max(
+            window.MinHeight,
+            Math.Ceiling(content.DesiredSize.Height) + 80);
+    }
 
     private static void AttachToSource(Window window)
     {
@@ -343,6 +701,25 @@ public sealed class UiScreenshotTests
         window.UpdateLayout();
         // 截图线程没有启动消息循环，Dispatcher.Invoke 会在等不到 Loaded 时永久阻塞。
         // 这里只需要完成布局；本地化由 LocalizeTree 显式执行。
+        window.UpdateLayout();
+    }
+
+    private static void PumpAnimations(Window window, TimeSpan duration)
+    {
+        var frame = new DispatcherFrame();
+        var timer = new DispatcherTimer(
+            DispatcherPriority.Background,
+            window.Dispatcher)
+        {
+            Interval = duration
+        };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            frame.Continue = false;
+        };
+        timer.Start();
+        Dispatcher.PushFrame(frame);
         window.UpdateLayout();
     }
 

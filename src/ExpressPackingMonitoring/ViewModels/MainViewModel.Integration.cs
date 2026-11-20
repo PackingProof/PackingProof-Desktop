@@ -93,6 +93,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         mobileBackupComputerName: Config.NodeName,
                         mobileBackupStateDirectory: AppPaths.MobileBackupStateDir,
                         mobileBackupRecordingRootResolver: ResolveBackupStoragePath,
+                        mobileBackupRecordingRootsResolver: ResolveBackupStoragePaths,
                         mobileBackupArchiveTargetResolver: () =>
                         {
                             RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(

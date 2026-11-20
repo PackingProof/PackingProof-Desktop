@@ -1,6 +1,7 @@
 using System.Windows;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Localization;
+using ExpressPackingMonitoring.UI;
 
 namespace ExpressPackingMonitoring;
 
@@ -32,6 +33,7 @@ public partial class WorkstationSelectionWindow : Window
         _hostUnavailable = hostUnavailable;
 
         InitializeComponent();
+        DialogWindowChrome.UseCloseButtonOnly(this);
         RestoreCurrentAnswers();
         if (_hostUnavailable)
         {

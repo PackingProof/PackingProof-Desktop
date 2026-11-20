@@ -13,6 +13,18 @@ internal static class RecordingTransferStates
     public const string Abandoned = "Abandoned";
 }
 
+internal static class RecordingTransferFailureKinds
+{
+    public const string None = "";
+    public const string HostOffline = "HostOffline";
+    public const string HostStorageUnavailable = "HostStorageUnavailable";
+    public const string HostWriteBusy = "HostWriteBusy";
+    public const string RetryableTask = "RetryableTask";
+    public const string ActionRequired = "ActionRequired";
+    public const string HostApprovalRequired = "HostApprovalRequired";
+    public const string PausedByUser = "PausedByUser";
+}
+
 internal static class RecordingTransferRetryPolicy
 {
     /// <summary>
@@ -35,6 +47,7 @@ internal sealed class RecordingTransferTask
     public long ServerOffset { get; init; }
     public int RetryCount { get; init; }
     public string LastError { get; init; } = "";
+    public string FailureKind { get; init; } = RecordingTransferFailureKinds.None;
     public DateTime? NextAttemptAt { get; init; }
     public long? RemoteVideoRecordId { get; init; }
     public int VerificationVersion { get; init; }
@@ -51,6 +64,26 @@ internal sealed record RecordingTransferSummary(
     int FailedCount,
     int AbandonedCount,
     string LastError);
+
+internal sealed record RecordingTransferManagementTaskRow(
+    long TaskId,
+    string Identifier,
+    long FileSizeBytes,
+    long SentBytes,
+    string Reason);
+
+internal sealed record RecordingTransferManagementData(
+    int PendingCount,
+    int RetryWaitCount,
+    int NeedsActionCount,
+    int TodayUploadedCount,
+    RecordingTransferManagementTaskRow? CurrentUpload,
+    RecordingTransferManagementTaskRow? PausedUpload,
+    RecordingTransferManagementTaskRow? NextPendingUpload,
+    IReadOnlyList<RecordingTransferManagementTaskRow> FailurePreview,
+    int FailureOverflowCount,
+    string DominantFailureKind,
+    DateTimeOffset? NextRetryAt);
 
 internal sealed class RecordingTransferQueueStore : IDisposable
 {
@@ -81,6 +114,7 @@ internal sealed class RecordingTransferQueueStore : IDisposable
                 ServerOffset INTEGER NOT NULL DEFAULT 0,
                 RetryCount INTEGER NOT NULL DEFAULT 0,
                 LastError TEXT DEFAULT '',
+                FailureKind TEXT DEFAULT '',
                 NextAttemptAt TEXT,
                 RemoteVideoRecordId INTEGER,
                 VerificationVersion INTEGER NOT NULL DEFAULT 0,
@@ -95,8 +129,10 @@ internal sealed class RecordingTransferQueueStore : IDisposable
         EnsureColumn("VerificationVersion", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn("VerificationReceipt", "TEXT DEFAULT ''");
         EnsureColumn("WholeFileRetryCount", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn("FailureKind", "TEXT DEFAULT ''");
         Execute("CREATE UNIQUE INDEX IF NOT EXISTS IX_RecordingTransferQueue_LocalVideoRecordId ON RecordingTransferQueue(LocalVideoRecordId);");
         Execute("CREATE INDEX IF NOT EXISTS IX_RecordingTransferQueue_State_UpdatedAt ON RecordingTransferQueue(State, UpdatedAt);");
+        Execute("CREATE INDEX IF NOT EXISTS IX_RecordingTransferQueue_State_CreatedAt ON RecordingTransferQueue(State, CreatedAt);");
         Execute(@"
             CREATE INDEX IF NOT EXISTS IX_RecordingTransferQueue_CacheCleanup
             ON RecordingTransferQueue(CreatedAt, Id, LocalVideoRecordId)
@@ -144,6 +180,7 @@ internal sealed class RecordingTransferQueueStore : IDisposable
                 UPDATE RecordingTransferQueue
                 SET State = 'Pending',
                     LastError = CASE WHEN LastError = '' THEN '程序重启，继续上传' ELSE LastError END,
+                    FailureKind = '',
                     NextAttemptAt = NULL,
                     UpdatedAt = @now
                 WHERE State = 'Uploading';";
@@ -160,7 +197,7 @@ internal sealed class RecordingTransferQueueStore : IDisposable
             cmd.CommandText = @"
                 SELECT Id, LocalVideoRecordId, LocalFilePath, FileSha256, SourceSessionId,
                        TargetNodeId, TargetAddress, State, ServerOffset, RetryCount,
-                       LastError, NextAttemptAt, RemoteVideoRecordId, VerificationVersion,
+                       LastError, FailureKind, NextAttemptAt, RemoteVideoRecordId, VerificationVersion,
                        VerificationReceipt, CacheDeletedAt, WholeFileRetryCount,
                        CreatedAt, UpdatedAt
                 FROM RecordingTransferQueue
@@ -178,12 +215,32 @@ internal sealed class RecordingTransferQueueStore : IDisposable
         }
     }
 
+    public RecordingTransferTask? GetFirstUnfinishedTarget()
+    {
+        lock (_lock)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = @"
+                SELECT Id, LocalVideoRecordId, LocalFilePath, FileSha256, SourceSessionId,
+                       TargetNodeId, TargetAddress, State, ServerOffset, RetryCount,
+                       LastError, FailureKind, NextAttemptAt, RemoteVideoRecordId, VerificationVersion,
+                       VerificationReceipt, CacheDeletedAt, WholeFileRetryCount,
+                       CreatedAt, UpdatedAt
+                FROM RecordingTransferQueue
+                WHERE State IN ('Pending', 'Failed')
+                ORDER BY CreatedAt ASC, Id ASC
+                LIMIT 1;";
+            using var reader = cmd.ExecuteReader();
+            return reader.Read() ? Read(reader) : null;
+        }
+    }
+
     public void SetHash(long id, string sha256, DateTime now) =>
         Update(id, "FileSha256 = @value, UpdatedAt = @now", ("@value", sha256), ("@now", Format(now)));
 
     public void MarkUploading(long id, long offset, DateTime now) =>
         Update(id,
-            "State = 'Uploading', ServerOffset = @offset, LastError = '', NextAttemptAt = NULL, UpdatedAt = @now",
+            "State = 'Uploading', ServerOffset = @offset, LastError = '', FailureKind = '', NextAttemptAt = NULL, UpdatedAt = @now",
             ("@offset", offset), ("@now", Format(now)));
 
     public void UpdateOffset(long id, long offset, DateTime now) =>
@@ -212,16 +269,66 @@ internal sealed class RecordingTransferQueueStore : IDisposable
         }
     }
 
-    public void MarkFailed(long id, int retryCount, string error, DateTime nextAttemptAt, DateTime now) =>
+    public void MarkFailed(
+        long id,
+        int retryCount,
+        string error,
+        DateTime nextAttemptAt,
+        DateTime now,
+        string failureKind = RecordingTransferFailureKinds.None) =>
         Update(id,
-            "State = 'Failed', RetryCount = @retry, LastError = @error, NextAttemptAt = @next, UpdatedAt = @now",
-            ("@retry", retryCount), ("@error", TrimError(error)), ("@next", Format(nextAttemptAt)), ("@now", Format(now)));
+            "State = 'Failed', RetryCount = @retry, LastError = @error, FailureKind = @failureKind, NextAttemptAt = @next, UpdatedAt = @now",
+            ("@retry", retryCount), ("@error", TrimError(error)),
+            ("@failureKind", failureKind ?? RecordingTransferFailureKinds.None),
+            ("@next", Format(nextAttemptAt)), ("@now", Format(now)));
 
     /// <summary>停止自动重试并保留原因；用户点"重试上传"时会重新排队。</summary>
-    public void MarkAbandoned(long id, string reason, DateTime now) =>
+    public void MarkAbandoned(
+        long id,
+        string reason,
+        DateTime now,
+        string failureKind = RecordingTransferFailureKinds.ActionRequired) =>
         Update(id,
-            "State = 'Abandoned', LastError = @error, NextAttemptAt = NULL, UpdatedAt = @now",
-            ("@error", TrimError(reason)), ("@now", Format(now)));
+            "State = 'Abandoned', LastError = @error, FailureKind = @failureKind, NextAttemptAt = NULL, UpdatedAt = @now",
+            ("@error", TrimError(reason)),
+            ("@failureKind", failureKind ?? RecordingTransferFailureKinds.ActionRequired),
+            ("@now", Format(now)));
+
+    /// <summary>
+    /// 主机级暂停只记录原因，不增加单条任务的失败次数，也不触发逐任务退避。
+    /// 主机恢复后任务仍从原 ServerOffset 继续。
+    /// </summary>
+    public void DeferForHost(long id, string reason, string failureKind, DateTime now) =>
+        Update(id,
+            "State = 'Pending', LastError = @error, FailureKind = @failureKind, NextAttemptAt = NULL, UpdatedAt = @now",
+            ("@error", TrimError(reason)),
+            ("@failureKind", failureKind ?? RecordingTransferFailureKinds.HostOffline),
+            ("@now", Format(now)));
+
+    public void DeferForRetry(
+        long id,
+        string reason,
+        string failureKind,
+        DateTime nextAttemptAt,
+        DateTime now) =>
+        Update(id,
+            "State = 'Pending', LastError = @error, FailureKind = @failureKind, NextAttemptAt = @next, UpdatedAt = @now",
+            ("@error", TrimError(reason)),
+            ("@failureKind", failureKind),
+            ("@next", Format(nextAttemptAt)),
+            ("@now", Format(now)));
+
+    public void DeferForUserPause(
+        long id,
+        long offset,
+        string reason,
+        DateTime now) =>
+        Update(id,
+            "State = 'Pending', ServerOffset = @offset, LastError = @error, FailureKind = @failureKind, NextAttemptAt = NULL, UpdatedAt = @now",
+            ("@offset", Math.Max(0, offset)),
+            ("@error", TrimError(reason)),
+            ("@failureKind", RecordingTransferFailureKinds.PausedByUser),
+            ("@now", Format(now)));
 
     public void SetSessionId(long id, string sessionId, DateTime now) =>
         Update(id,
@@ -235,7 +342,7 @@ internal sealed class RecordingTransferQueueStore : IDisposable
         string verificationReceipt,
         DateTime now) =>
         Update(id,
-            "State = 'Uploaded', RemoteVideoRecordId = @remoteId, VerificationVersion = @version, VerificationReceipt = @receipt, WholeFileRetryCount = 0, LastError = '', NextAttemptAt = NULL, UpdatedAt = @now",
+            "State = 'Uploaded', RemoteVideoRecordId = @remoteId, VerificationVersion = @version, VerificationReceipt = @receipt, WholeFileRetryCount = 0, LastError = '', FailureKind = '', NextAttemptAt = NULL, UpdatedAt = @now",
             ("@remoteId", remoteRecordId), ("@version", verificationVersion),
             ("@receipt", verificationReceipt ?? ""), ("@now", Format(now)));
 
@@ -249,9 +356,10 @@ internal sealed class RecordingTransferQueueStore : IDisposable
         DateTime nextAttemptAt,
         DateTime now) =>
         Update(id,
-            "State = 'Failed', FileSha256 = '', ServerOffset = 0, WholeFileRetryCount = @attempts, LastError = @error, NextAttemptAt = @next, UpdatedAt = @now",
+            "State = 'Failed', FileSha256 = '', ServerOffset = 0, WholeFileRetryCount = @attempts, LastError = @error, FailureKind = @failureKind, NextAttemptAt = @next, UpdatedAt = @now",
             ("@attempts", attemptCount),
             ("@error", TrimError(error)),
+            ("@failureKind", RecordingTransferFailureKinds.RetryableTask),
             ("@next", Format(nextAttemptAt)),
             ("@now", Format(now)));
 
@@ -266,7 +374,7 @@ internal sealed class RecordingTransferQueueStore : IDisposable
             cmd.CommandText = @"
                 SELECT Id, LocalVideoRecordId, LocalFilePath, FileSha256, SourceSessionId,
                        TargetNodeId, TargetAddress, State, ServerOffset, RetryCount,
-                       LastError, NextAttemptAt, RemoteVideoRecordId, VerificationVersion,
+                       LastError, FailureKind, NextAttemptAt, RemoteVideoRecordId, VerificationVersion,
                        VerificationReceipt, CacheDeletedAt, WholeFileRetryCount,
                        CreatedAt, UpdatedAt
                 FROM RecordingTransferQueue
@@ -374,7 +482,7 @@ internal sealed class RecordingTransferQueueStore : IDisposable
             cmd.CommandText = $@"
                 SELECT q.Id, q.LocalVideoRecordId, q.LocalFilePath, q.FileSha256,
                        q.SourceSessionId, q.TargetNodeId, q.TargetAddress, q.State,
-                       q.ServerOffset, q.RetryCount, q.LastError, q.NextAttemptAt,
+                       q.ServerOffset, q.RetryCount, q.LastError, q.FailureKind, q.NextAttemptAt,
                        q.RemoteVideoRecordId, q.VerificationVersion,
                        q.VerificationReceipt, q.CacheDeletedAt, q.WholeFileRetryCount,
                        q.CreatedAt, q.UpdatedAt, v.FilePath
@@ -391,7 +499,7 @@ internal sealed class RecordingTransferQueueStore : IDisposable
                 StringComparer.OrdinalIgnoreCase);
             while (tasksReader.Read())
             {
-                string path = tasksReader.GetString(19);
+                string path = tasksReader.GetString(20);
                 if (!tasksByPath.TryGetValue(path, out List<RecordingTransferTask>? tasks))
                 {
                     tasks = [];
@@ -419,6 +527,39 @@ internal sealed class RecordingTransferQueueStore : IDisposable
             WHERE State <> 'Uploaded' AND TargetNodeId <> @nodeId;",
             ("@nodeId", nodeId ?? "")) > 0;
 
+    /// <summary>
+    /// 旧版本把“尚未配对/重新授权”误记成失败。恢复成待上传，
+    /// 但不要触碰会话冲突、文件缺失等真正需要人工处理的任务。
+    /// </summary>
+    public int RequeueHostApprovalBlocked(DateTime now)
+    {
+        lock (_lock)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE RecordingTransferQueue
+                SET State = 'Pending',
+                    RetryCount = 0,
+                    WholeFileRetryCount = 0,
+                    LastError = '',
+                    FailureKind = '',
+                    NextAttemptAt = NULL,
+                    UpdatedAt = @now
+                WHERE State IN ('Failed', 'Abandoned')
+                  AND (
+                      FailureKind = @approvalKind
+                      OR LastError LIKE '%安全配对%'
+                      OR LastError LIKE '%设备令牌无效%'
+                      OR LastError LIKE '%重新连接保存主机%'
+                  );";
+            cmd.Parameters.AddWithValue("@now", Format(now));
+            cmd.Parameters.AddWithValue(
+                "@approvalKind",
+                RecordingTransferFailureKinds.HostApprovalRequired);
+            return cmd.ExecuteNonQuery();
+        }
+    }
+
     public void RetryFailedNow(DateTime now)
     {
         lock (_lock)
@@ -430,9 +571,32 @@ internal sealed class RecordingTransferQueueStore : IDisposable
                     RetryCount = 0,
                     WholeFileRetryCount = 0,
                     LastError = '',
+                    FailureKind = '',
                     NextAttemptAt = NULL,
                     UpdatedAt = @now
                 WHERE State IN ('Failed', 'Abandoned');";
+            cmd.Parameters.AddWithValue("@now", Format(now));
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    public void RetryTaskNow(long taskId, DateTime now)
+    {
+        lock (_lock)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE RecordingTransferQueue
+                SET State = 'Pending',
+                    RetryCount = 0,
+                    WholeFileRetryCount = 0,
+                    LastError = '',
+                    FailureKind = '',
+                    NextAttemptAt = NULL,
+                    UpdatedAt = @now
+                WHERE Id = @id
+                  AND State IN ('Failed', 'Abandoned');";
+            cmd.Parameters.AddWithValue("@id", taskId);
             cmd.Parameters.AddWithValue("@now", Format(now));
             cmd.ExecuteNonQuery();
         }
@@ -457,6 +621,7 @@ internal sealed class RecordingTransferQueueStore : IDisposable
                     RetryCount = 0,
                     WholeFileRetryCount = 0,
                     LastError = '',
+                    FailureKind = '',
                     NextAttemptAt = NULL,
                     UpdatedAt = @now
                 WHERE State = 'Abandoned'
@@ -487,6 +652,151 @@ internal sealed class RecordingTransferQueueStore : IDisposable
             string lastError = cmd.ExecuteScalar() as string ?? "";
             return new RecordingTransferSummary(pending, uploading, failed, abandoned, lastError);
         }
+    }
+
+    public RecordingTransferManagementData GetManagementData(
+        DateTimeOffset dayStart,
+        DateTimeOffset dayEnd,
+        int failureLimit = 20)
+    {
+        failureLimit = Math.Clamp(failureLimit, 0, 20);
+        string start = Format(dayStart.UtcDateTime);
+        string end = Format(dayEnd.UtcDateTime);
+        lock (_lock)
+        {
+            int pending = ScalarIntCore(
+                "SELECT COUNT(1) FROM RecordingTransferQueue WHERE State = 'Pending';");
+            int retryWait = ScalarIntCore(
+                "SELECT COUNT(1) FROM RecordingTransferQueue WHERE State = 'Failed';");
+            int needsAction = ScalarIntCore(
+                "SELECT COUNT(1) FROM RecordingTransferQueue WHERE State = 'Abandoned';");
+            int todayUploaded = ScalarInt(
+                "SELECT COUNT(1) FROM RecordingTransferQueue WHERE State = 'Uploaded' AND UpdatedAt >= @start AND UpdatedAt < @end;",
+                ("@start", start),
+                ("@end", end));
+
+            RecordingTransferManagementTaskRow? current = ReadManagementRows(
+                    @"
+                    SELECT q.Id, q.LocalVideoRecordId,
+                           COALESCE(NULLIF(TRIM(v.OrderId), ''), ''),
+                           COALESCE(v.FileSizeBytes, 0),
+                           q.ServerOffset, q.LastError
+                    FROM RecordingTransferQueue q
+                    LEFT JOIN VideoRecords v ON v.Id = q.LocalVideoRecordId
+                    WHERE q.State = 'Uploading'
+                    ORDER BY q.UpdatedAt DESC, q.Id DESC
+                    LIMIT 1;",
+                    limit: 1)
+                .FirstOrDefault();
+
+            RecordingTransferManagementTaskRow? pausedUpload = ReadManagementRows(
+                    @"
+                    SELECT q.Id, q.LocalVideoRecordId,
+                           COALESCE(NULLIF(TRIM(v.OrderId), ''), ''),
+                           COALESCE(v.FileSizeBytes, 0),
+                           q.ServerOffset, q.LastError
+                    FROM RecordingTransferQueue q
+                    LEFT JOIN VideoRecords v ON v.Id = q.LocalVideoRecordId
+                    WHERE q.State = 'Pending'
+                      AND q.FailureKind = 'PausedByUser'
+                      AND q.ServerOffset > 0
+                    ORDER BY q.UpdatedAt DESC, q.Id DESC
+                    LIMIT 1;",
+                    limit: 1)
+                .FirstOrDefault();
+
+            RecordingTransferManagementTaskRow? nextPending = ReadManagementRows(
+                    @"
+                    SELECT q.Id, q.LocalVideoRecordId,
+                           COALESCE(NULLIF(TRIM(v.OrderId), ''), ''),
+                           COALESCE(v.FileSizeBytes, 0),
+                           q.ServerOffset, q.LastError
+                    FROM RecordingTransferQueue q
+                    LEFT JOIN VideoRecords v ON v.Id = q.LocalVideoRecordId
+                    WHERE q.State = 'Pending'
+                    ORDER BY q.CreatedAt ASC, q.Id ASC
+                    LIMIT 1;",
+                    limit: 1)
+                .FirstOrDefault();
+
+            IReadOnlyList<RecordingTransferManagementTaskRow> failures = failureLimit == 0
+                ? []
+                : ReadManagementRows(
+                    @"
+                    SELECT q.Id, q.LocalVideoRecordId,
+                           COALESCE(NULLIF(TRIM(v.OrderId), ''), ''),
+                           COALESCE(v.FileSizeBytes, 0),
+                           q.ServerOffset, q.LastError
+                    FROM RecordingTransferQueue q
+                    LEFT JOIN VideoRecords v ON v.Id = q.LocalVideoRecordId
+                    WHERE q.State = 'Abandoned'
+                    ORDER BY q.UpdatedAt DESC, q.Id DESC
+                    LIMIT @limit;",
+                    failureLimit);
+
+            (string dominantFailureKind, DateTimeOffset? nextRetryAt) =
+                ReadRetryWaitSummary();
+            return new RecordingTransferManagementData(
+                pending,
+                retryWait,
+                needsAction,
+                todayUploaded,
+                current,
+                pausedUpload,
+                nextPending,
+                failures,
+                Math.Max(0, needsAction - failures.Count),
+                dominantFailureKind,
+                nextRetryAt);
+        }
+    }
+
+    private IReadOnlyList<RecordingTransferManagementTaskRow> ReadManagementRows(
+        string sql,
+        int limit)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = sql;
+        if (sql.Contains("@limit", StringComparison.Ordinal))
+            cmd.Parameters.AddWithValue("@limit", limit);
+        using var reader = cmd.ExecuteReader();
+        var rows = new List<RecordingTransferManagementTaskRow>(limit);
+        while (reader.Read())
+        {
+            long localRecordId = reader.GetInt64(1);
+            string identifier = reader.IsDBNull(2) ? "" : reader.GetString(2).Trim();
+            if (identifier.Length == 0)
+                identifier = $"#{localRecordId}";
+            rows.Add(new RecordingTransferManagementTaskRow(
+                reader.GetInt64(0),
+                identifier,
+                Math.Max(0, reader.IsDBNull(3) ? 0 : reader.GetInt64(3)),
+                Math.Max(0, reader.IsDBNull(4) ? 0 : reader.GetInt64(4)),
+                reader.IsDBNull(5) ? "" : reader.GetString(5)));
+        }
+        return rows;
+    }
+
+    private (string FailureKind, DateTimeOffset? NextRetryAt) ReadRetryWaitSummary()
+    {
+        string failureKind = "";
+        DateTimeOffset? nextRetryAt = null;
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT FailureKind, NextAttemptAt
+            FROM RecordingTransferQueue
+            WHERE State IN ('Pending', 'Failed')
+              AND FailureKind <> ''
+            ORDER BY UpdatedAt DESC, Id DESC
+            LIMIT 1;";
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            failureKind = reader.IsDBNull(0) ? "" : reader.GetString(0);
+            if (ParseNullable(reader, 1) is DateTime next)
+                nextRetryAt = new DateTimeOffset(next, TimeSpan.Zero);
+        }
+        return (failureKind, nextRetryAt);
     }
 
     private void Update(long id, string assignments, params (string Name, object Value)[] values)
@@ -555,14 +865,15 @@ internal sealed class RecordingTransferQueueStore : IDisposable
         ServerOffset = reader.GetInt64(8),
         RetryCount = reader.GetInt32(9),
         LastError = reader.IsDBNull(10) ? "" : reader.GetString(10),
-        NextAttemptAt = ParseNullable(reader, 11),
-        RemoteVideoRecordId = reader.IsDBNull(12) ? null : reader.GetInt64(12),
-        VerificationVersion = reader.IsDBNull(13) ? 0 : reader.GetInt32(13),
-        VerificationReceipt = reader.IsDBNull(14) ? "" : reader.GetString(14),
-        CacheDeletedAt = ParseNullable(reader, 15),
-        WholeFileRetryCount = reader.IsDBNull(16) ? 0 : reader.GetInt32(16),
-        CreatedAt = DateTime.Parse(reader.GetString(17)),
-        UpdatedAt = DateTime.Parse(reader.GetString(18))
+        FailureKind = reader.IsDBNull(11) ? RecordingTransferFailureKinds.None : reader.GetString(11),
+        NextAttemptAt = ParseNullable(reader, 12),
+        RemoteVideoRecordId = reader.IsDBNull(13) ? null : reader.GetInt64(13),
+        VerificationVersion = reader.IsDBNull(14) ? 0 : reader.GetInt32(14),
+        VerificationReceipt = reader.IsDBNull(15) ? "" : reader.GetString(15),
+        CacheDeletedAt = ParseNullable(reader, 16),
+        WholeFileRetryCount = reader.IsDBNull(17) ? 0 : reader.GetInt32(17),
+        CreatedAt = DateTime.Parse(reader.GetString(18)),
+        UpdatedAt = DateTime.Parse(reader.GetString(19))
     };
 
     private static DateTime? ParseNullable(SqliteDataReader reader, int ordinal) =>

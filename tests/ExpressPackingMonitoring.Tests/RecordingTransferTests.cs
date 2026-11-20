@@ -13,6 +13,249 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class RecordingTransferTests
 {
     [Fact]
+    public async Task UnapprovedHostDoesNotQueueOrAbandonLocalRecordings()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string videoPath = Path.Combine(directory, "video.mp4");
+            await File.WriteAllBytesAsync(
+                videoPath,
+                new byte[128],
+                TestContext.Current.CancellationToken);
+            using var database = new VideoDatabase(databasePath);
+            long recordId = database.InsertVideoRecord(
+                "WAITING-APPROVAL",
+                "发货",
+                "",
+                "",
+                videoPath,
+                DateTime.Now.AddMinutes(-1));
+            database.UpdateVideoRecordOnStop(
+                recordId,
+                DateTime.Now,
+                30,
+                128,
+                "手动");
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, targetNodeId);
+            config.LastKnownHostAccessKey = "";
+            config.LastKnownHostBackupAuthVersion = 0;
+            config.RecordingHostApprovalPending = true;
+            config.RecordingHostApprovalRequestedAtUtc = DateTime.UtcNow;
+            using var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config,
+                nodeInfoResolver: (_, _) =>
+                    throw new InvalidOperationException("未授权时不应探测主机"));
+
+            Assert.Equal(0, service.EnqueueCompletedRecordings());
+            Assert.Equal(
+                0,
+                await service.ProcessReadyOnceAsync(
+                    TestContext.Current.CancellationToken));
+            RecordingTransferSummary summary = store.GetSummary();
+            Assert.Equal(0, summary.PendingCount);
+            Assert.Equal(0, summary.FailedCount);
+            Assert.Equal(0, summary.AbandonedCount);
+            Assert.Equal(
+                HostConnectionState.AwaitingApproval,
+                service.GetHostHealth().State);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task ExpiredHostApprovalRequestStopsWaitingAndRequiresReconnect()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            using var database = new VideoDatabase(databasePath);
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, targetNodeId);
+            config.LastKnownHostAccessKey = "";
+            config.LastKnownHostBackupAuthVersion = 0;
+            config.RecordingHostApprovalPending = true;
+            config.RecordingHostApprovalRequestedAtUtc =
+                DateTime.UtcNow - RecordingHostApprovalPolicy.PendingLifetime
+                    - TimeSpan.FromSeconds(1);
+            config.LastRecordingHostApprovalFailureCode =
+                nameof(BackupDeviceEnrollmentFailureKind.TimedOut);
+            using var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config,
+                nodeInfoResolver: (_, _) =>
+                    throw new InvalidOperationException("过期等待不应探测主机"));
+
+            Assert.Equal(
+                0,
+                await service.ProcessReadyOnceAsync(
+                    TestContext.Current.CancellationToken));
+
+            RecordingTransferHostHealth health = service.GetHostHealth();
+            Assert.Equal(HostConnectionState.Offline, health.State);
+            Assert.Contains("需要重新连接保存主机", health.Reason);
+            Assert.Contains("超时", health.Reason);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task PausedUpload_StopsAtChunkBoundaryAndResumesFromSavedOffset()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string videoPath = Path.Combine(directory, "pause-resume.mp4");
+            const int fileSize = 256 * 1024;
+            await File.WriteAllBytesAsync(
+                videoPath,
+                Enumerable.Repeat((byte)0x5A, fileSize).ToArray(),
+                TestContext.Current.CancellationToken);
+            using var database = new VideoDatabase(databasePath);
+            long recordId = database.InsertVideoRecord(
+                "PAUSE-RESUME",
+                "发货",
+                "h264",
+                "test-fixture",
+                videoPath,
+                DateTime.Now.AddMinutes(-1));
+            database.UpdateVideoRecordOnStop(
+                recordId,
+                DateTime.Now,
+                30,
+                fileSize,
+                "手动");
+
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, targetNodeId);
+            int pausedAfterChunk = 0;
+            var handler = new BackupProtocolHandler(
+                verified: true,
+                targetNodeId,
+                config.NodeId,
+                chunkSize: 64 * 1024,
+                chunkUploaded: offset =>
+                {
+                    if (offset > 0
+                        && Interlocked.Exchange(ref pausedAfterChunk, 1) == 0)
+                    {
+                        config.RecordingUploadPaused = true;
+                    }
+                });
+            using var client = new HttpClient(handler);
+            using var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config,
+                client,
+                (_, _) => Task.FromResult<PackingProofNodeInfo?>(CreateHost(targetNodeId)));
+            Assert.Equal(1, service.EnqueueCompletedRecordings());
+
+            Assert.Equal(
+                1,
+                await service.ProcessReadyOnceAsync(
+                    TestContext.Current.CancellationToken));
+            RecordingTransferTask paused = Assert.Single(store.GetReady(DateTime.UtcNow));
+            RecordingTransferSummary pausedSummary = store.GetSummary();
+            Assert.Equal(RecordingTransferStates.Pending, paused.State);
+            Assert.Equal(64 * 1024, paused.ServerOffset);
+            Assert.Equal(RecordingTransferFailureKinds.PausedByUser, paused.FailureKind);
+            Assert.Equal(0, pausedSummary.FailedCount);
+            Assert.Equal(0, pausedSummary.AbandonedCount);
+            Assert.Equal(0, pausedSummary.UploadingCount);
+            Assert.Equal(HostConnectionState.PausedByUser, service.GetHostHealth().State);
+            RecordingTransferManagementData management = store.GetManagementData(
+                DateTimeOffset.UtcNow.AddDays(-1),
+                DateTimeOffset.UtcNow.AddDays(1));
+            RecordingTransferManagementTaskRow pausedRow =
+                Assert.IsType<RecordingTransferManagementTaskRow>(
+                    management.PausedUpload);
+            Assert.Equal(paused.Id, pausedRow.TaskId);
+            Assert.Equal(64 * 1024, pausedRow.SentBytes);
+            Assert.Null(management.CurrentUpload);
+            Assert.True(File.Exists(videoPath));
+
+            config.RecordingUploadPaused = false;
+            service.SetUploadPaused(false);
+            Assert.Equal(
+                1,
+                await service.ProcessReadyOnceAsync(
+                    TestContext.Current.CancellationToken));
+
+            RecordingTransferTask uploaded = Assert.Single(
+                store.GetUploadedWithLocalCache());
+            Assert.Equal(RecordingTransferStates.Uploaded, uploaded.State);
+            Assert.Equal(fileSize, handler.ReceivedBytes);
+            Assert.True(uploaded.ServerOffset >= fileSize);
+            Assert.Equal(HostConnectionState.Online, service.GetHostHealth().State);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task PausedUploadAfterRestartDoesNotProcessQueuedTasks()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            using var database = new VideoDatabase(databasePath);
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, targetNodeId);
+            config.RecordingUploadPaused = true;
+            string persisted = JsonSerializer.Serialize(config);
+            AppConfig restored = Assert.IsType<AppConfig>(
+                JsonSerializer.Deserialize<AppConfig>(persisted));
+            using var store = new RecordingTransferQueueStore(databasePath);
+            Assert.True(store.Enqueue(
+                1,
+                Path.Combine(directory, "waiting.mp4"),
+                "pause-session",
+                targetNodeId,
+                config.LastKnownHostAddress,
+                DateTime.UtcNow));
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => restored,
+                nodeInfoResolver: (_, _) =>
+                    throw new InvalidOperationException("暂停时不应探测主机"));
+
+            Assert.Equal(
+                0,
+                await service.ProcessReadyOnceAsync(
+                    TestContext.Current.CancellationToken));
+            Assert.Single(store.GetReady(DateTime.UtcNow));
+            Assert.Equal(HostConnectionState.PausedByUser, service.GetHostHealth().State);
+            Assert.Equal(1, store.GetSummary().PendingCount);
+            Assert.Equal(0, store.GetSummary().FailedCount);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public async Task Dispose_DefersOwnedResourcesUntilActiveTransferExits()
     {
         string directory = CreateTempDirectory();
@@ -466,11 +709,143 @@ public sealed class RecordingTransferTests
             {
                 service.EnqueueCompletedRecordings();
                 await service.ProcessReadyOnceAsync(TestContext.Current.CancellationToken);
+                Assert.Equal(
+                    HostConnectionState.Offline,
+                    service.GetHostHealth().State);
             }
 
             using var reopened = new RecordingTransferQueueStore(databasePath);
-            Assert.Equal(1, reopened.GetSummary().FailedCount);
+            RecordingTransferSummary summary = reopened.GetSummary();
+            Assert.Equal(1, summary.PendingCount);
+            Assert.Equal(0, summary.FailedCount);
+            Assert.Equal(0, summary.AbandonedCount);
+            RecordingTransferTask pending = Assert.Single(reopened.GetReady(DateTime.UtcNow));
+            Assert.Equal(0, pending.RetryCount);
             Assert.True(File.Exists(videoPath));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task HostOfflineCircuitPausesQueueWithoutFailingEveryTask()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            using var database = new VideoDatabase(databasePath);
+            for (int index = 1; index <= 2; index++)
+            {
+                string path = Path.Combine(directory, $"video-{index}.mp4");
+                await File.WriteAllBytesAsync(
+                    path,
+                    new byte[4096],
+                    TestContext.Current.CancellationToken);
+                long recordId = database.InsertVideoRecord(
+                    $"OFFLINE-{index}",
+                    "发货",
+                    "",
+                    "",
+                    path,
+                    DateTime.Now.AddMinutes(-index));
+                database.UpdateVideoRecordOnStop(
+                    recordId,
+                    DateTime.Now,
+                    30,
+                    4096,
+                    "手动");
+            }
+
+            var config = CreateConfig(directory, Guid.NewGuid().ToString("D"));
+            using var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config,
+                nodeInfoResolver: (_, _) =>
+                    Task.FromResult<PackingProofNodeInfo?>(null));
+            Assert.Equal(2, service.EnqueueCompletedRecordings());
+
+            int processed = await service.ProcessReadyOnceAsync(
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(1, processed);
+            Assert.Equal(
+                HostConnectionState.Offline,
+                service.GetHostHealth().State);
+            RecordingTransferSummary summary = store.GetSummary();
+            Assert.Equal(2, summary.PendingCount);
+            Assert.Equal(0, summary.FailedCount);
+            RecordingTransferTask[] pending = store
+                .GetReady(DateTime.UtcNow.AddDays(1))
+                .ToArray();
+            Assert.Equal(2, pending.Length);
+            Assert.All(pending, task => Assert.Equal(0, task.RetryCount));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task HostStorageBackpressurePausesQueueAndRespectsRetryAfter()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string videoPath = Path.Combine(directory, "video.mp4");
+            await File.WriteAllBytesAsync(
+                videoPath,
+                new byte[4096],
+                TestContext.Current.CancellationToken);
+            using var database = new VideoDatabase(databasePath);
+            long recordId = database.InsertVideoRecord(
+                "STORAGE-BUSY",
+                "发货",
+                "",
+                "",
+                videoPath,
+                DateTime.Now.AddMinutes(-1));
+            database.UpdateVideoRecordOnStop(
+                recordId,
+                DateTime.Now,
+                30,
+                4096,
+                "手动");
+            string nodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, nodeId);
+            using var client = new HttpClient(new BackupProtocolHandler(
+                verified: true,
+                storageUnavailable: true));
+            using var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config,
+                client,
+                (_, _) => Task.FromResult<PackingProofNodeInfo?>(CreateHost(nodeId)));
+            Assert.Equal(1, service.EnqueueCompletedRecordings());
+
+            DateTimeOffset before = DateTimeOffset.UtcNow;
+            Assert.Equal(
+                1,
+                await service.ProcessReadyOnceAsync(
+                    TestContext.Current.CancellationToken));
+
+            RecordingTransferHostHealth health = service.GetHostHealth();
+            Assert.Equal(HostConnectionState.StorageBlocked, health.State);
+            Assert.InRange(
+                health.NextProbeAt!.Value - before,
+                TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(9));
+            RecordingTransferSummary summary = store.GetSummary();
+            Assert.Equal(1, summary.PendingCount);
+            Assert.Equal(0, summary.FailedCount);
         }
         finally
         {
@@ -921,6 +1296,21 @@ public sealed class RecordingTransferTests
         Assert.Equal(expectsStop, reason.Length > 0);
     }
 
+    [Theory]
+    [InlineData("enrollment_required")]
+    [InlineData("device_token_invalid")]
+    public void HostApprovalFailuresPauseInsteadOfStoppingUploads(string errorCode)
+    {
+        var exception = new RecordingTransferHostException(
+            errorCode,
+            "需要重新连接保存主机");
+
+        Assert.Empty(RecordingTransferFailurePolicy.ClassifyFailure(exception));
+        Assert.Equal(
+            RecordingTransferFailureKinds.HostApprovalRequired,
+            RecordingTransferFailurePolicy.ClassifyFailureKind(exception));
+    }
+
     [Fact]
     public void ClassifyFailure_StopsWhenLocalRecordingIsMissing()
     {
@@ -1192,9 +1582,13 @@ public sealed class RecordingTransferTests
         string hostNodeId = "",
         string sourceDeviceId = "",
         bool uploadVideoCodec = false,
-        int sha256MismatchResponses = 0) : HttpMessageHandler
+        int sha256MismatchResponses = 0,
+        bool storageUnavailable = false,
+        int chunkSize = MobileBackupService.ChunkSizeBytes,
+        Action<long>? chunkUploaded = null) : HttpMessageHandler
     {
         private string _sha256 = "";
+        private long _totalBytes;
         private int _remainingSha256MismatchResponses = sha256MismatchResponses;
         public long ReceivedBytes { get; private set; }
         public bool SawSignedAuthentication { get; private set; }
@@ -1212,20 +1606,48 @@ public sealed class RecordingTransferTests
             string path = request.RequestUri!.AbsolutePath;
             if (request.Method == HttpMethod.Get && path.EndsWith("/capabilities"))
             {
-                return Json(new { features = new { uploadVideoCodec } });
+                return Json(new
+                {
+                    features = new { uploadVideoCodec },
+                    storageAvailability = new
+                    {
+                        available = !storageUnavailable,
+                        state = storageUnavailable ? "storage_unavailable" : "available",
+                        retryAfterSeconds = storageUnavailable ? 7 : 0
+                    }
+                });
             }
             if (request.Method == HttpMethod.Post && path.EndsWith("/uploads"))
             {
+                if (storageUnavailable)
+                {
+                    HttpResponseMessage response = Json(
+                        HttpStatusCode.ServiceUnavailable,
+                        new
+                        {
+                            errorCode = "storage_unavailable",
+                            error = "主机磁盘空间不足",
+                            retryAfterSeconds = 7
+                        });
+                    response.Headers.RetryAfter =
+                        new System.Net.Http.Headers.RetryConditionHeaderValue(
+                            TimeSpan.FromSeconds(7));
+                    return response;
+                }
                 using JsonDocument document = JsonDocument.Parse(
                     await request.Content!.ReadAsStringAsync(cancellationToken));
-                _sha256 = document.RootElement.GetProperty("fileSha256").GetString()!;
-                ReceivedBytes = 0;
+                string incomingSha256 =
+                    document.RootElement.GetProperty("fileSha256").GetString()!;
+                _totalBytes = document.RootElement.GetProperty("totalBytes").GetInt64();
+                if (!string.Equals(_sha256, incomingSha256, StringComparison.Ordinal))
+                    ReceivedBytes = 0;
+                _sha256 = incomingSha256;
                 return Json(new
                 {
                     uploadId = _sha256,
-                    offset = 0,
-                    chunkSize = MobileBackupService.ChunkSizeBytes,
-                    fileReady = false
+                    offset = ReceivedBytes,
+                    chunkSize,
+                    fileReady = ReceivedBytes >= _totalBytes
                 });
             }
 
@@ -1233,6 +1655,7 @@ public sealed class RecordingTransferTests
             {
                 byte[] content = await request.Content!.ReadAsByteArrayAsync(cancellationToken);
                 ReceivedBytes += content.Length;
+                chunkUploaded?.Invoke(ReceivedBytes);
                 return Json(new { uploadId = _sha256, offset = ReceivedBytes });
             }
 

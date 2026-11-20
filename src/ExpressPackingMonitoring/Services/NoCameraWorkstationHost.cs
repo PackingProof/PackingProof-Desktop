@@ -64,6 +64,21 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     public string ErrorMessage { get; private set; } = "";
     public VideoDatabase Database =>
         _database ?? throw new InvalidOperationException("录像数据库尚未打开");
+
+    internal TransferManagementSnapshotService? CreateTransferManagementSnapshotService()
+    {
+        if (_database == null || _server == null)
+            return null;
+        return new TransferManagementSnapshotService(
+            TransferManagementMode.HostDevices,
+            _config,
+            _database,
+            _server,
+            queueStore: null,
+            transferService: null,
+            hostHealth: null);
+    }
+
     public event Action<MobileAppUpdateAvailableInfo>? MobileAppUpdateAvailable;
     public event Action? MobileBackupStatusChanged;
     public event Action? ArchiveBackupStatusChanged;
@@ -88,6 +103,10 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     public IReadOnlyDictionary<string, string> GetCurrentRecordingDeviceNames() =>
         _server?.GetCurrentSourceDeviceNames()
         ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    public IReadOnlySet<string> GetRemovedRecordingDeviceIds() =>
+        _server?.GetRemovedSourceDeviceIds()
+        ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     public int GetConnectedMobileCount()
     {
@@ -309,6 +328,9 @@ internal sealed class NoCameraWorkstationHost : IDisposable
             mobileBackupComputerName: Environment.MachineName,
             mobileBackupStateDirectory: _stateDirectory,
             mobileBackupRecordingRootResolver: () => StorageLocationResolver.Resolve(_config, allowDefaultFallback: false),
+            mobileBackupRecordingRootsResolver: () => StorageLocationResolver.ResolveUsableLocalRoots(
+                _config,
+                allowDefaultFallback: false),
             mobileBackupArchiveTargetResolver: () =>
             {
                 RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(

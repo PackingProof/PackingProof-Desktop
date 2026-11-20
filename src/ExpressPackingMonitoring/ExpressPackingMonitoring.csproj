@@ -267,6 +267,8 @@
     <Compile Include="ViewModels\MainViewModel.Audio.cs" />
     <Compile Include="ViewModels\MainViewModel.Conversion.cs" />
     <Compile Include="ViewModels\MainViewModel.Transfer.cs" />
+    <Compile Include="UI\TransferManagementWindow.xaml.cs" />
+    <Compile Include="UI\TransferManagementWindowViewModel.cs" />
     <Compile Include="UI\AppDialog.cs" />
     <Compile Include="UI\EdgeVoiceCatalog.cs" />
     <Compile Include="UI\BackupDeviceEnrollmentApprovalPrompt.cs" />
@@ -336,6 +338,7 @@
     <Compile Include="UI\StoragePathSelectionDialog.xaml.cs" />
     <Compile Include="UI\Controls\InputClearButton.xaml.cs" />
     <Compile Include="UI\Controls\InputPasteButton.xaml.cs" />
+    <Compile Include="UI\DialogWindowChrome.cs" />
     <Compile Include="UI\Controls\StatusCard.xaml.cs" />
     <Compile Include="UI\Controls\NetworkCameraAddressEditor.xaml.cs" />
     <Compile Include="UI\Controls\SmoothProgressBar.cs" />
