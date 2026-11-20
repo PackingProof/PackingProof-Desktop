@@ -1946,4 +1946,18 @@
   <data name="需要重新连接" xml:space="preserve"><value>需要重新连接</value></data>
   <data name="正在重新连接" xml:space="preserve"><value>正在重新连接</value></data>
   <data name="无法保存主机连接状态" xml:space="preserve"><value>无法保存主机连接状态</value></data>
+  <data name="NetworkCameraStreamCopy" xml:space="preserve"><value>源码流直存（实验）</value></data>
+  <data name="NetworkCameraStreamCopyHint" xml:space="preserve"><value>不重新编码，对低配机友好；部分功能不可用</value></data>
+  <data name="以下功能将失效" xml:space="preserve"><value>以下功能将失效</value></data>
+  <data name="NetworkCameraStreamCopyUnavailableFeatures" xml:space="preserve"><value>录像水印
+摄像头旋转
+预录制缓存
+本地音频</value></data>
+  <data name="原码流直存启动失败，已回退到普通录像" xml:space="preserve"><value>原码流直存启动失败，已回退到普通录像</value></data>
+  <data name="原码流直存条件不满足，本次使用普通录像" xml:space="preserve"><value>原码流直存条件不满足，本次使用普通录像</value></data>
+  <data name="原码流直传中断，正在结束录像" xml:space="preserve"><value>原码流直传中断，正在结束录像</value></data>
+  <data name="直存收尾异常" xml:space="preserve"><value>直存收尾异常</value></data>
+  <data name="原码流" xml:space="preserve"><value>原码流</value></data>
+  <data name="当前设置的编码器不可用，请重新检测编码器或在设置中选择其他可用编码器" xml:space="preserve"><value>当前设置的编码器不可用，请重新检测编码器或在设置中选择其他可用编码器</value></data>
+  <data name="当前设置无法启动录制" xml:space="preserve"><value>当前设置无法启动录制</value></data>
 </root>

@@ -135,6 +135,7 @@ internal sealed class NetworkCameraSource : IDisposable
     public int ActualWidth { get; private set; }
     public int ActualHeight { get; private set; }
     public int ActualFps { get; private set; }
+    public string SourceVideoCodec { get; private set; } = "";
     public IReadOnlyList<NativeCameraMode> NativeModes { get; private set; } = [];
 
     /// <summary>启动解码进程并立即返回，流信息就绪后通过 StreamInfoReady 通知。</summary>
@@ -148,6 +149,7 @@ internal sealed class NetworkCameraSource : IDisposable
             _stderrLines.Clear();
             Interlocked.Exchange(ref _framesReceived, 0);
             Interlocked.Exchange(ref _streamInfoReceivedAtUtcTicks, 0);
+            SourceVideoCodec = "";
             _streamInfoReady = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             _process = LaunchProcess(_transport);
@@ -281,9 +283,25 @@ internal sealed class NetworkCameraSource : IDisposable
 
     internal static bool TryParseStreamInfo(string line, out int width, out int height, out int fps)
     {
+        return TryParseStreamInfo(
+            line,
+            out width,
+            out height,
+            out fps,
+            out _);
+    }
+
+    internal static bool TryParseStreamInfo(
+        string line,
+        out int width,
+        out int height,
+        out int fps,
+        out string videoCodec)
+    {
         width = 0;
         height = 0;
         fps = 0;
+        videoCodec = "";
         if (string.IsNullOrWhiteSpace(line) || !line.Contains("Stream #", StringComparison.Ordinal))
             return false;
 
@@ -301,6 +319,18 @@ internal sealed class NetworkCameraSource : IDisposable
             fps = (int)Math.Round(
                 double.Parse(fpsMatch.Groups["fps"].Value, CultureInfo.InvariantCulture),
                 MidpointRounding.AwayFromZero);
+        Match codecMatch = Regex.Match(
+            line,
+            @"Video:\s*(?<codec>h264|avc1|avc|hevc|h265)",
+            RegexOptions.IgnoreCase);
+        if (codecMatch.Success)
+        {
+            videoCodec = codecMatch.Groups["codec"].Value.ToLowerInvariant() switch
+            {
+                "hevc" or "h265" => "h265",
+                _ => "h264"
+            };
+        }
         return true;
     }
 
@@ -385,11 +415,17 @@ internal sealed class NetworkCameraSource : IDisposable
                     break;
 
                 RecordStderrLine(line);
-                if (TryParseStreamInfo(line, out int width, out int height, out int fps))
+                if (TryParseStreamInfo(
+                        line,
+                        out int width,
+                        out int height,
+                        out int fps,
+                        out string videoCodec))
                 {
                     ActualWidth = width;
                     ActualHeight = height;
                     ActualFps = fps > 0 ? fps : _fallbackFps;
+                    SourceVideoCodec = videoCodec;
                     NativeModes = [new NativeCameraMode(width, height, ActualFps)];
                     Interlocked.Exchange(ref _streamInfoReceivedAtUtcTicks, DateTime.UtcNow.Ticks);
                     _streamInfoReady?.TrySetResult(true);

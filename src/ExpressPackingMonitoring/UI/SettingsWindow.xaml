@@ -1142,6 +1142,31 @@
                                                    Style="{StaticResource FieldHintStyle}"
                                                    Margin="0,2,0,8"/>
                                         <controls:NetworkCameraAddressEditor x:Name="NetworkCameraAddressEditor"/>
+                                        <Grid x:Name="NetworkCameraStreamCopyRow"
+                                              Style="{StaticResource SettingRowStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="24"/>
+                                                <ColumnDefinition Width="260"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="{loc:Localized NetworkCameraStreamCopy}"
+                                                           Style="{StaticResource FieldLabelStyle}"/>
+                                                <TextBlock Text="{loc:Localized NetworkCameraStreamCopyHint}"
+                                                           Style="{StaticResource FieldHintStyle}"/>
+                                            </StackPanel>
+                                            <CheckBox x:Name="NetworkCameraStreamCopyToggle"
+                                                      Grid.Column="2"
+                                                      IsChecked="{Binding Config.EnableNetworkCameraStreamCopy, Mode=TwoWay}"
+                                                      Checked="NetworkCameraStreamCopyToggle_Changed"
+                                                      Unchecked="NetworkCameraStreamCopyToggle_Changed"
+                                                      PreviewMouseLeftButtonDown="NetworkCameraStreamCopyToggle_PreviewMouseLeftButtonDown"
+                                                      PreviewKeyDown="NetworkCameraStreamCopyToggle_PreviewKeyDown"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      AutomationProperties.Name="{loc:Localized NetworkCameraStreamCopy}"
+                                                      VerticalAlignment="Center"
+                                                      HorizontalAlignment="Left"/>
+                                        </Grid>
                                     </StackPanel>
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
@@ -1177,7 +1202,8 @@
                                                   Cursor="Hand"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                    <Grid x:Name="CameraRotationRow"
+                                          Style="{StaticResource SettingRowStyle}"
                                           Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -1449,7 +1475,8 @@
 
                             <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding Capabilities.CanRecordAudio, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                    <Grid x:Name="MicSelectionRow"
+                                          Style="{StaticResource SettingRowStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=AudioRecordCheckBox, TargetNullValue=False}"
                                           Visibility="{Binding Capabilities.CanRecordAudio, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
@@ -2872,14 +2899,16 @@
                                             <TextBlock Text="方便事后确认这段录像对应哪个订单"
                                                     Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <CheckBox Grid.Column="2"
+                                        <CheckBox x:Name="WatermarkToggle"
+                                                Grid.Column="2"
                                                 IsChecked="{Binding Config.EnableWatermark}"
                                                 VerticalAlignment="Center"
                                                 HorizontalAlignment="Left"
                                                 Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                    <Grid x:Name="ThirdPartyWatermarkRow"
+                                          Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -2890,7 +2919,8 @@
                                             <TextBlock Text="允许称重等第三方程序把数据显示到录像水印中"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <CheckBox Grid.Column="2"
+                                        <CheckBox x:Name="ThirdPartyWatermarkToggle"
+                                                  Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableThirdPartyWatermark}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -2923,7 +2953,8 @@
                                                   AutomationProperties.Name="音频直接写入 MKV"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
+                                    <Grid x:Name="AudioSyncOffsetRow"
+                                          Style="{StaticResource AdvancedSettingRowStyle}"
                                           ToolTip="负数表示让音频提前，正数表示让音频延后；通常保持 0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

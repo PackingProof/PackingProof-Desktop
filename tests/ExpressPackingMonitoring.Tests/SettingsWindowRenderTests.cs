@@ -257,6 +257,40 @@ public sealed class SettingsWindowRenderTests
         });
     }
 
+    [Fact]
+    public void Constructor_NetworkCameraStreamCopyRowUsesStandardSettingsSpacing()
+    {
+        RunOnStaThread(() =>
+        {
+            var config = new AppConfig
+            {
+                DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+                CameraSourceKind = "network",
+                NetworkCameraUrl = "rtsp://192.0.2.10/live"
+            };
+            AppConfig.NormalizeAfterLoad(config);
+            var context = new SettingsContext
+            {
+                Capabilities = SettingsCapabilities.ForPreset(config.DeploymentPreset),
+                ApplyAsync = _ => Task.FromResult(true)
+            };
+
+            var window = new SettingsWindow(context, config, 12d, "12%");
+            window.Measure(new Size(1200, 900));
+            window.Arrange(new Rect(0, 0, 1200, 900));
+            window.UpdateLayout();
+
+            var row = Assert.IsType<Grid>(
+                window.FindName("NetworkCameraStreamCopyRow"));
+            Assert.Same(window.FindResource("SettingRowStyle"), row.Style);
+            Assert.Equal(
+                (Thickness)window.FindResource("SettingRowMargin"),
+                row.Margin);
+
+            window.Close();
+        });
+    }
+
     /// <summary>行样式里的右键菜单必须是"设置预留空间…"。</summary>
     private static void AssertStorageReserveMenu(DataGrid grid)
     {

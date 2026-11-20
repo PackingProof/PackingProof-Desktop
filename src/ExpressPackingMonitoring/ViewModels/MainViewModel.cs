@@ -941,6 +941,7 @@ namespace ExpressPackingMonitoring.ViewModels
             long audioBytesWrittenForRecording = 0;
             long recordId = 0;
             DateTime recordStart = DateTime.MinValue;
+            bool streamCopyFailedOnExit = false;
 
             try
             {
@@ -953,6 +954,18 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     _videoWriteQueue?.CompleteAdding();
                     _writeCts?.Cancel();
+                    NetworkCameraStreamCopyRecorder streamCopyRecorder =
+                        _streamCopyRecorder;
+                    _streamCopyRecorder = null;
+                    streamCopyFailedOnExit = _networkStreamCopyFailed;
+                    if (streamCopyRecorder != null)
+                    {
+                        streamCopyFailedOnExit |=
+                            !Task.Run(
+                                streamCopyRecorder.StopAsync)
+                            .GetAwaiter()
+                            .GetResult();
+                    }
                     audioFileToConvert = StopAudioRecording();
                     audioFailedForRecording = _audioFailedForCurrentRecording;
                     audioBytesWrittenForRecording = _audioBytesWritten;
@@ -987,7 +1000,37 @@ namespace ExpressPackingMonitoring.ViewModels
                     long fileSize = GetCompletedRecordingSizeBytes(videoFileToConvert, audioFileToConvert);
                     long minFileSizeBytes = GetMinVideoFileSizeBytes();
                     bool tooSmall = minFileSizeBytes > 0 && fileSize < minFileSizeBytes;
-                    if (!tooSmall && recordId > 0)
+                    if (streamCopyFailedOnExit && recordId > 0)
+                    {
+                        int durSec = Math.Max(
+                            1,
+                            (int)(DateTime.Now - recordStart).TotalSeconds);
+                        string failureReason =
+                            AppLanguage.Get("直存收尾异常");
+                        _db?.SaveWallClockDuration(
+                            recordId,
+                            (DateTime.Now - recordStart).TotalSeconds);
+                        _db?.UpdateVideoRecordOnStop(
+                            recordId,
+                            DateTime.Now,
+                            durSec,
+                            fileSize,
+                            failureReason,
+                            _currentVideoCodec,
+                            _currentVideoEncoder);
+                        _scanAudit?.RecordRecordingFailed(
+                            recordId,
+                            failureReason,
+                            "network_stream_copy_disposed_during_recording");
+                        if (!string.IsNullOrWhiteSpace(videoFileToConvert))
+                        {
+                            _db?.MarkVideoDeleted(
+                                videoFileToConvert,
+                                failureReason,
+                                "network_stream_copy_disposed_during_recording");
+                        }
+                    }
+                    else if (!tooSmall && recordId > 0)
                     {
                         int durSec = Math.Max(1, (int)(DateTime.Now - recordStart).TotalSeconds);
                         _db?.SaveWallClockDuration(recordId, (DateTime.Now - recordStart).TotalSeconds);

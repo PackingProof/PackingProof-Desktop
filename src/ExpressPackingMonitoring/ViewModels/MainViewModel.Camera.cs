@@ -977,6 +977,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private bool ShouldCaptureEventRecordingBufferFrame()
         {
+            if (_streamCopyRecorder != null)
+                return false;
             if (!Config.EnableEventRecordingBuffer)
                 return false;
 
@@ -1969,6 +1971,7 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 if (frame == null || frame.IsDisposed) return false;
+                if (_streamCopyRecorder != null) return false;
                 if (_writeTask != null && _writeTask.IsCompleted) return false;
 
                 var queue = _videoWriteQueue;

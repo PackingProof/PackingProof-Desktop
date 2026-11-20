@@ -219,6 +219,7 @@
     <Compile Include="ViewModels\RecordingVideoFrame.cs" />
     <Compile Include="Services\Gpu\GpuFrameConverter.cs" />
     <Compile Include="Services\NetworkCameraSource.cs" />
+    <Compile Include="Services\NetworkCameraStreamCopyRecorder.cs" />
     <Compile Include="Services\NetworkCameraAddressTemplate.cs" />
     <Compile Include="Services\NetworkCameraSelfCheck.cs" />
     <Compile Include="Services\RecordingFileAccessGate.cs" />
@@ -288,6 +289,7 @@
     <Compile Include="UI\SectionCardSpacing.cs" />
     <Compile Include="UI\SettingsWindow.Search.cs" />
     <Compile Include="UI\SettingsWindow.Speech.cs" />
+    <Compile Include="UI\SettingsWindow.Audio.cs" />
     <Compile Include="UI\SettingsSearch\SettingsSearchController.cs" />
     <Compile Include="UI\SettingsSearch\SettingsSearchIndex.cs" />
     <Compile Include="UI\SettingsSearch\SettingsSearchMatcher.cs" />
@@ -326,6 +328,7 @@
     <Compile Include="UI\SettingsWindow.xaml.cs" />
   <Compile Include="UI\SettingsWindow.CameraVision.cs" />
     <Compile Include="UI\SettingsWindow.CameraChannels.cs" />
+    <Compile Include="UI\SettingsWindow.NetworkStreamCopy.cs" />
     <Compile Include="UI\SettingsWindow.SampleContribution.cs" />
     <Compile Include="UI\SettingsWindow.ZoomGuide.cs" />
     <Compile Include="UI\SettingsWindow.About.cs" />

@@ -173,6 +173,29 @@ public sealed class NetworkCameraSourceTests
         Assert.Equal(expectedFps, fps);
     }
 
+    [Theory]
+    [InlineData(
+        "Stream #0:0: Video: h264 (High), yuv420p, 1920x1080, 25 fps",
+        "h264")]
+    [InlineData(
+        "Stream #0:0: Video: avc1, yuv420p, 1280x720, 25 fps",
+        "h264")]
+    [InlineData(
+        "Stream #0:0: Video: hevc (Main), yuv420p, 2560x1440, 30 fps",
+        "h265")]
+    public void TryParseStreamInfo_ParsesSourceVideoCodec(
+        string line,
+        string expectedCodec)
+    {
+        Assert.True(NetworkCameraSource.TryParseStreamInfo(
+            line,
+            out _,
+            out _,
+            out _,
+            out string codec));
+        Assert.Equal(expectedCodec, codec);
+    }
+
     [Fact]
     public void TryParseStreamInfo_ReturnsFalseForNonStreamLine()
     {

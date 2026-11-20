@@ -71,7 +71,8 @@ public sealed class SettingsAdvancedVisibilityTests
     {
         string code = LoadSettingsCode();
 
-        Assert.Contains("ApplyDirectAacRecordingChoice(checkBox, ConfirmDirectAacRecordingRisk())", code);
+        Assert.Contains("ApplyDirectAacRecordingChoice(", code);
+        Assert.Contains("ConfirmDirectAacRecordingRisk()", code);
         Assert.Contains("Config.EnableDirectAacRecording = enabled", code);
         Assert.Contains("checkBox.SetCurrentValue(", code);
         Assert.Contains("ToggleButton.IsCheckedProperty", code);
@@ -160,7 +161,11 @@ public sealed class SettingsAdvancedVisibilityTests
                 "SettingsWindow.xaml.cs");
             if (File.Exists(candidate))
             {
-                return File.ReadAllText(candidate);
+                string uiDirectory = Path.GetDirectoryName(candidate)!;
+                return File.ReadAllText(candidate)
+                    + File.ReadAllText(Path.Combine(
+                        uiDirectory,
+                        "SettingsWindow.Audio.cs"));
             }
 
             directory = directory.Parent;

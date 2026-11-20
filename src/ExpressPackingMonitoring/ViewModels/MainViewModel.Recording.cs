@@ -23,6 +23,9 @@ namespace ExpressPackingMonitoring.ViewModels
 {
     public partial class MainViewModel
     {
+        private NetworkCameraStreamCopyRecorder? _streamCopyRecorder;
+        private bool _networkStreamCopyFailed;
+
         /// <summary>停止前是否还要留收尾窗口：预录开启、配置了收尾时长，且录像仍在进行</summary>
         private bool HasPendingPostRollWindow() =>
             Config.EnableEventRecordingBuffer
@@ -123,10 +126,12 @@ namespace ExpressPackingMonitoring.ViewModels
             BlockingCollection<RecordingVideoFrame> oldQueue;
             Task oldWriteTask;
             Process? oldFfmpegProcess;
+            NetworkCameraStreamCopyRecorder? oldStreamCopyRecorder;
             string? audioFilePath;
             bool directAacForThisRecording;
             bool audioFailedForThisRecording;
             long audioBytesWrittenForThisRecording;
+            bool streamCopyStoppedCleanly = true;
 
             lock (_videoLock)
             {
@@ -134,14 +139,23 @@ namespace ExpressPackingMonitoring.ViewModels
                 oldQueue = _videoWriteQueue;
                 oldWriteTask = _writeTask;
                 oldFfmpegProcess = _currentFfmpegProcess;
+                oldStreamCopyRecorder = _streamCopyRecorder;
                 _writeCts = null;
                 _videoWriteQueue = null;
                 _writeTask = null;
+                _streamCopyRecorder = null;
             }
 
             // 2. 停止生产
             try { oldQueue?.CompleteAdding(); } catch { }
             oldCts?.Cancel(); // 3. 通知 FFmpeg 线程停止
+            if (oldStreamCopyRecorder != null)
+            {
+                streamCopyStoppedCleanly =
+                    await oldStreamCopyRecorder.StopAsync();
+                if (!streamCopyStoppedCleanly)
+                    _networkStreamCopyFailed = true;
+            }
             directAacForThisRecording = _currentAudioUsesDirectAac;
             audioFilePath = await StopAudioRecordingAsync();
             audioFailedForThisRecording = _audioFailedForCurrentRecording;
@@ -178,12 +192,25 @@ namespace ExpressPackingMonitoring.ViewModels
             var filePath = _currentVideoFilePath;
             var videoCodec = _currentVideoCodec;
             var videoEncoder = _currentVideoEncoder;
+            int recordedFrameWidth = _actualCameraWidth > 0
+                ? _actualCameraWidth
+                : Config.FrameWidth;
+            int recordedFrameHeight = _actualCameraHeight > 0
+                ? _actualCameraHeight
+                : Config.FrameHeight;
+            int recordedFps = GetEffectiveRecordingFps();
             var recordStart = _recordStartTime;
             var orderId = _recordingOrderId;
             var mode = _recordingMode;
             var stopReason = _stopReason;
+            bool streamCopyInterrupted =
+                _networkStreamCopyFailed || !streamCopyStoppedCleanly;
+            if (streamCopyInterrupted)
+            {
+                stopReason = AppLanguage.Get("直存收尾异常");
+            }
             var scanRecord = _currentScanRecord;
-            var recordId = _currentRecordId; 
+            var recordId = _currentRecordId;
             var audioLogPath = _currentAudioLogPath;
             if (Config.EnableAudioRecording
                 && HasConfiguredAudioDevice()
@@ -212,7 +239,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _recordingSessionId = null;
             _recordingWatermarkSnapshot = WatermarkSnapshot.Empty;
 
-            _lastFinalizeTask = Task.Run(() => 
+            _lastFinalizeTask = Task.Run(() =>
             {
                 if (_isDisposed) return; // 销毁中不再执行数据库后的 UI 更新
                 try
@@ -226,7 +253,38 @@ namespace ExpressPackingMonitoring.ViewModels
                     long minFileSizeBytes = GetMinVideoFileSizeBytes();
                     bool tooSmall = minFileSizeBytes > 0 && fileSize < minFileSizeBytes;
                     bool tooShort = Config.MinRecordingSeconds > 0 && recordDuration < Config.MinRecordingSeconds;
-                    if (tooSmall || tooShort)
+                    if (streamCopyInterrupted)
+                    {
+                        _db?.UpdateVideoRecordOnStop(
+                            recordId,
+                            DateTime.Now,
+                            durSec,
+                            fileSize,
+                            stopReason,
+                            videoCodec,
+                            videoEncoder);
+                        _scanAudit?.RecordRecordingFailed(
+                            recordId,
+                            stopReason,
+                            "network_stream_copy_interrupted");
+                        if (!string.IsNullOrWhiteSpace(filePath))
+                        {
+                            _db?.MarkVideoDeleted(
+                                filePath,
+                                stopReason,
+                                "network_stream_copy_interrupted");
+                        }
+                        _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            if (!_isDisposed && scanRecord != null)
+                            {
+                                scanRecord.Duration = AppLanguage.Get("直存收尾异常");
+                                scanRecord.IsActive = false;
+                                RefreshTodayStats();
+                            }
+                        });
+                    }
+                    else if (tooSmall || tooShort)
                     {
                         string deleteReason = tooSmall
                             ? $"文件过小，小于 {FormatMinVideoFileSize(Config.MinVideoFileSizeKB)}"
@@ -247,8 +305,10 @@ namespace ExpressPackingMonitoring.ViewModels
                             shortRecording: true,
                             detail: deleteReason);
 
-                        _ = Application.Current.Dispatcher.InvokeAsync(() => {
-                            if (!_isDisposed) {
+                        _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            if (!_isDisposed)
+                            {
                                 _allLogs.Remove(scanRecord);
                                 FilteredLogs.Remove(scanRecord);
                                 if (tooSmall)
@@ -281,18 +341,40 @@ namespace ExpressPackingMonitoring.ViewModels
                             shortRecording: false);
                         if (!string.IsNullOrWhiteSpace(filePath))
                         {
+                            int expectedWidth =
+                                string.Equals(
+                                    videoEncoder,
+                                    NetworkCameraStreamCopyRecorder.EncoderId,
+                                    StringComparison.Ordinal)
+                                    ? recordedFrameWidth
+                                    : Config.FrameWidth;
+                            int expectedHeight =
+                                string.Equals(
+                                    videoEncoder,
+                                    NetworkCameraStreamCopyRecorder.EncoderId,
+                                    StringComparison.Ordinal)
+                                    ? recordedFrameHeight
+                                    : Config.FrameHeight;
+                            int expectedFps =
+                                string.Equals(
+                                    videoEncoder,
+                                    NetworkCameraStreamCopyRecorder.EncoderId,
+                                    StringComparison.Ordinal)
+                                    ? recordedFps
+                                    : Config.Fps;
                             _pendingRecordingSpecificationChecks[filePath] =
                                 new ExpectedRecordingSpecification(
-                                    Config.FrameWidth,
-                                    Config.FrameHeight,
-                                    Config.Fps,
+                                    expectedWidth,
+                                    expectedHeight,
+                                    expectedFps,
                                     dur);
                         }
 
                         // 自动将 MKV 转换为 MP4（无损容器转换）
                         RuntimeLog.Info("Recording", $"Recording finalized as MKV, queued for idle/web conversion: {Path.GetFileName(filePath)}");
 
-                        _ = Application.Current.Dispatcher.InvokeAsync(() => {
+                        _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
                             if (!_isDisposed && scanRecord != null)
                             {
                                 scanRecord.Duration = "已保存";
@@ -313,7 +395,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         _currentAudioLogPath = null;
                 }
             });
-            
+
             // 退出期间由关闭流程持续管理 Busy，避免按钮短暂变回“开始录制”并被再次点击。
             if (Application.Current?.MainWindow != null && !_isDisposed && !_shutdownRequested)
             {
@@ -680,7 +762,29 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 RuntimeLog.Info("Recording", $"Start storage gate completed elapsedMs={startupWatch.ElapsedMilliseconds}");
 
-                bool startAudioAfterVideo = Config.EnableAudioRecording && HasConfiguredAudioDevice();
+                NetworkCameraSource? networkSource = _networkCameraSource;
+                bool streamCopyRequested =
+                    Config.EnableNetworkCameraStreamCopy
+                    && networkSource != null
+                    && NetworkCameraStreamCopyRecorder.SupportsCodec(
+                        networkSource.SourceVideoCodec);
+                if (Config.EnableNetworkCameraStreamCopy
+                    && networkSource != null
+                    && !streamCopyRequested)
+                {
+                    ShowToast(
+                        AppLanguage.Get("原码流直存条件不满足，本次使用普通录像"),
+                        ToastSeverity.Warning);
+                    RuntimeLog.Warn(
+                        "Recording",
+                        "Network stream copy skipped by source codec "
+                            + $"codec={networkSource.SourceVideoCodec}");
+                }
+
+                bool startAudioAfterVideo =
+                    !streamCopyRequested
+                    && Config.EnableAudioRecording
+                    && HasConfiguredAudioDevice();
                 bool useDirectAac = startAudioAfterVideo && Config.EnableDirectAacRecording;
 
                 // 1. 初始化路径和文件名
@@ -721,6 +825,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 StorageFolderAliases.EnsureAlias(baseFolder);
 
                 DateTime startedAt = DateTime.Now;
+                long startedTimestamp = Stopwatch.GetTimestamp();
                 string fileName = ManualRecordingNamePolicy.BuildFileName(
                     CurrentOrderId,
                     startedAt,
@@ -742,10 +847,16 @@ namespace ExpressPackingMonitoring.ViewModels
                 _stopOrigin = ScanStopOrigin.ManualButton;
                 _recordingOrderId = CurrentOrderId;
                 _recordingMode = CurrentMode;
-                _currentVideoCodec = Config.VideoCodec?.Trim().ToLowerInvariant() ?? "h264";
-                _currentVideoEncoder = ResolveEncoder();
+                _currentVideoCodec = streamCopyRequested && networkSource != null
+                    ? NetworkCameraStreamCopyRecorder.NormalizeCodec(
+                        networkSource.SourceVideoCodec)
+                    : Config.VideoCodec?.Trim().ToLowerInvariant() ?? "h264";
+                _currentVideoEncoder = streamCopyRequested
+                    ? NetworkCameraStreamCopyRecorder.EncoderId
+                    : ResolveEncoder();
 
-                if (string.IsNullOrWhiteSpace(_currentVideoEncoder))
+                if (!streamCopyRequested
+                    && string.IsNullOrWhiteSpace(_currentVideoEncoder))
                 {
                     RuntimeLog.Error("Recording", $"Encoder selection rejected. gpu={Config.GpuEncoder}, codec={Config.VideoCodec}");
                     ShowToast("当前选择未通过编码器检测", ToastSeverity.Error);
@@ -765,6 +876,61 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 开始动作已经通过必要预检，先给出即时反馈；后续音频初始化、预录回灌
                 // 和首帧确认仍会继续，但不能再把“滴”和开始语音压到整段流程末尾。
                 AnnounceStartTriggered();
+                _streamCopyRecorder = null;
+                _networkStreamCopyFailed = false;
+                if (streamCopyRequested && networkSource != null)
+                {
+                    _streamCopyRecorder =
+                        await NetworkCameraStreamCopyRecorder.StartAsync(
+                            ffmpegPath,
+                            networkSource.Url,
+                            networkSource.CurrentTransport,
+                            networkSource.SourceVideoCodec,
+                            filePath,
+                            CancellationToken.None);
+                }
+
+                if (_streamCopyRecorder != null)
+                {
+                    _currentVideoCodec = _streamCopyRecorder.VideoCodec;
+                    _currentVideoEncoder =
+                        NetworkCameraStreamCopyRecorder.EncoderId;
+                    startAudioAfterVideo = false;
+                    useDirectAac = false;
+                    ClearPreRecordBuffer();
+                    ClearPendingEventRecordingFrames();
+                    RuntimeLog.Info(
+                        "Recording",
+                        $"Using network stream copy codec={_currentVideoCodec}, file={Path.GetFileName(filePath)}");
+                }
+                else if (streamCopyRequested)
+                {
+                    RuntimeLog.Warn(
+                        "Recording",
+                        "Network stream copy failed; falling back to frame encoding");
+                    ShowToast(
+                        "原码流直存启动失败，已回退到普通录像",
+                        ToastSeverity.Warning);
+                    _currentVideoCodec =
+                        Config.VideoCodec?.Trim().ToLowerInvariant() ?? "h264";
+                    _currentVideoEncoder = ResolveEncoder();
+                    startAudioAfterVideo =
+                        Config.EnableAudioRecording
+                        && HasConfiguredAudioDevice();
+                    useDirectAac =
+                        startAudioAfterVideo
+                        && Config.EnableDirectAacRecording;
+                    if (string.IsNullOrWhiteSpace(_currentVideoEncoder))
+                    {
+                        ShowToast("当前设置无法启动录制", ToastSeverity.Error);
+                        AppDialog.Error(
+                            null,
+                            AppLanguage.Get("当前设置的编码器不可用，请重新检测编码器或在设置中选择其他可用编码器"),
+                            AppLanguage.Get("无法开始录制"));
+                        ClearCurrentAudioLogPath(audioLogPath);
+                        return;
+                    }
+                }
 
                 // 管道准备会清理上一轮音频，内部包含设备停止及写入任务等待。
                 // 录制串行锁仍由调用方持有，仅把设备工作移出 UI 线程。
@@ -778,7 +944,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 实时 AAC 管道初始化在正式公开 IsRecording 前可能持续数百毫秒。
                 // 这段时间摄像头仍在更新预录环形缓冲，补取启动期间的新帧，避免点击录制后
                 // 画面从旧快照直接跳到初始化完成时刻。
-                if (Config.EnableEventRecordingBuffer)
+                if (_streamCopyRecorder == null
+                    && Config.EnableEventRecordingBuffer)
                 {
                     List<Mat> startupPreRecordFrames = SnapshotPreRecordFrames(
                         DateTime.Now,
@@ -798,45 +965,65 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                 }
 
-                // 3. 开启新的生产者-消费者通道
-                lock (_videoLock)
+                if (_streamCopyRecorder != null)
                 {
-                    int recordingWidth = _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth;
-                    int recordingHeight = _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight;
-                    int recordingFps = GetEffectiveRecordingFps();
-                    int queueCapacity = RecordingBufferPolicy.CalculateVideoQueueCapacity(
-                        recordingWidth,
-                        recordingHeight,
-                        recordingFps);
-                    if (_pendingPreRecordFrames is { Count: > 0 })
+                    lock (_videoLock)
                     {
-                        // 队列要能整批接住预录帧，还要留出正常缓冲给回灌期间的实时帧：
-                        // 容量卡死在"刚刚好一 batch"时，回灌会一直等编码器把帧写出去，
-                        // 实时帧这段时间只能被丢掉，预录段与实时段衔接处就会顿一下。
-                        queueCapacity += _pendingPreRecordFrames.Count;
+                        _videoWriteQueue = null;
+                        _writeCts = new CancellationTokenSource();
+                        Volatile.Write(ref _recordingLiveStartTicks, 0);
+                        Volatile.Write(ref _recordingPreRecordFrameCount, 0);
                     }
-                    _videoWriteQueue = new BlockingCollection<RecordingVideoFrame>(queueCapacity);
-                    _writeCts = new CancellationTokenSource();
-                    _lastRecordingQueueWarnAt = DateTime.MinValue;
-                    // 写入端在拿到实时段起点之前不补帧，这里先清掉上一单留下的值。
-                    Volatile.Write(ref _recordingLiveStartTicks, 0);
-                    Volatile.Write(ref _recordingPreRecordFrameCount, 0);
-
-                    long bufferedBytes = (long)queueCapacity * recordingWidth * recordingHeight * 3;
                     RuntimeLog.Info(
                         "Recording",
-                        $"Video frame queue capacity={queueCapacity}, estimatedRawBuffer={bufferedBytes / 1024d / 1024d:F1}MB");
+                        "Network stream copy recording uses no raw frame queue");
+                }
+                else
+                {
+                    // 3. 开启新的生产者-消费者通道
+                    lock (_videoLock)
+                    {
+                        int recordingWidth = _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth;
+                        int recordingHeight = _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight;
+                        int recordingFps = GetEffectiveRecordingFps();
+                        int queueCapacity = RecordingBufferPolicy.CalculateVideoQueueCapacity(
+                            recordingWidth,
+                            recordingHeight,
+                            recordingFps);
+                        if (_pendingPreRecordFrames is { Count: > 0 })
+                        {
+                            // 队列要能整批接住预录帧，还要留出正常缓冲给回灌期间的实时帧：
+                            // 容量卡死在"刚刚好一 batch"时，回灌会一直等编码器把帧写出去，
+                            // 实时帧这段时间只能被丢掉，预录段与实时段衔接处就会顿一下。
+                            queueCapacity += _pendingPreRecordFrames.Count;
+                        }
+                        _videoWriteQueue = new BlockingCollection<RecordingVideoFrame>(queueCapacity);
+                        _writeCts = new CancellationTokenSource();
+                        _lastRecordingQueueWarnAt = DateTime.MinValue;
+                        // 写入端在拿到实时段起点之前不补帧，这里先清掉上一单留下的值。
+                        Volatile.Write(ref _recordingLiveStartTicks, 0);
+                        Volatile.Write(ref _recordingPreRecordFrameCount, 0);
+
+                        long bufferedBytes = (long)queueCapacity * recordingWidth * recordingHeight * 3;
+                        RuntimeLog.Info(
+                            "Recording",
+                            $"Video frame queue capacity={queueCapacity}, estimatedRawBuffer={bufferedBytes / 1024d / 1024d:F1}MB");
+                    }
                 }
 
                 // 4. 启动录制任务
-                _recordingStartTimestamp = Stopwatch.GetTimestamp();
+                _recordingStartTimestamp = _streamCopyRecorder != null
+                    ? startedTimestamp
+                    : Stopwatch.GetTimestamp();
                 _firstRecordingFrameWritten = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-                _writeTask = Task.Run(() => BackgroundFFmpegRecordingLoop(
-                    filePath,
-                    ffmpegPath,
-                    _writeCts.Token,
-                    useDirectAac,
-                    useDirectAac ? _currentAudioPipeName : null));
+                _writeTask = _streamCopyRecorder != null
+                    ? _streamCopyRecorder.Completion
+                    : Task.Run(() => BackgroundFFmpegRecordingLoop(
+                        filePath,
+                        ffmpegPath,
+                        _writeCts.Token,
+                        useDirectAac,
+                        useDirectAac ? _currentAudioPipeName : null));
 
                 // 先建立实时录制保护基准，再在帧顺序锁内公开状态并灌入预录帧，
                 // 避免超时线程在状态切换或大缓冲入队期间使用预录起点误停录。
@@ -859,7 +1046,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     : 0;
                 // 数据库时间线必须匹配最终视频的帧数/FPS，不能使用环形缓存中
                 // 低处理频率帧的墙上时间跨度，否则会把 5 秒视频记成 12 秒以上。
-                _recordStartTime = DateTime.Now - TimeSpan.FromSeconds(_activePreRecordSeconds);
+                _recordStartTime = _streamCopyRecorder != null
+                    ? startedAt
+                    : DateTime.Now - TimeSpan.FromSeconds(
+                        _activePreRecordSeconds);
                 // 实时段起点与预录帧数：写入端据此按真实时间补齐实时帧数。
                 Volatile.Write(ref _recordingPreRecordFrameCount, usablePreRecordFrameCount);
                 Volatile.Write(ref _recordingLiveStartTicks, Stopwatch.GetTimestamp());
@@ -912,7 +1102,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     Debug.WriteLine($"[RecordingStartup] first frame written in {firstFrameTask.Result} ms (total {startupWatch.ElapsedMilliseconds} ms)");
                 else if (startupCheck != _writeTask)
                     Debug.WriteLine($"[RecordingStartup] first frame not confirmed within 200 ms (total {startupWatch.ElapsedMilliseconds} ms)");
-                if (_writeTask.IsCompleted) 
+                if (_writeTask.IsCompleted)
                 {
                     RuntimeLog.Warn("Recording", $"Recording writer completed during startup, file={Path.GetFileName(filePath)}");
                     DeleteAudioTempFile(await StopAudioRecordingAsync());
@@ -920,7 +1110,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     IsRecording = false;
                     Debug.WriteLine("[MainVM] 启动检测：_writeTask 已结束，FFmpeg 启动失败");
                     // 启动阶段已经提前进入录制状态，失败时要回滚 UI 状态。
-                    return; 
+                    return;
                 }
 
                 if (startAudioAfterVideo)
@@ -1002,6 +1192,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     archivePath,
                     _recordingSessionId) ?? 0;
                 RuntimeLog.Info("Recording", $"Database record inserted id={_currentRecordId}, file={Path.GetFileName(filePath)}");
+                StartNetworkStreamCopyMonitorIfNeeded();
                 if (Config.EnableEventRecordingBuffer && !string.IsNullOrWhiteSpace(_recordingSessionId))
                 {
                     _db?.UpsertRecordingExtensionFields(
@@ -1048,6 +1239,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     _scanAudit?.RecordPendingStartFailed(
                         "recording_start_failed");
                     ClearPendingEventRecordingFrames();
+                    NetworkCameraStreamCopyRecorder? failedRecorder =
+                        _streamCopyRecorder;
+                    _streamCopyRecorder = null;
+                    if (failedRecorder != null)
+                        await failedRecorder.StopAsync();
                 }
                 IsBusy = false;
                 TryRunDeferredCameraVisionBenchmark();
@@ -1081,7 +1277,7 @@ namespace ExpressPackingMonitoring.ViewModels
             string requestedEncoder = encoder;
 
             var (ok, err) = RunFFmpegPipeline(filePath, ffmpegPath, token, w, h, fps, encoder, hasAudio, audioPipeName);
-            
+
             if (ok)
             {
                 _currentVideoEncoder = encoder;
@@ -1193,6 +1389,94 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                 }
             }, token);
+        }
+
+        private void StartNetworkStreamCopyMonitorIfNeeded()
+        {
+            NetworkCameraStreamCopyRecorder? recorder = _streamCopyRecorder;
+            if (recorder == null)
+                return;
+
+            long recordingStartTimestamp = _recordingStartTimestamp;
+            string? filePath = _currentVideoFilePath;
+            _ = Task.Run(async () =>
+            {
+                long lastFileLength = -1;
+                DateTime lastGrowthUtc = DateTime.UtcNow;
+                while (!_isDisposed
+                    && IsRecording
+                    && ReferenceEquals(_streamCopyRecorder, recorder)
+                    && Volatile.Read(ref _recordingStartTimestamp)
+                        == recordingStartTimestamp)
+                {
+                    Task completed = await Task.WhenAny(
+                        recorder.Completion,
+                        Task.Delay(TimeSpan.FromSeconds(2)));
+                    if (ReferenceEquals(completed, recorder.Completion))
+                    {
+                        await ReportNetworkStreamCopyFailureAsync(
+                            recorder,
+                            recordingStartTimestamp,
+                            "network-stream-copy-process-ended");
+                        return;
+                    }
+
+                    try
+                    {
+                        long length = !string.IsNullOrWhiteSpace(filePath)
+                            && File.Exists(filePath)
+                            ? new FileInfo(filePath).Length
+                            : 0;
+                        if (length > lastFileLength)
+                        {
+                            lastFileLength = length;
+                            lastGrowthUtc = DateTime.UtcNow;
+                        }
+                        else if (DateTime.UtcNow - lastGrowthUtc
+                            >= TimeSpan.FromSeconds(15))
+                        {
+                            await ReportNetworkStreamCopyFailureAsync(
+                                recorder,
+                                recordingStartTimestamp,
+                                "network-stream-copy-file-stalled");
+                            return;
+                        }
+                    }
+                    catch (IOException)
+                    {
+                    }
+                }
+            });
+        }
+
+        private async Task ReportNetworkStreamCopyFailureAsync(
+            NetworkCameraStreamCopyRecorder recorder,
+            long recordingStartTimestamp,
+            string reason)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null)
+                return;
+            await dispatcher.InvokeAsync(() =>
+            {
+                if (_isDisposed
+                    || !IsRecording
+                    || !ReferenceEquals(_streamCopyRecorder, recorder)
+                    || Volatile.Read(ref _recordingStartTimestamp)
+                        != recordingStartTimestamp)
+                {
+                    return;
+                }
+                RuntimeLog.Warn(
+                    "Recording",
+                    $"Network stream copy interrupted: {reason}");
+                _networkStreamCopyFailed = true;
+                ShowToast(
+                    AppLanguage.Get("原码流直传中断，正在结束录像"),
+                    ToastSeverity.Error);
+                _ = RestartCameraWithRecordingStopAsync(
+                    "network-stream-copy-ended");
+            });
         }
 
         private string BuildRecordingFramePipelineDiagnostic(TimeSpan frameProgressAge)

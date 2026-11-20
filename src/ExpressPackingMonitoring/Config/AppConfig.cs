@@ -305,6 +305,7 @@ namespace ExpressPackingMonitoring.Config
         public string CameraSourceKind { get; set; } = "usb";
         public string NetworkCameraUrl { get; set; } = "";
         public string NetworkCameraRtspTransport { get; set; } = "tcp";
+        public bool EnableNetworkCameraStreamCopy { get; set; } = false;
 
         // 叠加画面路数：高级设置里可以改（默认两路）。不改路数时永远按这个值补齐/截断，
         // 设置页与运行时都按它循环，加第三、第四路不需要另写一套逻辑。

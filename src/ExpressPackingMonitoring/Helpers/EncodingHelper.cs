@@ -1,6 +1,8 @@
 #nullable disable
 using System;
 using System.Collections.Generic;
+using ExpressPackingMonitoring.Localization;
+using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
 
 namespace ExpressPackingMonitoring.Helpers
@@ -56,6 +58,8 @@ namespace ExpressPackingMonitoring.Helpers
                 "av1_amf" => "A AV1",
                 "av1_qsv" => "I AV1",
                 "libsvtav1" => "C AV1",
+                NetworkCameraStreamCopyRecorder.EncoderId =>
+                    AppLanguage.Get("原码流"),
                 _ => encoder
             };
         }

@@ -163,7 +163,6 @@ namespace ExpressPackingMonitoring.UI
         private bool _isLoadingDevices;
         private bool _isRefreshingEncoderSelectors;
         private bool _isSyncingScannerModes;
-        private bool _isApplyingDirectAacRecordingChoice;
         private bool _recordingCacheLimitExplained;
         public ObservableCollection<UserscriptDescriptor> CustomUserscripts { get; } = new();
         public ObservableCollection<ExtensionAuthorizationDisplayItem> ExtensionAuthorizations { get; } = new();
@@ -298,62 +297,6 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
-        private void DirectAacRecordingCheckBox_Checked(object sender, RoutedEventArgs e)
-        {
-            if (!IsLoaded || _isApplyingDirectAacRecordingChoice || sender is not CheckBox checkBox)
-                return;
-
-            ApplyDirectAacRecordingChoice(checkBox, ConfirmDirectAacRecordingRisk());
-        }
-
-        private void DirectAacRecordingCheckBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (sender is not CheckBox { IsChecked: false } checkBox)
-                return;
-
-            e.Handled = true;
-            checkBox.Focus();
-            ApplyDirectAacRecordingChoice(checkBox, ConfirmDirectAacRecordingRisk());
-        }
-
-        private void DirectAacRecordingCheckBox_PreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key != Key.Space || sender is not CheckBox { IsChecked: false } checkBox)
-                return;
-
-            e.Handled = true;
-            ApplyDirectAacRecordingChoice(checkBox, ConfirmDirectAacRecordingRisk());
-        }
-
-        private bool ConfirmDirectAacRecordingRisk()
-        {
-            return AppDialog.Confirm(
-                this,
-                AppLanguage.Get("实时封装时如果麦克风断开或音频设备异常被占用，可能导致 FFmpeg 录制中断，从而造成视频异常或录制失败"),
-                AppLanguage.Get("开启音频直接写入 MKV？"),
-                AppDialogSeverity.Warning,
-                confirmText: AppLanguage.Get("了解风险并开启"),
-                cancelText: AppLanguage.Get("保持关闭"));
-        }
-
-        private void ApplyDirectAacRecordingChoice(CheckBox checkBox, bool enabled)
-        {
-            _isApplyingDirectAacRecordingChoice = true;
-            try
-            {
-                Config.EnableDirectAacRecording = enabled;
-                checkBox.SetCurrentValue(
-                    System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
-                    enabled);
-                checkBox.GetBindingExpression(
-                    System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty)?.UpdateSource();
-            }
-            finally
-            {
-                _isApplyingDirectAacRecordingChoice = false;
-            }
-        }
-
         private void AdvancedModeButton_Unchecked(object sender, RoutedEventArgs e)
         {
             Keyboard.ClearFocus();
@@ -448,6 +391,7 @@ namespace ExpressPackingMonitoring.UI
                 {
                     _isLoadingDevices = false;
                 }
+                ApplyNetworkCameraStreamCopyConstraints();
 
                 // 加载断句关键词到文本框
                 if (Config.TtsBreakWords != null && Config.TtsBreakWords.Count > 0)
@@ -459,10 +403,13 @@ namespace ExpressPackingMonitoring.UI
                     ResComboBox.IsEnabled = false;
                     FpsComboBox.IsEnabled = false;
                     DetectRecordingProfileButton.IsEnabled = false;
+                    NetworkCameraStreamCopyToggle.IsEnabled = false;
                     CameraComboBox.ToolTip = "录制中不可修改，停止录制后再更改";
                     ResComboBox.ToolTip = "录制中不可修改，停止录制后再更改";
                     FpsComboBox.ToolTip = "录制中不可修改，停止录制后再更改";
                     DetectRecordingProfileButton.ToolTip = "录制中不可检测，停止录制后再重试";
+                    NetworkCameraStreamCopyToggle.ToolTip =
+                        AppLanguage.Get("录制中不可修改，停止录制后再更改");
                 }
             }
         }
@@ -670,6 +617,7 @@ namespace ExpressPackingMonitoring.UI
             if (CameraComboBox.SelectedItem is CameraInfo cam)
             {
                 NetworkCameraPanel.Visibility = Visibility.Collapsed;
+                ApplyNetworkCameraStreamCopyConstraints();
                 ResComboBox.IsEnabled = true;
                 FpsComboBox.IsEnabled = true;
 
@@ -724,6 +672,7 @@ namespace ExpressPackingMonitoring.UI
 
             ResComboBox.IsEnabled = false;
             FpsComboBox.IsEnabled = false;
+            ApplyNetworkCameraStreamCopyConstraints();
         }
 
         private static bool IsNetworkCamera(CameraInfo camera)

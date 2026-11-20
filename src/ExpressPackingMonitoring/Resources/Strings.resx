@@ -1944,4 +1944,18 @@ Continue? After packaging, send the archive to {0}</value></data>
   <data name="需要重新连接" xml:space="preserve"><value>Reconnect</value></data>
   <data name="正在重新连接" xml:space="preserve"><value>Reconnecting</value></data>
   <data name="无法保存主机连接状态" xml:space="preserve"><value>Could not save the host connection state</value></data>
+  <data name="NetworkCameraStreamCopy" xml:space="preserve"><value>Source stream copy (experimental)</value></data>
+  <data name="NetworkCameraStreamCopyHint" xml:space="preserve"><value>No re-encoding; low-spec friendly. Some features are unavailable</value></data>
+  <data name="以下功能将失效" xml:space="preserve"><value>These features will be unavailable</value></data>
+  <data name="NetworkCameraStreamCopyUnavailableFeatures" xml:space="preserve"><value>Recording watermark
+Camera rotation
+Pre-record buffer
+Local audio</value></data>
+  <data name="原码流直存启动失败，已回退到普通录像" xml:space="preserve"><value>Direct network stream copy failed; switched to standard recording</value></data>
+  <data name="原码流直存条件不满足，本次使用普通录像" xml:space="preserve"><value>Direct network stream copy requirements are not met; using standard recording</value></data>
+  <data name="原码流直传中断，正在结束录像" xml:space="preserve"><value>Direct network stream copy stopped unexpectedly; ending the recording</value></data>
+  <data name="直存收尾异常" xml:space="preserve"><value>Direct copy finalization failed</value></data>
+  <data name="原码流" xml:space="preserve"><value>Original stream</value></data>
+  <data name="当前设置的编码器不可用，请重新检测编码器或在设置中选择其他可用编码器" xml:space="preserve"><value>The selected encoder is unavailable. Detect encoders again or choose another available encoder in Settings</value></data>
+  <data name="当前设置无法启动录制" xml:space="preserve"><value>The current setting cannot start recording</value></data>
 </root>
