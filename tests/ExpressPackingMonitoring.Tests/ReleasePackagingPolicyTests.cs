@@ -1085,6 +1085,10 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("Import-GiteeReleaseBotToken", auth, StringComparison.Ordinal);
         Assert.Contains("url.https://x-access-token:", auth, StringComparison.Ordinal);
         Assert.Contains("url.https://$giteeUser", auth, StringComparison.Ordinal);
+        Assert.Contains(
+            '$_ -notin @("github.com", "api.github.com")',
+            auth,
+            StringComparison.Ordinal);
         Assert.Contains("PACKINGPROOF_RELEASE_BOT = \"1\"", auth, StringComparison.Ordinal);
         Assert.DoesNotContain("--force", pusher, StringComparison.Ordinal);
         Assert.Contains("Push-ReleaseBot.ps1", releaseDocument, StringComparison.Ordinal);

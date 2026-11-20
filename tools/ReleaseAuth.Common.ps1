@@ -175,6 +175,15 @@ function Enable-ReleaseBotGitTransport {
         if ([string]::IsNullOrWhiteSpace($githubSource)) {
             throw "GitHub 远端写入必须使用 PackingProof Release Bot 的 GitHub App token；个人 gh 登录态和普通 GITHUB_TOKEN 不会用于推送"
         }
+        # Token 获取阶段会为 api.github.com 直连设置 NO_PROXY；Git push 本身需要回到
+        # 用户配置的代理，否则部分网络会直接重置 github.com:443。
+        $noProxyItems = @($env:NO_PROXY -split ',') |
+            ForEach-Object { $_.Trim() } |
+            Where-Object {
+                -not [string]::IsNullOrWhiteSpace($_) -and
+                $_ -notin @("github.com", "api.github.com")
+            }
+        $env:NO_PROXY = $noProxyItems -join ","
         $githubToken = [Uri]::EscapeDataString($env:GH_TOKEN)
         $configs.Add(@{
             Key = "url.https://x-access-token:$githubToken@github.com/.insteadOf"
