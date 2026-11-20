@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "protocol_version": 1,
-  "version": "0.0.103",
-  "tag": "launcher-v0.0.103",
-  "release_tag": "v0.0.103",
+  "version": "0.0.104",
+  "tag": "launcher-v0.0.104",
+  "release_tag": "v0.0.104",
   "runtime": "win-x64",
   "update_check_url": "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest",
-  "source_fingerprint": "0181a02cc4ec7b1909337fee3763f4b410f6a0a61f8758bb32e012eafd9999fb",
+  "source_fingerprint": "54bc68a67acba0052c78cf83090eaa1d60e6d63e8cfeec84e267d436c2033e9f",
   "fingerprint_files": [
     "ExpressPackingMonitoring.Launcher/Program.cs",
     "ExpressPackingMonitoring.Launcher/ExpressPackingMonitoring.Launcher.csproj",
@@ -28,10 +28,10 @@
     "ExpressPackingMonitoring.UpdateCore/UpdateReleaseSelection.cs"
   ],
   "package": {
-    "file": "PackingProof_LauncherPatch_v0.0.103.zip",
-    "size": 3223587,
-    "sha256": "88e90e5ebcf291f21d1911ceafd8a0f7887ad8a4ca3afeff1a0d8f829de708e9",
-    "executable_size": 7034368,
-    "executable_sha256": "5a42a0f59bb4f57bcde262df1e191ca1b8b3c81178f91ae434ee202dfee43567"
+    "file": "PackingProof_LauncherPatch_v0.0.104.zip",
+    "size": 3230744,
+    "sha256": "abec793376a25ccc7614c5794fd3d26decdbdbb5530133693f40785db8a85aed",
+    "executable_size": 7045632,
+    "executable_sha256": "4f434a5ba6383f44ea42badf7643dec3341adfdb4f547380ed7dc9b40fa13ac7"
   }
 }
