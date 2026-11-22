@@ -69,72 +69,175 @@ async function assertHeaderTitleNotTruncated(page) {
   );
 }
 
-async function assertLongOrderNumberStaysOnOneLineInsideCard(orderNumber) {
-  const originalText = await orderNumber.innerText();
-  const longNumber = 'AUTO_WEB_LONG_ORDER_1234567890_ABCDEFGHIJKLMNOPQRSTUVWXYZ_0987654321';
-  await orderNumber.evaluate((element, value) => {
-    element.textContent = value;
-    element.style.removeProperty('font-size');
-    element.style.removeProperty('transform');
-    if (typeof fitVideoOrderNumber === 'function') fitVideoOrderNumber(element);
-  }, longNumber);
-  const metrics = await orderNumber.evaluate(element => {
-    const style = getComputedStyle(element);
-    const orderRect = element.getBoundingClientRect();
-    const item = element.closest('.video-item');
-    const itemRect = item?.getBoundingClientRect();
-    const metadata = item?.querySelector('.meta-grid');
-    const metadataRect = metadata?.getBoundingClientRect();
-    const actions = item?.querySelector('.video-actions');
-    const actionsRect = actions?.getBoundingClientRect();
-    return {
-      whiteSpace: style.whiteSpace,
-      textOverflow: style.textOverflow,
-      lineHeight: Number.parseFloat(style.lineHeight),
-      height: element.getBoundingClientRect().height,
-      orderRight: orderRect.right,
-      orderBottom: orderRect.bottom,
-      metadataLeft: metadataRect?.left ?? Number.POSITIVE_INFINITY,
-      itemRight: itemRect?.right ?? Number.NEGATIVE_INFINITY,
-      actionsTop: actionsRect?.top ?? Number.POSITIVE_INFINITY
-    };
-  });
-  assert.equal(metrics.whiteSpace, 'nowrap', 'long order number must stay on one line');
-  assert.equal(metrics.textOverflow, 'clip', 'long order number should not render an ellipsis');
-  assert.ok(metrics.height <= metrics.lineHeight * 1.5, 'long order number should remain a single line');
-  assert.ok(metrics.orderRight > metrics.metadataLeft, 'long order number should extend across the metadata area');
-  assert.ok(metrics.orderRight <= metrics.itemRight + 1, 'long order number should stay inside the card');
-  assert.ok(metrics.orderBottom <= metrics.actionsTop + 1, 'order number must not overlap action buttons');
-  await orderNumber.evaluate((element, value) => {
-    element.textContent = value;
-    element.style.removeProperty('font-size');
-    element.style.removeProperty('transform');
-    if (typeof fitVideoOrderNumber === 'function') fitVideoOrderNumber(element);
-  }, originalText);
+async function assertMetadataOrderedAsTwoRows(page) {
+  const cells = await page.locator('.video-item .meta-grid').first().evaluate(metadata =>
+    [...metadata.querySelectorAll('.meta-cell')].map(cell => {
+      const box = cell.getBoundingClientRect();
+      return {
+        text: cell.textContent.trim(),
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom
+      };
+    })
+  );
+  const [date, duration, size] = cells;
+  assert.ok(duration && size && date, 'metadata should contain date, duration and size');
+  assert.match(duration.text, /^\d+(?:\.\d+)?s$/, 'duration should use seconds');
+  assert.ok(Math.abs(duration.top - size.top) <= 1, 'duration and size should share the top row');
+  assert.ok(date.top >= duration.bottom - 1, 'date should sit below duration and size');
+  assert.ok(size.left - duration.right <= 13, 'duration and size should stay close together');
 }
 
-test('long order number stays inside the card without covering actions', { skip: !baseUrl }, async () => {
-  const executablePath = process.env.EPM_BROWSER_EXECUTABLE;
-  assert.ok(executablePath, 'EPM_BROWSER_EXECUTABLE is required');
-  const browser = await chromium.launch({ executablePath, headless: true });
-  try {
-    const context = await browser.newContext({ locale: 'zh-CN' });
-    const page = await context.newPage();
-    const pageErrors = [];
-    page.on('pageerror', error => pageErrors.push(String(error)));
-    await page.goto(baseUrl, { waitUntil: 'networkidle' });
-    await page.waitForFunction(() => document.querySelectorAll('.video-item .order-id').length > 0);
+async function assertMetadataSharesMediumRow(page) {
+  const metrics = await page.locator('.video-item').first().evaluate(item => {
+    const main = item.querySelector('.video-main').getBoundingClientRect();
+    const metadata = item.querySelector('.meta-grid').getBoundingClientRect();
+    const actions = item.querySelector('.video-actions').getBoundingClientRect();
+    return {
+      main: { left: main.left, right: main.right, top: main.top, bottom: main.bottom },
+      metadata: { left: metadata.left, right: metadata.right, top: metadata.top, bottom: metadata.bottom },
+      actions: { left: actions.left, right: actions.right, top: actions.top, bottom: actions.bottom }
+    };
+  });
+  assert.ok(
+    metrics.metadata.top < metrics.main.bottom && metrics.metadata.bottom > metrics.main.top,
+    `metadata should share the thumbnail row: ${JSON.stringify(metrics)}`
+  );
+  assert.ok(metrics.metadata.left >= metrics.main.right, 'metadata should sit between the recording and actions');
+  assert.ok(metrics.metadata.right <= metrics.actions.left, 'metadata should not overlap the action buttons');
+}
 
-    await assertLongOrderNumberStaysOnOneLineInsideCard(page.locator('.order-id').first());
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(
-      () => requestAnimationFrame(resolve))));
-    await assertLongOrderNumberStaysOnOneLineInsideCard(page.locator('.order-id').first());
-    assert.deepEqual(pageErrors, [], '页面不应有未捕获的脚本异常');
-  } finally {
-    await browser.close();
+async function assertMetadataOrderedAsSingleRow(page) {
+  const metrics = await page.locator('.video-item').first().evaluate(item => {
+    const rect = element => element.getBoundingClientRect();
+    const thumb = rect(item.querySelector('.video-thumb'));
+    const copy = rect(item.querySelector('.video-main > div'));
+    const metadata = rect(item.querySelector('.meta-grid'));
+    const actions = rect(item.querySelector('.video-actions'));
+    const cells = [...item.querySelectorAll('.meta-grid .meta-cell')].map(cell => {
+      const box = cell.getBoundingClientRect();
+      return {
+        text: cell.textContent.trim(),
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom
+      };
+    });
+    return {
+      thumb: { left: thumb.left, right: thumb.right, top: thumb.top, bottom: thumb.bottom, width: thumb.width },
+      copy: { left: copy.left, right: copy.right, top: copy.top, bottom: copy.bottom },
+      metadata: { left: metadata.left, right: metadata.right, top: metadata.top, bottom: metadata.bottom },
+      actions: { left: actions.left, right: actions.right },
+      cells
+    };
+  });
+  const [date, duration, size] = metrics.cells;
+  assert.ok(
+    Math.max(date.top, duration.top, size.top) - Math.min(date.top, duration.top, size.top) <= 1,
+    'date, duration and size should share one row'
+  );
+  assert.match(duration.text, /^\d+(?:\.\d+)?s$/, 'duration should use seconds');
+  assert.ok(duration.left - date.right <= 13, 'date should sit at the left of the metadata row');
+  assert.ok(size.left - duration.right <= 13, 'duration and size should stay close together');
+  assert.ok(date.left < duration.left && duration.left < size.left, 'metadata order should be date, duration, size');
+  assert.ok(metrics.thumb.width >= 95, 'medium-width thumbnail should be enlarged');
+  assert.ok(metrics.metadata.left >= metrics.thumb.right, 'metadata should sit beside the thumbnail');
+  assert.ok(metrics.metadata.top >= metrics.copy.bottom - 1, 'metadata should sit below the order and tags');
+  assert.ok(metrics.metadata.right <= metrics.actions.left, 'metadata should not overlap action buttons');
+  assert.ok(metrics.metadata.bottom <= metrics.thumb.bottom + 1, 'metadata should stay inside the thumbnail height');
+}
+
+async function assertMediumActionLayout(page) {
+  const metrics = await page.locator('.video-item .video-actions').first().evaluate(actions => {
+    const actionsRect = actions.getBoundingClientRect();
+    const play = actions.querySelector('.btn-play').getBoundingClientRect();
+    const [clip, download] = [...actions.querySelectorAll('.btn-sm:not(.btn-play)')]
+      .map(button => button.getBoundingClientRect());
+    return {
+      actions: { left: actionsRect.left, right: actionsRect.right, width: actionsRect.width },
+      play: { left: play.left, right: play.right, top: play.top, bottom: play.bottom },
+      clip: { left: clip.left, right: clip.right, top: clip.top, bottom: clip.bottom },
+      download: { left: download.left, right: download.right, top: download.top, bottom: download.bottom }
+    };
+  });
+  assert.ok(metrics.actions.width <= 169, 'medium-width action area should stay narrow');
+  assert.ok(metrics.play.top < metrics.clip.top, 'play should occupy the first action row');
+  assert.ok(Math.abs(metrics.clip.top - metrics.download.top) <= 1, 'clip and download should share the second row');
+  assert.ok(metrics.play.left <= metrics.clip.left + 1, 'play should span left to the lower buttons');
+  assert.ok(metrics.play.right >= metrics.download.right - 1, 'play should span across the lower buttons');
+  for (const button of [metrics.play, metrics.clip, metrics.download]) {
+    assert.ok(button.left >= metrics.actions.left - 1 && button.right <= metrics.actions.right + 1,
+      'action buttons should stay inside the action area');
   }
-});
+}
+
+async function assertCompactMobileVideoItemLayout(page) {
+  const metrics = await page.locator('.video-item').first().evaluate(item => {
+    const rect = element => element.getBoundingClientRect();
+    const order = rect(item.querySelector('.order-line'));
+    const thumb = rect(item.querySelector('.video-thumb'));
+    const tags = rect(item.querySelector('.tag-line'));
+    const metadata = rect(item.querySelector('.meta-grid'));
+    const actions = rect(item.querySelector('.video-actions'));
+    const metaCells = [...item.querySelectorAll('.meta-grid .meta-cell')].map(cell => {
+      const box = rect(cell);
+      return {
+        text: cell.textContent.trim(),
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom
+      };
+    });
+    const tagChildren = [...item.querySelectorAll('.tag-line .mode-badge, .tag-line .status-badge')].map(child => {
+      const box = rect(child);
+      return { top: box.top, bottom: box.bottom, center: (box.top + box.bottom) / 2 };
+    });
+    const card = rect(item);
+    return {
+      card: { left: card.left, right: card.right, top: card.top, bottom: card.bottom, height: card.height },
+      order: { left: order.left, right: order.right, top: order.top, bottom: order.bottom, height: order.height },
+      thumb: { left: thumb.left, right: thumb.right, top: thumb.top, bottom: thumb.bottom },
+      tags: { left: tags.left, right: tags.right, top: tags.top, bottom: tags.bottom, height: tags.height },
+      metadata: { left: metadata.left, right: metadata.right, top: metadata.top, bottom: metadata.bottom },
+      actions: { left: actions.left, right: actions.right, top: actions.top, bottom: actions.bottom, height: actions.height },
+      metaCells,
+      tagChildren
+    };
+  });
+
+  assert.ok(metrics.order.bottom <= metrics.thumb.top + 1, 'order number should own the top row');
+  assert.ok(metrics.order.left <= metrics.card.left + 11, 'order row should start at the card content edge');
+  assert.ok(metrics.order.right >= metrics.card.right - 11, 'order row should span the card');
+  for (const area of [metrics.tags, metrics.metadata, metrics.actions]) {
+    assert.ok(area.left >= metrics.thumb.right - 1, 'status, metadata and actions should sit beside the thumbnail');
+  }
+  assert.ok(metrics.metadata.top - metrics.tags.bottom <= 3, 'status and metadata should use a compact gap');
+  assert.ok(metrics.actions.top - metrics.metadata.bottom <= 3, 'metadata and actions should use a compact gap');
+  assert.ok(metrics.tags.height <= 24, 'status row should stay on one line');
+  assert.ok(
+    Math.max(...metrics.tagChildren.map(child => child.center)) - Math.min(...metrics.tagChildren.map(child => child.center)) <= 1,
+    'mode and device tags should be vertically aligned'
+  );
+  assert.match(metrics.metaCells[1].text, /^\d+(?:\.\d+)?s$/, 'duration should use seconds');
+  assert.ok(metrics.metaCells[2].left - metrics.metaCells[1].right <= 8, 'duration and size should stay close together');
+  assert.ok(metrics.actions.height <= 35, 'mobile action row should remain compact');
+  const rightCenter = (metrics.tags.top + metrics.actions.bottom) / 2;
+  const thumbCenter = (metrics.thumb.top + metrics.thumb.bottom) / 2;
+  assert.ok(
+    Math.abs(rightCenter - thumbCenter) <= 2,
+    `thumbnail should be vertically centered beside the information stack: ${JSON.stringify(metrics)}`
+  );
+  const rightHeight = metrics.actions.bottom - metrics.tags.top;
+  const thumbHeight = metrics.thumb.bottom - metrics.thumb.top;
+  assert.ok(
+    metrics.card.height <= metrics.order.height + Math.max(thumbHeight, rightHeight) + 26,
+    'mobile card should not contain large vertical gaps'
+  );
+}
 
 test('isolated Web server supports search, playback and clip editor entry', { skip: !baseUrl }, async () => {
   const executablePath = process.env.EPM_BROWSER_EXECUTABLE;
@@ -154,6 +257,7 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     await assert.doesNotReject(() => page.getByRole('heading', { name: 'PackingProof 包裹留证' }).waitFor());
     await page.waitForFunction(() => /^第 \d+ \/ \d+ 页$/.test(
       document.querySelector('#resultsInfo')?.textContent?.trim() || ''));
+    await assertMetadataOrderedAsTwoRows(page);
 
     // 存储盘在线时不得出现拔盘提示条
     assert.equal(await page.locator('#storageBanner').isVisible(), false);
@@ -265,6 +369,18 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     );
     await page.setViewportSize({ width: 1280, height: 900 });
 
+    await page.setViewportSize({ width: 920, height: 900 });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(
+      () => requestAnimationFrame(resolve))));
+    await assertMetadataSharesMediumRow(page);
+    await assertMediumActionLayout(page);
+
+    await page.setViewportSize({ width: 669, height: 900 });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(
+      () => requestAnimationFrame(resolve))));
+    await assertMetadataOrderedAsSingleRow(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+
     const androidContext = await browser.newContext({
       locale: 'zh-CN',
       userAgent: 'Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 Chrome/127 Mobile Safari/537.36'
@@ -276,6 +392,8 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
       if (new URL(request.url()).pathname === '/api/mobile-app-download') mobileDownloadInfoRequests++;
     });
     await mobilePage.goto(baseUrl, { waitUntil: 'networkidle' });
+    await assertMetadataOrderedAsTwoRows(mobilePage);
+    await assertCompactMobileVideoItemLayout(mobilePage);
     const androidDownload = mobilePage.getByRole('link', { name: '下载 Android App' });
     assert.equal(await androidDownload.isVisible(), true);
     assert.match(
@@ -337,10 +455,6 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     const article = page.locator('article').filter({ hasText: 'AUTO_WEB_001' });
     await assert.doesNotReject(() => article.waitFor());
     assert.match(await page.locator('#resultsInfo').innerText(), /^第 \d+ \/ \d+ 页$/);
-    await assertLongOrderNumberStaysOnOneLineInsideCard(page.locator('.order-id').first());
-    await page.setViewportSize({ width: 390, height: 844 });
-    await assertLongOrderNumberStaysOnOneLineInsideCard(page.locator('article .order-id').first());
-    await page.setViewportSize({ width: 1280, height: 900 });
 
     await article.getByRole('button', { name: '播放', exact: true }).click();
     await assert.doesNotReject(() => page.locator('#playerOverlay.active').waitFor());
