@@ -371,7 +371,9 @@ public sealed class UiScreenshotTests
                 var window = CreateTransferManagementWindow(
                     TransferManagementMode.RecordingTransfer,
                     isUploadPaused: () => false,
-                    toggleUploadPause: () => Task.FromResult(true));
+                    toggleUploadPause: () => Task.FromResult(true),
+                    config: new AppConfig(),
+                    canCheckForUpdates: true);
                 var viewModel = (TransferManagementWindowViewModel)window.DataContext;
                 DateTimeOffset now = DateTimeOffset.Now;
                 viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
@@ -447,7 +449,9 @@ public sealed class UiScreenshotTests
                 var window = CreateTransferManagementWindow(
                     TransferManagementMode.RecordingTransfer,
                     isUploadPaused: () => false,
-                    toggleUploadPause: () => Task.FromResult(true));
+                    toggleUploadPause: () => Task.FromResult(true),
+                    config: new AppConfig(),
+                    canCheckForUpdates: true);
                 var viewModel = (TransferManagementWindowViewModel)window.DataContext;
                 DateTimeOffset now = DateTimeOffset.Now;
                 viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
@@ -510,7 +514,9 @@ public sealed class UiScreenshotTests
                 var window = CreateTransferManagementWindow(
                     TransferManagementMode.RecordingTransfer,
                     isUploadPaused: () => false,
-                    toggleUploadPause: () => Task.FromResult(true));
+                    toggleUploadPause: () => Task.FromResult(true),
+                    config: new AppConfig(),
+                    canCheckForUpdates: true);
                 var viewModel = (TransferManagementWindowViewModel)window.DataContext;
                 viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
                     HostConnectionState.Unknown,
@@ -541,7 +547,9 @@ public sealed class UiScreenshotTests
                 var window = CreateTransferManagementWindow(
                     TransferManagementMode.RecordingTransfer,
                     isUploadPaused: () => false,
-                    toggleUploadPause: () => Task.FromResult(true));
+                    toggleUploadPause: () => Task.FromResult(true),
+                    config: new AppConfig(),
+                    canCheckForUpdates: true);
                 var viewModel = (TransferManagementWindowViewModel)window.DataContext;
                 viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
                     HostConnectionState.ClientUpdateRequired,
@@ -572,7 +580,9 @@ public sealed class UiScreenshotTests
                 var window = CreateTransferManagementWindow(
                     TransferManagementMode.RecordingTransfer,
                     isUploadPaused: () => false,
-                    toggleUploadPause: () => Task.FromResult(true));
+                    toggleUploadPause: () => Task.FromResult(true),
+                    config: new AppConfig(),
+                    canCheckForUpdates: true);
                 var viewModel = (TransferManagementWindowViewModel)window.DataContext;
                 viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
                     HostConnectionState.HostUpdateRequired,
@@ -599,7 +609,9 @@ public sealed class UiScreenshotTests
     private static TransferManagementWindow CreateTransferManagementWindow(
         TransferManagementMode mode,
         Func<bool>? isUploadPaused = null,
-        Func<Task<bool>>? toggleUploadPause = null) =>
+        Func<Task<bool>>? toggleUploadPause = null,
+        AppConfig? config = null,
+        bool canCheckForUpdates = false) =>
         new(new TransferManagementSnapshotService(
             mode,
             new AppConfig(),
@@ -608,7 +620,9 @@ public sealed class UiScreenshotTests
             queueStore: null,
             transferService: null),
             isUploadPaused,
-            toggleUploadPause);
+            toggleUploadPause,
+            config,
+            canCheckForUpdates: canCheckForUpdates);
 
     private static BitmapSource CreateScreenshotDialogPreview(int width, int height)
     {

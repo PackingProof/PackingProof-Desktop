@@ -150,6 +150,37 @@ public sealed class TransferManagementSnapshotTests
     }
 
     [Theory]
+    [InlineData(nameof(HostConnectionState.ClientUpdateRequired), true)]
+    [InlineData(nameof(HostConnectionState.HostUpdateRequired), false)]
+    [InlineData(nameof(HostConnectionState.Online), false)]
+    public void OnlyCurrentPcUpdateStateShowsCheckUpdateButton(
+        string stateValue,
+        bool expected)
+    {
+        HostConnectionState state = Enum.Parse<HostConnectionState>(stateValue);
+        using var database = new VideoDatabase(":memory:");
+        var service = new TransferManagementSnapshotService(
+            TransferManagementMode.RecordingTransfer,
+            new AppConfig(),
+            database,
+            webServer: null,
+            queueStore: null,
+            transferService: null);
+        using var viewModel = new TransferManagementWindowViewModel(
+            service,
+            canCheckForUpdates: true);
+
+        viewModel.ApplySnapshotForPreview(
+            TransferManagementSnapshot.Empty()
+            with
+            {
+                HostState = state
+            });
+
+        Assert.Equal(expected, viewModel.ShowCheckUpdateButton);
+    }
+
+    [Theory]
     [InlineData(
         RecordingTransferFailureKinds.ClientUpgradeRequired,
         nameof(HostConnectionState.ClientUpdateRequired))]

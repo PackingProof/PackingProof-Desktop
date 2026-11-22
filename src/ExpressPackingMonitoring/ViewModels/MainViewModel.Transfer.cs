@@ -610,7 +610,10 @@ public partial class MainViewModel
         var window = new TransferManagementWindow(
             service,
             isUploadPaused: () => IsRecordingWorkstation && IsRecordingUploadPaused,
-            toggleUploadPause: ToggleRecordingUploadPauseAsync)
+            toggleUploadPause: ToggleRecordingUploadPauseAsync,
+            config: Config,
+            isRecording: () => IsRecording,
+            canCheckForUpdates: true)
         {
             Owner = owner ?? Application.Current?.MainWindow
         };

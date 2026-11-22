@@ -195,6 +195,7 @@
     <Compile Include="Services\PlaybackPreparationPolicy.cs" />
     <Compile Include="UI\PlaybackTooltipPresenter.cs" />
     <Compile Include="UI\PlaybackWindow.Preparation.cs" />
+    <Compile Include="UI\ManualUpdateDialogFlow.cs" />
     <Compile Include="UI\VlcVideoHost.cs" />
     <Compile Include="Services\NoCameraWorkstationHost.cs" />
     <Compile Include="Services\MediaFoundation\MfInterop.cs" />

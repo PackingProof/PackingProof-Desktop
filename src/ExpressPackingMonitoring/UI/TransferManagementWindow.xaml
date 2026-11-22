@@ -140,11 +140,25 @@
                             Padding="8,5"
                             CornerRadius="6"
                             Background="{DynamicResource ControlBackground}">
-                        <TextBlock Text="{Binding StopReasonText}"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TransferAttentionText}"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding StopReasonText}"
+                                       Margin="0,0,10,0"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TransferAttentionText}"/>
+                            <Button x:Name="CheckUpdateButton"
+                                    Grid.Column="1"
+                                    Content="{loc:Localized 检查更新}"
+                                    Click="CheckUpdate_Click"
+                                    Style="{StaticResource CompactRetryButton}"
+                                    Visibility="{Binding ShowCheckUpdateButton, Converter={StaticResource BoolToVisibility}}"/>
+                        </Grid>
                     </Border>
                 </StackPanel>
             </Border>

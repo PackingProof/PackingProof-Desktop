@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Services;
@@ -12,19 +13,27 @@ public partial class TransferManagementWindow : Window
 {
     private readonly TransferManagementWindowViewModel _viewModel;
     private readonly DispatcherTimer _refreshTimer;
+    private readonly AppConfig? _config;
+    private readonly Func<bool>? _isRecording;
     private int _refreshErrorLogged;
 
     internal TransferManagementWindow(
         TransferManagementSnapshotService snapshotService,
         Func<bool>? isUploadPaused = null,
-        Func<Task<bool>>? toggleUploadPause = null)
+        Func<Task<bool>>? toggleUploadPause = null,
+        AppConfig? config = null,
+        Func<bool>? isRecording = null,
+        bool canCheckForUpdates = false)
     {
+        _config = config;
+        _isRecording = isRecording;
         InitializeComponent();
         DialogWindowChrome.UseCloseButtonOnly(this);
         _viewModel = new TransferManagementWindowViewModel(
             snapshotService,
             isUploadPaused,
-            toggleUploadPause);
+            toggleUploadPause,
+            canCheckForUpdates && config != null);
         DataContext = _viewModel;
         _refreshTimer = new DispatcherTimer(
             DispatcherPriority.Background,
@@ -45,6 +54,61 @@ public partial class TransferManagementWindow : Window
 
     private async void RefreshTimer_Tick(object? sender, EventArgs e) =>
         await RefreshAsync();
+
+    private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_config == null)
+            return;
+        if (PackagingIdentity.IsPackaged)
+        {
+            AppDialog.Information(
+                this,
+                AppLanguage.Get("商店版更新由 Microsoft Store 统一管理，请打开 Microsoft Store 的“库”页面检查更新"),
+                AppLanguage.Get("检查更新"));
+            return;
+        }
+
+        var button = (Button)sender;
+        button.IsEnabled = false;
+        button.Content = AppLanguage.Get("正在检查...");
+        try
+        {
+            UpdateCheckResult result =
+                await ManualUpdateDialogFlow.CheckSetupEditionAsync(
+                    this,
+                    _config,
+                    () => _isRecording?.Invoke() == true,
+                    RestartForPreparedUpdate);
+            if (IsLoaded)
+            {
+                button.Content = AppLanguage.Get(
+                    result.HasUpdate ? "发现新版本" : "已为最新");
+                button.IsEnabled = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("Update", "Manual update check from transfer window failed", ex);
+            if (IsLoaded)
+            {
+                button.Content = AppLanguage.Get("检查失败");
+                button.IsEnabled = true;
+            }
+        }
+    }
+
+    private void RestartForPreparedUpdate()
+    {
+        if (!WorkstationNetwork.TryScheduleRootLauncherRestart("manual-app-update"))
+        {
+            AppDialog.Error(
+                this,
+                AppLanguage.Get("无法定位支持更新的根目录启动器。补丁已经保留，可完全退出后手动从软件根目录启动"),
+                AppLanguage.Get("无法立即重启"));
+            return;
+        }
+        Close();
+    }
 
     private async void RemoveDevice_Click(object sender, RoutedEventArgs e)
     {

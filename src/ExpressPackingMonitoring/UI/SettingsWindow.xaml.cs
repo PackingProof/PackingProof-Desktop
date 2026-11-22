@@ -2704,17 +2704,15 @@ namespace ExpressPackingMonitoring.UI
 
             try
             {
-                var service = new UpdateCheckService();
-                // 用窗口里当前这个开关的状态，而不是磁盘上上一次保存的值：
-                // 用户打开"接收预览版更新"后立刻点检查更新，不该还按旧值查一遍。
-                bool allowPrerelease = UpdateChannelPolicy.ResolveAllowPrerelease(
-                    Environment.GetEnvironmentVariable(UpdateChannelPolicy.AllowPrereleaseKey),
-                    Config.AllowPrereleaseUpdates);
-                UpdateCheckResult result = await service.CheckManualAsync(
-                    allowPrerelease: allowPrerelease);
+                UpdateCheckResult result =
+                    await ManualUpdateDialogFlow.CheckSetupEditionAsync(
+                        this,
+                        Config,
+                        () => Context.ToastSource is MainViewModel viewModel
+                            ? viewModel.IsRecording
+                            : _isRecording,
+                        RestartForPreparedUpdate);
                 if (_isClosing) return;
-                if (result.HasUpdate)
-                    ShowUpdateDialog(result);
 
                 CheckUpdateButton.Content = AppLanguage.Get(
                     result.HasUpdate ? "发现新版本" : "已为最新");
@@ -2726,39 +2724,6 @@ namespace ExpressPackingMonitoring.UI
                 {
                     CheckUpdateButton.Content = AppLanguage.Get("检查失败");
                     CheckUpdateButton.IsEnabled = true;
-                }
-            }
-        }
-
-        private void ShowUpdateDialog(UpdateCheckResult result)
-        {
-            var dialog = new UpdateAvailableDialog(
-                result,
-                new AppPatchDownloadService(),
-                () => Context.ToastSource is MainViewModel viewModel
-                    ? viewModel.IsRecording
-                    : _isRecording);
-
-            dialog.ShowAsDialog(this);
-            if (dialog.RestartRequested)
-            {
-                RestartForPreparedUpdate();
-                return;
-            }
-
-            if (dialog.OpenFullDownloadPageRequested)
-            {
-                try
-                {
-                    UpdateCheckService.OpenDownloadPage(dialog.DownloadUrl);
-                }
-                catch (Exception ex)
-                {
-                    RuntimeLog.Error("Update", "Open download page failed", ex);
-                    if (Context.ShowToast != null)
-                        Context.ShowToast("打开下载页面失败", ToastSeverity.Error);
-                    else
-                        AppDialog.Error(this, "打开下载页面失败", "检查更新");
                 }
             }
         }

@@ -42,15 +42,19 @@ internal sealed class TransferManagementWindowViewModel : INotifyPropertyChanged
     private readonly Func<Task<bool>>? _toggleUploadPause;
     private bool _isUploadPauseVisible;
     private bool _isUploadPaused;
+    private readonly bool _canCheckForUpdates;
+    private bool _isCurrentPcUpdateRequired;
 
     public TransferManagementWindowViewModel(
         TransferManagementSnapshotService service,
         Func<bool>? isUploadPaused = null,
-        Func<Task<bool>>? toggleUploadPause = null)
+        Func<Task<bool>>? toggleUploadPause = null,
+        bool canCheckForUpdates = false)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _readUploadPaused = isUploadPaused;
         _toggleUploadPause = toggleUploadPause;
+        _canCheckForUpdates = canCheckForUpdates;
         _isUploadPauseVisible = !IsHostMode && toggleUploadPause != null;
         RetryAllCommand = new AsyncRelayCommand(RetryAllAsync, () => CanRetryAll);
         RetryTaskCommand = new AsyncRelayCommand<TransferFailureItem>(
@@ -243,6 +247,21 @@ internal sealed class TransferManagementWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool IsCurrentPcUpdateRequired
+    {
+        get => _isCurrentPcUpdateRequired;
+        private set
+        {
+            if (SetField(ref _isCurrentPcUpdateRequired, value))
+                OnPropertyChanged(nameof(ShowCheckUpdateButton));
+        }
+    }
+
+    public bool ShowCheckUpdateButton =>
+        _canCheckForUpdates
+        && !IsHostMode
+        && IsCurrentPcUpdateRequired;
+
     public string UploadPauseButtonText =>
         AppLanguage.Get(IsUploadPaused ? "继续上传" : "暂停上传");
 
@@ -339,6 +358,7 @@ internal sealed class TransferManagementWindowViewModel : INotifyPropertyChanged
     {
         if (IsHostMode)
         {
+            IsCurrentPcUpdateRequired = false;
             IsAttentionSummary = snapshot.NeedsActionCount > 0;
             SummaryText = IsAttentionSummary
                 ? AppLanguage.Format("{0} 台需要处理", snapshot.NeedsActionCount)
@@ -353,6 +373,10 @@ internal sealed class TransferManagementWindowViewModel : INotifyPropertyChanged
         }
 
         bool pausedByUser = IsUploadPaused;
+        IsCurrentPcUpdateRequired =
+            snapshot.HostState == HostConnectionState.ClientUpdateRequired
+            && !pausedByUser
+            && snapshot.NeedsActionCount == 0;
         IsAttentionSummary = snapshot.NeedsActionCount > 0;
         SummaryText = snapshot.NeedsActionCount > 0
             ? AppLanguage.Format("{0} 个异常", snapshot.NeedsActionCount)
