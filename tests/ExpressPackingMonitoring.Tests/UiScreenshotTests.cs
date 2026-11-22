@@ -148,6 +148,7 @@ public sealed class UiScreenshotTests
     {
         CaptureTransferManagement(outputDirectory);
         CaptureViewerHostSelection(outputDirectory);
+        CaptureViewerHostBindingFooter(outputDirectory);
         TryCapture("statistics", outputDirectory, () => new StatisticsWindow(new VideoDatabase(":memory:")));
         TryCapture("workstation-selection", outputDirectory, () => new WorkstationSelectionWindow());
         TryCapture(
@@ -254,6 +255,33 @@ public sealed class UiScreenshotTests
                 };
                 hosts.SelectedIndex = 0;
                 hosts.IsEnabled = false;
+                return window;
+            });
+    }
+
+    private static void CaptureViewerHostBindingFooter(string outputDirectory)
+    {
+        TryCapture(
+            "viewer-host-binding-footer",
+            outputDirectory,
+            () =>
+            {
+                var window = new ViewerClientWindow(
+                    new AppConfig
+                    {
+                        DeploymentPreset = DeploymentPresets.RecordingWorkstation
+                    },
+                    DeploymentPresets.RecordingWorkstation);
+                Assert.IsType<Border>(window.FindName("HostSummaryBorder")).Visibility =
+                    Visibility.Visible;
+                Assert.IsType<Border>(window.FindName("DiscoveryPanel")).Visibility =
+                    Visibility.Collapsed;
+                Assert.IsType<WrapPanel>(window.FindName("BindingBoundActionsPanel")).Visibility =
+                    Visibility.Visible;
+                Assert.IsType<TextBlock>(window.FindName("HostNameText")).Text = "Macmini";
+                Assert.IsType<TextBlock>(window.FindName("HostAddressText")).Text =
+                    "http://192.168.31.26:5280";
+                Assert.IsType<TextBlock>(window.FindName("OnlineStatusText")).Text = "在线";
                 return window;
             });
     }

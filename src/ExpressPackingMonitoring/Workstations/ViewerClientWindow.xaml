@@ -110,6 +110,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <Grid>
@@ -326,30 +327,6 @@
                         </Border>
                     </StackPanel>
 
-                    <WrapPanel x:Name="BindingBoundActionsPanel"
-                               Margin="0,18,0,0"
-                               Visibility="Collapsed"
-                               HorizontalAlignment="Right">
-                        <Button x:Name="BindingChangeHostButton"
-                                Style="{StaticResource ViewerActionButtonStyle}"
-                                ToolTip="确认后选择另一台保存主机"
-                                Margin="0,0,10,0"
-                                Click="ChangeHost_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <Path Data="{StaticResource FluentDatabaseIcon}"
-                                      Width="16" Height="16" Stretch="Uniform"
-                                      Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                <TextBlock Text="更换保存主机"
-                                           Margin="6,0,0,0"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Height="38"
-                                Padding="14,0"
-                                Style="{StaticResource PrimaryButtonStyle}"
-                                Click="DeferBinding_Click"
-                                Content="完成"/>
-                    </WrapPanel>
                 </StackPanel>
             </Border>
 
@@ -582,6 +559,32 @@
                     </Grid>
                 </StackPanel>
             </Border>
+
+            <WrapPanel x:Name="BindingBoundActionsPanel"
+                       Grid.Row="2"
+                       Margin="0,16,0,0"
+                       Visibility="Collapsed"
+                       HorizontalAlignment="Right">
+                <Button x:Name="BindingChangeHostButton"
+                        Style="{StaticResource ViewerActionButtonStyle}"
+                        ToolTip="确认后选择另一台保存主机"
+                        Margin="0,0,10,0"
+                        Click="ChangeHost_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="{StaticResource FluentDatabaseIcon}"
+                              Width="16" Height="16" Stretch="Uniform"
+                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                        <TextBlock Text="更换保存主机"
+                                   Margin="6,0,0,0"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Height="38"
+                        Padding="14,0"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Click="DeferBinding_Click"
+                        Content="完成"/>
+            </WrapPanel>
         </Grid>
     </ScrollViewer>
 </Window>

@@ -2,6 +2,7 @@ using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -1345,6 +1346,20 @@ public sealed class DeploymentStartupTests
         Assert.Equal(
             1,
             xaml.Split("Click=\"OpenManualConnection_Click\"", StringSplitOptions.None).Length - 1);
+
+        XNamespace xamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XDocument document = XDocument.Parse(xaml);
+        XElement bindingActions = Assert.Single(
+            document.Descendants(),
+            element => (string?)element.Attribute(xamlNamespace + "Name") == "BindingBoundActionsPanel");
+        Assert.Equal("2", (string?)bindingActions.Attribute("Grid.Row"));
+        Assert.Equal("Grid", bindingActions.Parent?.Name.LocalName);
+        Assert.DoesNotContain(
+            bindingActions.Ancestors(),
+            ancestor => (string?)ancestor.Attribute(xamlNamespace + "Name") == "HostSummaryBorder");
+        Assert.Contains(
+            bindingActions.Parent!.Elements(),
+            element => (string?)element.Attribute(xamlNamespace + "Name") == "HostSummaryBorder");
 
         Assert.Contains("WindowHeadingText.Text = \"保存主机\";", source, StringComparison.Ordinal);
         Assert.Contains(
