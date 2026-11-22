@@ -1102,6 +1102,8 @@
   <data name="Extension.Access.None" xml:space="preserve"><value>• 利用可能な API アクセスは要求されていません</value></data>
   <data name="Extension.Market.PreviewLoadFailed" xml:space="preserve"><value>拡張機能のプレビューを読み込めませんでした: {0}</value></data>
   <data name="Extension.Market.OfflineLocalAvailable" xml:space="preserve"><value>拡張機能マーケットを利用できません。ローカル拡張機能は引き続きインストールできます: {0}</value></data>
+  <data name="正在读取兼容信息" xml:space="preserve"><value>互換性情報を読み込み中</value></data>
+  <data name="正在读取扩展详情" xml:space="preserve"><value>拡張機能の詳細を読み込み中</value></data>
   <data name="扫码预录制" xml:space="preserve"><value>スキャン前の事前録画</value></data>
   <data name="约 0 秒 / 0 MB 内存" xml:space="preserve"><value>約 0 秒 / メモリ 0 MB</value></data>
   <data name="播报时调为最大音量" xml:space="preserve"><value>読み上げ時は最大音量</value></data>
@@ -1925,10 +1927,9 @@
   <data name="等待主机允许连接，录像仍保存在本机" xml:space="preserve"><value>保存先ホストの許可を待っています。録画は本機に保持されています</value></data>
   <data name="暂停上传" xml:space="preserve"><value>アップロードを一時停止</value></data>
   <data name="继续上传" xml:space="preserve"><value>アップロードを再開</value></data>
-  <data name="上传已暂停" xml:space="preserve"><value>アップロード一時停止中</value></data>
   <data name="已暂停" xml:space="preserve"><value>一時停止中</value></data>
-  <data name="已暂停上传，{0} 个录像保存在本机" xml:space="preserve"><value>アップロードを一時停止しました。{0} 件の録画は本機に保持されています</value></data>
-  <data name="上传已暂停，暂无待上传录像" xml:space="preserve"><value>アップロードは一時停止中です。待機中の録画はありません</value></data>
+  <data name="已暂停，{0} 个录像保存在本机" xml:space="preserve"><value>一時停止中。{0} 件の録画は本機に保持されています</value></data>
+  <data name="已暂停，暂无待上传录像" xml:space="preserve"><value>一時停止中。待機中の録画はありません</value></data>
   <data name="保存上传状态失败：{0}" xml:space="preserve"><value>アップロード状態を保存できませんでした: {0}</value></data>
   <data name="保存主机拒绝了本机连接申请，可重新申请或更换保存主机" xml:space="preserve"><value>保存先ホストがこの端末の接続を拒否しました。再試行するか、別のホストを選択してください</value></data>
   <data name="保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”" xml:space="preserve"><value>保存先ホストが接続を許可していません。再試行し、保存先ホストで「許可」を選択してください</value></data>
@@ -1945,12 +1946,15 @@
   <data name="正在重新连接" xml:space="preserve"><value>再接続中</value></data>
   <data name="无法保存主机连接状态" xml:space="preserve"><value>ホスト接続状態を保存できませんでした</value></data>
   <data name="NetworkCameraStreamCopy" xml:space="preserve"><value>ソースストリーム直接保存（実験）</value></data>
-  <data name="NetworkCameraStreamCopyHint" xml:space="preserve"><value>再エンコードなしで低スペックPC向け。一部機能は利用できません</value></data>
+  <data name="NetworkCameraStreamCopyHint" xml:space="preserve"><value>再エンコードなしで低スペックPC向け</value></data>
   <data name="以下功能将失效" xml:space="preserve"><value>次の機能は利用できません</value></data>
-  <data name="NetworkCameraStreamCopyUnavailableFeatures" xml:space="preserve"><value>録画の透かし
+  <data name="NetworkCameraStreamCopyUnavailableFeatures" xml:space="preserve"><value>録画へのサブカメラ映像の合成
+録画の透かし
 カメラの回転
 プリ録画バッファ
 ローカル音声</value></data>
+  <data name="NetworkCameraStreamCopySubCameraScanStillAvailable" xml:space="preserve"><value>サブカメラはバーコード読み取りに引き続き使用できます</value></data>
+  <data name="NetworkCameraStreamCopyOverlayNotice" xml:space="preserve"><value>ソースストリーム直接保存中は、サブカメラ映像は録画に合成されませんが、引き続きプレビューとバーコード読み取りに使用できます</value></data>
   <data name="原码流直存启动失败，已回退到普通录像" xml:space="preserve"><value>直接保存を開始できなかったため、通常録画に切り替えました</value></data>
   <data name="原码流直存条件不满足，本次使用普通录像" xml:space="preserve"><value>直接保存の条件を満たしていないため、通常録画を使用します</value></data>
   <data name="原码流直传中断，正在结束录像" xml:space="preserve"><value>直接転送が中断されたため、録画を終了します</value></data>
@@ -1968,4 +1972,56 @@
   <data name="WindowsDevicePermission.CameraOpenSettings" xml:space="preserve"><value>カメラのアクセス許可設定を開く</value></data>
   <data name="WindowsDevicePermission.MicrophoneOpenSettings" xml:space="preserve"><value>マイクのアクセス許可設定を開く</value></data>
   <data name="WindowsDevicePermission.OpenFailed" xml:space="preserve"><value>Windows のアクセス許可設定を開けませんでした</value></data>
+  <data name="导出压缩版本" xml:space="preserve"><value>圧縮版をエクスポート</value></data>
+  <data name="导出压缩版本…" xml:space="preserve"><value>圧縮版をエクスポート…</value></data>
+  <data name="生成较小的新文件，不修改原录像" xml:space="preserve"><value>元の録画を変更せず、小さい新しいファイルを作成します</value></data>
+  <data name="单号" xml:space="preserve"><value>注文番号</value></data>
+  <data name="原始大小" xml:space="preserve"><value>元のサイズ</value></data>
+  <data name="录制时长" xml:space="preserve"><value>録画時間</value></data>
+  <data name="当前编码" xml:space="preserve"><value>現在のコーデック</value></data>
+  <data name="编码方式" xml:space="preserve"><value>コーデック</value></data>
+  <data name="目标大小" xml:space="preserve"><value>目標サイズ</value></data>
+  <data name="预计大小" xml:space="preserve"><value>予想サイズ</value></data>
+  <data name="开始导出" xml:space="preserve"><value>エクスポートを開始</value></data>
+  <data name="原录像不会被修改" xml:space="preserve"><value>元の録画は変更されません</value></data>
+  <data name="保存导出压缩版本" xml:space="preserve"><value>圧縮版を保存</value></data>
+  <data name="MP4 视频 (*.mp4)|*.mp4" xml:space="preserve"><value>MP4 動画 (*.mp4)|*.mp4</value></data>
+  <data name="导出压缩版本必须保存为另一个 MP4 文件" xml:space="preserve"><value>圧縮版は別の MP4 ファイルとして保存してください</value></data>
+  <data name="导出失败，请稍后重试" xml:space="preserve"><value>エクスポートに失敗しました。しばらくしてから再度お試しください</value></data>
+  <data name="确定取消本次导出吗？临时文件会自动清理" xml:space="preserve"><value>このエクスポートをキャンセルしますか？一時ファイルは自動的に削除されます</value></data>
+  <data name="继续导出" xml:space="preserve"><value>エクスポートを続ける</value></data>
+  <data name="目标大小必须在 {0} 到 {1} MB 之间" xml:space="preserve"><value>目標サイズは {0}～{1} MB の範囲で指定してください</value></data>
+  <data name="请输入 {0} 到 {1} MB" xml:space="preserve"><value>{0}～{1} MB の値を入力してください</value></data>
+  <data name="约 {0}" xml:space="preserve"><value>約 {0}</value></data>
+  <data name="比原文件减少 {0}" xml:space="preserve"><value>元のファイルより {0} 小さい</value></data>
+  <data name="预计耗时：约 {0}" xml:space="preserve"><value>予想時間: 約 {0}</value></data>
+  <data name="正在导出压缩版本" xml:space="preserve"><value>圧縮版をエクスポート中</value></data>
+  <data name="正在处理录像，请稍候" xml:space="preserve"><value>録画を処理しています。しばらくお待ちください</value></data>
+  <data name="正在准备压缩" xml:space="preserve"><value>圧縮を準備中</value></data>
+  <data name="目标约 {0} MB" xml:space="preserve"><value>目標: 約 {0} MB</value></data>
+  <data name="正在确认输出大小" xml:space="preserve"><value>出力サイズを確認中</value></data>
+  <data name="正在重新压缩以缩小文件" xml:space="preserve"><value>ファイルを小さくするため再圧縮中</value></data>
+  <data name="正在保存导出压缩版本" xml:space="preserve"><value>圧縮版を保存中</value></data>
+  <data name="正在压缩 {0}%" xml:space="preserve"><value>圧縮中 {0}%</value></data>
+  <data name="正在读取录像并计算压缩参数" xml:space="preserve"><value>録画を読み込み、圧縮設定を計算しています</value></data>
+  <data name="录像文件不存在或当前不可访问" xml:space="preserve"><value>録画ファイルが見つからないか、現在アクセスできません</value></data>
+  <data name="录像仍在写入或文件中途发生变化，请等录像完成后重试" xml:space="preserve"><value>録画がまだ書き込み中か、ファイルが変更されました。録画完了後に再試行してください</value></data>
+  <data name="没有已验证可用的 AV1 编码器，请改用 H.265" xml:space="preserve"><value>検証済みの AV1 エンコーダーがありません。H.265 を使用してください</value></data>
+  <data name="当前 FFmpeg 不可用已验证的 AV1 编码器，请改用 H.265" xml:space="preserve"><value>現在の FFmpeg では検証済みの AV1 エンコーダーを利用できません。H.265 を使用してください</value></data>
+  <data name="目标大小不能超过原文件" xml:space="preserve"><value>目標サイズは元のファイルを超えられません</value></data>
+  <data name="目标大小太小，无法生成可播放的视频" xml:space="preserve"><value>目標サイズが小さすぎるため、再生可能な動画を作成できません</value></data>
+  <data name="未找到视频处理组件 ffmpeg.exe" xml:space="preserve"><value>動画処理コンポーネント ffmpeg.exe が見つかりません</value></data>
+  <data name="目标大小太小，已停止压缩" xml:space="preserve"><value>目標サイズが小さすぎるため、圧縮を停止しました</value></data>
+  <data name="视频处理长时间没有进展，已停止压缩" xml:space="preserve"><value>動画処理が長時間進まないため、圧縮を停止しました</value></data>
+  <data name="视频处理超时，已停止压缩" xml:space="preserve"><value>動画処理がタイムアウトしたため、圧縮を停止しました</value></data>
+  <data name="视频处理失败" xml:space="preserve"><value>動画処理に失敗しました</value></data>
+  <data name="编码未知" xml:space="preserve"><value>コーデック不明</value></data>
+  <data name="{0} 秒" xml:space="preserve"><value>{0} 秒</value></data>
+  <data name="{0} 分钟" xml:space="preserve"><value>{0} 分</value></data>
+  <data name="{0} 分 {1} 秒" xml:space="preserve"><value>{0} 分 {1} 秒</value></data>
+  <data name="无法读取录像时长" xml:space="preserve"><value>録画時間を取得できません</value></data>
+  <data name="当前文件已很小，无需压缩" xml:space="preserve"><value>ファイルは十分小さいため、圧縮は不要です</value></data>
+  <data name="当前录像无法导出" xml:space="preserve"><value>この録画はエクスポートできません</value></data>
+  <data name="已生成导出压缩版本：{0}" xml:space="preserve"><value>圧縮版をエクスポートしました: {0}</value></data>
+  <data name="无法导出" xml:space="preserve"><value>エクスポートできません</value></data>
 </root>

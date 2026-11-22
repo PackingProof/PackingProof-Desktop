@@ -123,6 +123,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionEnrollmentService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionMeasurementResultApplier.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionOrderResultApplier.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\TargetSizeTranscodeEngine.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionRecordingDeliveryService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionRecordingQueryService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionRequestAuthentication.cs" />
@@ -141,6 +142,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionScanResultSubmissionCoordinator.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionScanTaskBroker.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\FfmpegWorkLimiter.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\FileSystemIdentity.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\HostUploadStorageAdmissionController.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\IArchiveProvider.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\JdBarcodePolicy.cs" />
@@ -206,8 +208,11 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\UserscriptGuideNavigation.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\UserscriptStatusCardModel.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\UserscriptTargetState.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\VideoClipCompressionRunner.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\VideoClipModels.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\VideoClipService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\VideoCodecProbe.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\VideoCompressionService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\VideoFolderImportService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\VideoLifecycleCoordinator.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.cs" />

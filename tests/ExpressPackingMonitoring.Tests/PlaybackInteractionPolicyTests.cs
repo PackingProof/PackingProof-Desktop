@@ -63,6 +63,63 @@ public sealed class PlaybackInteractionPolicyTests
     }
 
     [Theory]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, true, false, false)]
+    [InlineData(false, false, false, false)]
+    public void ShouldUnpauseAfterFirstFrame_DefersWhileSecondaryActionRuns(
+        bool pendingStartUnpause,
+        bool secondaryActionPause,
+        bool deferAutoPlayUntilExplicitPlay,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            PlaybackInteractionPolicy.ShouldUnpauseAfterFirstFrame(
+                pendingStartUnpause,
+                secondaryActionPause,
+                deferAutoPlayUntilExplicitPlay));
+    }
+
+    [Fact]
+    public void SecondaryActionState_RemainsDeferredUntilExplicitPlayback()
+    {
+        var state = new PlaybackSecondaryActionState();
+
+        state.Begin();
+        Assert.True(state.IsActive);
+        Assert.True(state.DeferAutoPlayUntilExplicitPlay);
+
+        state.End();
+        Assert.False(state.IsActive);
+        Assert.True(state.DeferAutoPlayUntilExplicitPlay);
+
+        state.AllowExplicitPlayback();
+        Assert.False(state.DeferAutoPlayUntilExplicitPlay);
+    }
+
+    [Fact]
+    public void SecondaryActionState_HandlesOverlappingActionsAndNewSelection()
+    {
+        var state = new PlaybackSecondaryActionState();
+
+        state.Begin();
+        state.Begin();
+        state.BeginVideoSelection();
+        Assert.True(state.IsActive);
+        Assert.True(state.DeferAutoPlayUntilExplicitPlay);
+
+        state.End();
+        Assert.True(state.IsActive);
+        state.End();
+        Assert.False(state.IsActive);
+        Assert.True(state.DeferAutoPlayUntilExplicitPlay);
+
+        state.BeginVideoSelection();
+        Assert.False(state.DeferAutoPlayUntilExplicitPlay);
+    }
+
+    [Theory]
     [InlineData(0, 5, 120, 5)]
     [InlineData(118, 5, 120, 120)]
     [InlineData(2, -5, 120, 0)]
@@ -138,6 +195,26 @@ public sealed class PlaybackInteractionPolicyTests
     }
 
     [Fact]
+    public void BackupHostLocalPlayback_WiresClipButtonToLoopbackWebPlayback()
+    {
+        string source = ReadProjectFile(
+            Path.Combine("Workstations", "PrintWorkstationWindow.xaml.cs"));
+
+        Assert.Contains(
+            "webClipUrlProvider: BuildLocalWebClipUrlAsync",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "string accessUrl = _host.LocalPlaybackUrl;",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "WebClipLaunchUrlBuilder.Build(",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PlaybackControlBar_ExposesCompactOriginalFrameScreenshot()
     {
         string xaml = ReadProjectFile(Path.Combine("UI", "PlaybackWindow.xaml"));
@@ -207,6 +284,11 @@ public sealed class PlaybackInteractionPolicyTests
             StringComparison.Ordinal);
         Assert.Contains("function initClipDeepLink()", webIndex, StringComparison.Ordinal);
         Assert.Contains("params.get('action')!=='clip'", webIndex, StringComparison.Ordinal);
+        Assert.Contains("id=\"clipSuccessPanel\"", webIndex, StringComparison.Ordinal);
+        Assert.Contains("id=\"clipResultDownloadBtn\"", webIndex, StringComparison.Ordinal);
+        Assert.Contains("id=\"clipResultDismissBtn\"", webIndex, StringComparison.Ordinal);
+        Assert.Contains("r.status===429", webIndex, StringComparison.Ordinal);
+        Assert.Contains("closeClipDialog(true);if(taskId)fetch(", webIndex, StringComparison.Ordinal);
     }
 
     private static string ReadProjectFile(string relativePath)

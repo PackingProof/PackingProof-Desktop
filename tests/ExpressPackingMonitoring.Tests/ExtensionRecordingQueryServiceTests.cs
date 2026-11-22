@@ -113,15 +113,15 @@ public sealed class ExtensionRecordingQueryServiceTests : IDisposable
     }
 }
 
-public sealed class ExtensionRecordingDeliveryBitrateTests
+public sealed class TargetSizeTranscodeBitrateTests
 {
     [Fact]
     public void TryCalculate_UsesTargetSizeAndActualDuration()
     {
         const long targetBytes = 190L * 1024 * 1024;
 
-        Assert.True(ExtensionRecordingDeliveryBitrate.TryCalculate(60, targetBytes, out ExtensionRecordingDeliveryBitrate? oneMinute));
-        Assert.True(ExtensionRecordingDeliveryBitrate.TryCalculate(120, targetBytes, out ExtensionRecordingDeliveryBitrate? twoMinutes));
+        Assert.True(TargetSizeTranscodeBitrate.TryCalculate(60, targetBytes, out TargetSizeTranscodeBitrate? oneMinute));
+        Assert.True(TargetSizeTranscodeBitrate.TryCalculate(120, targetBytes, out TargetSizeTranscodeBitrate? twoMinutes));
 
         Assert.NotNull(oneMinute);
         Assert.NotNull(twoMinutes);
@@ -132,32 +132,32 @@ public sealed class ExtensionRecordingDeliveryBitrateTests
     [Fact]
     public void TryCalculate_RejectsMissingDurationAndImpossibleBudget()
     {
-        Assert.False(ExtensionRecordingDeliveryBitrate.TryCalculate(0, 190L * 1024 * 1024, out _));
-        Assert.False(ExtensionRecordingDeliveryBitrate.TryCalculate(3600, 1024 * 1024, out _));
+        Assert.False(TargetSizeTranscodeBitrate.TryCalculate(0, 190L * 1024 * 1024, out _));
+        Assert.False(TargetSizeTranscodeBitrate.TryCalculate(3600, 1024 * 1024, out _));
     }
 }
 
-public sealed class ExtensionRecordingDeliveryPassArgumentTests
+public sealed class TargetSizeTranscodeEngineTests
 {
     [Fact]
     public void EstimateTranscodeSeconds_UsesEncoderAndRetryFactor()
     {
-        double x265First = ExtensionRecordingDeliveryService.EstimateTranscodeSeconds(150, "libx265", 1);
-        double x265Second = ExtensionRecordingDeliveryService.EstimateTranscodeSeconds(150, "libx265", 2);
-        double x264First = ExtensionRecordingDeliveryService.EstimateTranscodeSeconds(150, "libx264", 1);
+        double x265First = TargetSizeTranscodeEngine.EstimateTranscodeSeconds(150, "libx265", 1);
+        double x265Second = TargetSizeTranscodeEngine.EstimateTranscodeSeconds(150, "libx265", 2);
+        double x264First = TargetSizeTranscodeEngine.EstimateTranscodeSeconds(150, "libx264", 1);
 
         Assert.True(x265First > 150, "软编 h265 两遍应比录像本身长");
         Assert.Equal(x265First * 2, x265Second);
         Assert.True(x264First < x265First, "h264 源比 h265 源快");
-        Assert.Equal(0, ExtensionRecordingDeliveryService.EstimateTranscodeSeconds(0, "libx265", 1));
-        Assert.Equal(0, ExtensionRecordingDeliveryService.EstimateTranscodeSeconds(double.NaN, "libx265", 1));
+        Assert.Equal(0, TargetSizeTranscodeEngine.EstimateTranscodeSeconds(0, "libx265", 1));
+        Assert.Equal(0, TargetSizeTranscodeEngine.EstimateTranscodeSeconds(double.NaN, "libx265", 1));
     }
 
     [Fact]
     public void GetTranscodeTimeout_UsesEstimateWithFloor()
     {
-        Assert.Equal(TimeSpan.FromMinutes(30), ExtensionRecordingDeliveryService.GetTranscodeTimeout(60));
-        Assert.Equal(TimeSpan.FromMinutes(60), ExtensionRecordingDeliveryService.GetTranscodeTimeout(1200));
+        Assert.Equal(TimeSpan.FromMinutes(30), TargetSizeTranscodeEngine.GetTranscodeTimeout(60));
+        Assert.Equal(TimeSpan.FromMinutes(60), TargetSizeTranscodeEngine.GetTranscodeTimeout(1200));
     }
 
     /// <summary>
@@ -169,20 +169,22 @@ public sealed class ExtensionRecordingDeliveryPassArgumentTests
     {
         TimeSpan timeout = TimeSpan.FromMinutes(30);
 
-        Assert.Null(ExtensionRecordingDeliveryService.GetTranscodeWatchdogFailure(
+        Assert.Equal(
+            TargetSizeTranscodeFailure.None,
+            TargetSizeTranscodeEngine.GetTranscodeWatchdogFailure(
             elapsed: TimeSpan.FromMinutes(5),
             sinceProgress: TimeSpan.FromMinutes(1),
             timeout));
         Assert.Equal(
-            "delivery_transcode_stalled",
-            ExtensionRecordingDeliveryService.GetTranscodeWatchdogFailure(
+            TargetSizeTranscodeFailure.Stalled,
+            TargetSizeTranscodeEngine.GetTranscodeWatchdogFailure(
                 elapsed: TimeSpan.FromMinutes(40),
                 sinceProgress: TimeSpan.FromMinutes(11),
                 timeout));
         // 进度一直在推、只是慢：这不是卡死，报超时。
         Assert.Equal(
-            "delivery_transcode_timeout",
-            ExtensionRecordingDeliveryService.GetTranscodeWatchdogFailure(
+            TargetSizeTranscodeFailure.Timeout,
+            TargetSizeTranscodeEngine.GetTranscodeWatchdogFailure(
                 elapsed: TimeSpan.FromMinutes(40),
                 sinceProgress: TimeSpan.FromSeconds(5),
                 timeout));
@@ -191,8 +193,8 @@ public sealed class ExtensionRecordingDeliveryPassArgumentTests
     [Fact]
     public void X265Pass_UsesX265StatsFileInsteadOfFfmpegPassOption()
     {
-        string passOne = ExtensionRecordingDeliveryService.BuildTwoPassArguments("libx265", @"C:\cache\out.mp4.pass", 1);
-        string passTwo = ExtensionRecordingDeliveryService.BuildTwoPassArguments("libx265", @"C:\cache\out.mp4.pass", 2);
+        string passOne = TargetSizeTranscodeEngine.BuildTwoPassArguments("libx265", @"C:\cache\out.mp4.pass", 1);
+        string passTwo = TargetSizeTranscodeEngine.BuildTwoPassArguments("libx265", @"C:\cache\out.mp4.pass", 2);
 
         Assert.Contains("-x265-params \"pass=1:stats=x265_2pass.log:cutree=0\"", passOne);
         Assert.Contains("-x265-params \"pass=2:stats=x265_2pass.log:cutree=0\"", passTwo);
@@ -203,7 +205,7 @@ public sealed class ExtensionRecordingDeliveryPassArgumentTests
     [Fact]
     public void X265Pass_KeepsStatsFileRelative()
     {
-        string passOne = ExtensionRecordingDeliveryService.BuildTwoPassArguments("libx265", @"C:\cache\out.mp4.pass", 1);
+        string passOne = TargetSizeTranscodeEngine.BuildTwoPassArguments("libx265", @"C:\cache\out.mp4.pass", 1);
 
         int index = passOne.IndexOf("stats=", StringComparison.Ordinal) + "stats=".Length;
         Assert.Equal("x265_2pass.log", passOne[index..].TrimEnd('"').Split(':')[0]);
@@ -212,7 +214,7 @@ public sealed class ExtensionRecordingDeliveryPassArgumentTests
     [Fact]
     public void X264Pass_KeepsNativeFfmpegPassOptions()
     {
-        string passTwo = ExtensionRecordingDeliveryService.BuildTwoPassArguments("libx264", @"C:\cache\out.mp4.pass", 2);
+        string passTwo = TargetSizeTranscodeEngine.BuildTwoPassArguments("libx264", @"C:\cache\out.mp4.pass", 2);
 
         Assert.Contains("-passlogfile \"C:\\cache\\out.mp4.pass\"", passTwo);
         Assert.Contains("-pass 2", passTwo);

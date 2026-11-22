@@ -137,7 +137,12 @@ public sealed class LanRequestRateLimiterTests
     [InlineData("PUT", "/api/mobile-backup/uploads/abc/chunks", 3)]
     [InlineData("GET", "/api/videos/12/play", 4)]
     [InlineData("GET", "/api/videos/12/thumbnail", 6)]
-    [InlineData("POST", "/api/videos/12/clip/preview", 5)]
+    [InlineData("POST", "/api/videos/12/clip", 5)]
+    [InlineData("POST", "/api/videos/12/clip/preview", 6)]
+    [InlineData("POST", "/api/videos/12/clip/timeline", 6)]
+    [InlineData("POST", "/api/videos/12/clip/frame", 6)]
+    [InlineData("POST", "/api/videos/12/clip/prewarm", 6)]
+    [InlineData("POST", "/api/clip-tasks/abc/cancel", 0)]
     [InlineData("GET", "/api/videos", 0)]
     public void RequestsAreClassifiedByCost(string method, string path, int expected)
     {

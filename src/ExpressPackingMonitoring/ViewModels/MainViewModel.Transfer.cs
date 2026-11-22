@@ -220,12 +220,8 @@ public partial class MainViewModel
 
         Config.RecordingUploadPaused = result.Saved.RecordingUploadPaused;
         _recordingHostPausedByUser = result.Saved.RecordingUploadPaused;
-        _boundHostOnline = result.Saved.RecordingUploadPaused ? false : _boundHostOnline;
-        BoundHostOnlineStatusText = result.Saved.RecordingUploadPaused
-            ? AppLanguage.Get("已暂停")
-            : AppLanguage.Get("检查中");
         LastRecordingTransferError = result.Saved.RecordingUploadPaused
-            ? AppLanguage.Get("上传已暂停")
+            ? AppLanguage.Get("已暂停")
             : AppLanguage.Get("正在重新连接");
         _recordingTransferService?.SetUploadPaused(result.Saved.RecordingUploadPaused);
         OnPropertyChanged(nameof(IsRecordingUploadPaused));
@@ -233,7 +229,7 @@ public partial class MainViewModel
         RefreshRecordingTransferSummary();
         ShowToast(
             AppLanguage.Get(Config.RecordingUploadPaused
-                ? "上传已暂停"
+                ? "已暂停"
                 : "继续上传"),
             ToastSeverity.Information);
         return true;
@@ -380,7 +376,6 @@ public partial class MainViewModel
                 bool transportPaused = _recordingTransferService?.GetHostHealth().State
                     is HostConnectionState.Offline
                         or HostConnectionState.AwaitingApproval
-                        or HostConnectionState.PausedByUser
                         or HostConnectionState.StorageBlocked
                         or HostConnectionState.WriteBusy;
                 if (heartbeat.NeedsRepair)
@@ -645,36 +640,17 @@ public partial class MainViewModel
         {
             if (_isDisposed)
                 return;
-            _boundHostOnline = health.State switch
-            {
-                HostConnectionState.Online => true,
-                HostConnectionState.Offline
-                    or HostConnectionState.AwaitingApproval
-                    or HostConnectionState.PausedByUser
-                    or HostConnectionState.StorageBlocked
-                    or HostConnectionState.WriteBusy => false,
-                _ => null
-            };
+            _boundHostOnline = ResolveBoundHostOnlineAfterHealth(
+                _boundHostOnline,
+                health.State);
             _recordingHostAwaitingApproval =
                 health.State == HostConnectionState.AwaitingApproval;
             _recordingHostPausedByUser =
                 health.State == HostConnectionState.PausedByUser;
-            BoundHostOnlineStatusText =
-                IsReconnectRequiredError(health.Reason)
-                    ? AppLanguage.Get("需要重新连接")
-                    : health.State switch
-                {
-                    HostConnectionState.AwaitingApproval =>
-                        AppLanguage.Get("等待授权"),
-                    HostConnectionState.PausedByUser =>
-                        AppLanguage.Get("已暂停"),
-                    _ => _boundHostOnline switch
-                    {
-                        true => "在线",
-                        false => "离线",
-                        _ => "检查中"
-                    }
-                };
+            BoundHostOnlineStatusText = ResolveBoundHostOnlineStatusText(
+                _boundHostOnline,
+                IsReconnectRequiredError(health.Reason),
+                health.State == HostConnectionState.AwaitingApproval);
             LastRecordingTransferError = health.Reason;
             RefreshRecordingTransferSummary();
         });
@@ -832,7 +808,7 @@ public partial class MainViewModel
         PendingRecordingTransferCount =
             summary.PendingCount + summary.UploadingCount + summary.FailedCount;
         LastRecordingTransferError = _recordingHostPausedByUser
-            ? AppLanguage.Get("上传已暂停")
+            ? AppLanguage.Get("已暂停")
             : summary.LastError;
         bool requiresReconnect = _recordingHostNeedsRepair
             || IsReconnectRequiredError(summary.LastError);
@@ -909,6 +885,35 @@ public partial class MainViewModel
             || error.Contains("重新连接保存主机", StringComparison.Ordinal)
             || error.Contains("未允许本机连接", StringComparison.Ordinal));
 
+    internal static bool? ResolveBoundHostOnlineAfterHealth(
+        bool? currentOnline,
+        HostConnectionState state) =>
+        state switch
+        {
+            HostConnectionState.Online => true,
+            HostConnectionState.Offline
+                or HostConnectionState.AwaitingApproval
+                or HostConnectionState.StorageBlocked
+                or HostConnectionState.WriteBusy => false,
+            HostConnectionState.PausedByUser => currentOnline,
+            _ => null
+        };
+
+    internal static string ResolveBoundHostOnlineStatusText(
+        bool? online,
+        bool requiresReconnect,
+        bool awaitingApproval) =>
+        requiresReconnect
+            ? AppLanguage.Get("需要重新连接")
+            : awaitingApproval
+                ? AppLanguage.Get("等待授权")
+                : online switch
+                {
+                    true => "在线",
+                    false => "离线",
+                    _ => "检查中"
+                };
+
     internal static RecordingTransferCardState BuildRecordingTransferCardState(
         int pendingCount,
         int uploadingCount,
@@ -929,12 +934,12 @@ public partial class MainViewModel
         if (pausedByUser)
         {
             return new RecordingTransferCardState(
-                AppLanguage.Get("上传已暂停"),
+                AppLanguage.Get("已暂停"),
                 totalCount > 0
                     ? AppLanguage.Format(
-                        "已暂停上传，{0} 个录像保存在本机",
+                        "已暂停，{0} 个录像保存在本机",
                         totalCount)
-                    : AppLanguage.Get("上传已暂停，暂无待上传录像"));
+                    : AppLanguage.Get("已暂停，暂无待上传录像"));
         }
         if (uploadingCount > 0)
         {

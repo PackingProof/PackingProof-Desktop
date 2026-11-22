@@ -1261,6 +1261,13 @@ public sealed class DeploymentStartupTests
         Assert.Contains("RecordingTransferShortStatusText, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
         Assert.Contains("LastRecordingTransferError, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
         Assert.Contains("Value=\"上传中\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("Value=\"已暂停\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("Value=\"备份暂停\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains(
+            "DynamicResource TransferAttentionText",
+            statusCard,
+            StringComparison.Ordinal);
+        Assert.Contains("Value=\"SemiBold\"", statusCard, StringComparison.Ordinal);
         Assert.Contains("Value=\"已完成\"", statusCard, StringComparison.Ordinal);
         Assert.Contains("Value=\"待上传\"", statusCard, StringComparison.Ordinal);
         Assert.Contains("Value=\"上传失败\"", statusCard, StringComparison.Ordinal);

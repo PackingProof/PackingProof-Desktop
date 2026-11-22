@@ -125,7 +125,6 @@ namespace ExpressPackingMonitoring.ViewModels
         public ICommand OpenPlaybackCommand { get; }
         public ICommand ToggleModeCommand { get; }
         public ICommand ToggleRecordingCommand { get; }
-        public ICommand OpenStatsCommand { get; } // 打开统计面板
         public ICommand ResetEncoderDetectCommand { get; } // 重置编码器检测
         public ICommand CopyMonitorAddressCommand { get; }
         public ICommand SwitchWorkstationCommand { get; }
@@ -156,7 +155,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 OpenPlaybackCommand = new RelayCommand(() => { });
                 ToggleModeCommand = new RelayCommand(() => { });
                 ToggleRecordingCommand = new RelayCommand(() => { });
-                OpenStatsCommand = new RelayCommand(() => { });
                 CopyMonitorAddressCommand = new AsyncRelayCommand(() => Task.CompletedTask);
                 SwitchWorkstationCommand = new RelayCommand(() => { });
                 ClearScanInputCommand = new RelayCommand(() => { });
@@ -261,7 +259,6 @@ namespace ExpressPackingMonitoring.ViewModels
             OpenPlaybackCommand = new RelayCommand(OpenPlaybackWindow);
             ToggleModeCommand = new RelayCommand(ToggleMode);
             ToggleRecordingCommand = new AsyncRelayCommand(() => ToggleRecordingAsync());
-            OpenStatsCommand = new RelayCommand(OpenStatsWindow);
             ResetEncoderDetectCommand = new AsyncRelayCommand(ResetEncoderDetectAsync);
             CopyMonitorAddressCommand = new AsyncRelayCommand(CopyMonitorAddressAsync);
             SwitchWorkstationCommand = new RelayCommand(SwitchWorkstation);

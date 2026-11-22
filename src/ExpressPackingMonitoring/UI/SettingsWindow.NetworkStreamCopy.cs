@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Localization;
 using System.Windows;
 using System.Windows.Controls;
@@ -70,7 +71,10 @@ public partial class SettingsWindow
     private bool ConfirmNetworkCameraStreamCopyRisk() =>
         AppDialog.Confirm(
             this,
-            AppLanguage.Get("NetworkCameraStreamCopyUnavailableFeatures"),
+            AppLanguage.Get("NetworkCameraStreamCopyUnavailableFeatures")
+            + Environment.NewLine
+            + Environment.NewLine
+            + AppLanguage.Get("NetworkCameraStreamCopySubCameraScanStillAvailable"),
             AppLanguage.Get("以下功能将失效"),
             AppDialogSeverity.Warning,
             confirmText: AppLanguage.Get("启用"),
@@ -104,9 +108,16 @@ public partial class SettingsWindow
         if (Config == null || NetworkCameraStreamCopyToggle == null)
             return;
 
-        bool enabled =
-            NetworkCameraStreamCopyToggle.IsChecked == true
-            && NetworkCameraPanel.Visibility == Visibility.Visible;
+        bool enabled = IsLoaded
+            ? NetworkCameraStreamCopyToggle.IsChecked == true
+                && NetworkCameraPanel.Visibility == Visibility.Visible
+            : Config.EnableNetworkCameraStreamCopy
+                && string.Equals(
+                    AppConfig.NormalizeCameraSourceKind(
+                        Config.CameraSourceKind,
+                        Config.NetworkCameraUrl),
+                    "network",
+                    StringComparison.Ordinal);
         FrameworkElement[] controls =
         [
             CameraRotationRow,
@@ -148,6 +159,13 @@ public partial class SettingsWindow
                 control.IsEnabled = isEnabled;
             }
             _networkCameraStreamCopyControlStates.Clear();
+        }
+
+        if (OverlayChannelStreamCopyNotice != null)
+        {
+            OverlayChannelStreamCopyNotice.Visibility = enabled
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
     }
 }

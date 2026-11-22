@@ -9,7 +9,7 @@ public sealed class MobileAppUpdatePolicyTests
     public void WebDownloadInfoAlwaysUsesLatestReleasesPage()
     {
         Assert.Equal(
-            "https://testflight.apple.com/join/5QKpJuBG",
+            "https://testflight.apple.com/join/KR4qNs6t",
             MobileAppUpdatePolicyProvider.TestFlightJoinUrl);
 
         MobileAppDownloadInfo cached = WebServer.CreateMobileAppDownloadInfo(
@@ -156,6 +156,85 @@ public sealed class MobileAppUpdatePolicyTests
         Assert.Equal(
             MobileAppUpdatePolicyProvider.ReleasesUrl,
             release.DownloadUrl);
+    }
+
+    [Fact]
+    public void IosManifestParsesAsAnIosSpecificLatestRelease()
+    {
+        MobileAppReleaseInfo release =
+            MobileAppUpdatePolicyProvider.ParseIosLatestManifest(
+                """
+                {
+                  "schemaVersion": 1,
+                  "platform": "ios",
+                  "versionName": "0.5.31",
+                  "buildNumber": 11060,
+                  "sourceRevision": "5be4738",
+                  "publishedAtUtc": "2026-11-08T15:00:00Z",
+                  "testFlightUrl": "https://testflight.apple.com/join/KR4qNs6t"
+                }
+                """,
+                "v0.5.31+11060");
+
+        Assert.Equal("ios", release.Platform);
+        Assert.Equal("0.5.31", release.Version);
+        Assert.Equal(11060, release.BuildNumber);
+        Assert.Equal(
+            MobileAppUpdatePolicyProvider.TestFlightJoinUrl,
+            release.DownloadUrl);
+    }
+
+    [Fact]
+    public void IosManifestRejectsAnAndroidReleaseTag()
+    {
+        Assert.Throws<InvalidDataException>(() =>
+            MobileAppUpdatePolicyProvider.ParseIosLatestManifest(
+                """
+                {
+                  "platform": "ios",
+                  "versionName": "0.5.31",
+                  "buildNumber": 11060
+                }
+                """,
+                "v0.5.31+11061"));
+    }
+
+    [Fact]
+    public void LatestReleaseSelectionNeverCrossesPlatforms()
+    {
+        var android = new MobileAppReleaseInfo(
+            "v0.5.31+11061",
+            "0.5.31",
+            11061,
+            MobileAppUpdatePolicyProvider.ReleasesUrl,
+            "android");
+        var ios = new MobileAppReleaseInfo(
+            "v0.5.31+11060",
+            "0.5.31",
+            11060,
+            MobileAppUpdatePolicyProvider.TestFlightJoinUrl,
+            "ios");
+
+        Assert.Same(
+            android,
+            MobileAppUpdatePolicyProvider.SelectLatestReleaseForPlatform(
+                "android",
+                android,
+                ios));
+        Assert.Same(
+            ios,
+            MobileAppUpdatePolicyProvider.SelectLatestReleaseForPlatform(
+                "ios",
+                android,
+                ios));
+        Assert.Null(MobileAppUpdatePolicyProvider.SelectLatestReleaseForPlatform(
+            "ios",
+            android,
+            iosRelease: null));
+        Assert.Null(MobileAppUpdatePolicyProvider.SelectLatestReleaseForPlatform(
+            "",
+            android,
+            ios));
     }
 
     [Theory]

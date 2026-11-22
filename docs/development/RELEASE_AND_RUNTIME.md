@@ -27,7 +27,7 @@
 
 ## FFmpeg 兼容基线
 
-- 正式基线固定为 FFmpeg 4.4.1，以兼容 Win7 老显卡的 NVENC API 11.1（自建精简构建用 nv-codec-headers 11.1.5.2 钉住该 API）。AV1 不作为产品能力，选择 AV1 时回退 H.265；暂不实施 8.0.1 + 4.4.1 双基线。
+- 正式基线固定为 FFmpeg 4.4.1，以兼容 Win7 老显卡的 NVENC API 11.1（自建精简构建用 nv-codec-headers 11.1.5.2 钉住该 API）。AV1 只能使用本机已通过试编码验证的硬件编码器；没有已验证 AV1 时，录制与压缩均明确回退或不提供 AV1，不能把“显卡支持”当成“当前 FFmpeg 可用”。暂不实施 8.0.1 + 4.4.1 双基线。
 - 随包二进制优先使用本仓库自建的**精简构建**（`third_party/ffmpeg`，配方含 `build.sh`、`configure-flags.txt`、`versions.env`），以减少安装包体积；这不是第三方开发者的硬门槛。产物 `package/ffmpeg-build/ffmpeg.exe` 由 `tools/ffmpeg-baseline.json` 的 `local_build` 钉住（脚本 + 产物路径 + 尺寸 + SHA256），打包与开发构建经同一 `Resolve-FFmpegBaselineExecutable` 校验。解析优先级：精简身份缓存 → 本地构建产物 → 清单 `package` 段的 Gyan essentials。没有精简产物时允许自动下载上游包并使用其登记的大小和 SHA256 校验，不需要 MSYS2，也不会阻断正常发布。只有在明确希望验证体积优化时才显式传 `-RequireLocalBuild`。构建脚本会覆盖 MSYS2 `x265.pc` 中显式写死的 `-lgcc_s`，避免 `-static-libgcc` 被绕过；实际选中的 FFmpeg 都必须通过 `pwsh -NoProfile -File tools\ffmpeg-capability-check.ps1`，该脚本会先清空 PATH、只保留 Windows 系统目录启动 FFmpeg，再检查能力矩阵。普通开发与 `dotnet build` / `dotnet test` 完全不碰钉住链路：开发构建在基线缓存缺失时回退项目根 `ffmpeg.exe`，运行时再回退系统 PATH，贡献者不需要编译 FFmpeg。自建二进制带 `--extra-version=packingproof-ffmpeg-minimal-V01` 版本戳，诊断日志第一行据此识别构建来源；同版本重出包递增 V 号并同步 baseline 哈希。老用户机器上由历史安装包留下的 Gyan 4.4.1 Essentials 等版本仍登记在 `app_patch_compatible_executables`（AppPatch 从不携带 FFmpeg），保持被识别为兼容环境。
 - 高级用户可在 Win8+ 自行替换 `app\tools\ffmpeg.exe`，官方不保证该自定义环境。
 - 禁止假设 CLI 参数跨版本通用：FFmpeg 8.x 已移除 RTSP `-stimeout`；4.4.x 的 RTSP `-timeout` 会挂起，因此网络摄像头不传 socket 超时参数，由应用层 15 秒连接超时和断流看门狗兜底。`-fps_mode` 仅 5.1+ 可用，旧版回退 `-vsync passthrough`。网络摄像头输入**不再加** `-fflags nobuffer` / `-flags low_delay`：现场相机（夜间约 19-20fps）抖动后会停在"会话正常、媒体不再送来"，而同一台相机用不带这两个参数的自检/ffmpeg 探测每次都能出帧；打包取证对百毫秒级延迟不敏感。参数策略集中在 `NetworkCameraSource.BuildArguments`。

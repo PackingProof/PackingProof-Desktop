@@ -107,7 +107,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         deploymentPreset: Config.DeploymentPreset,
                         orderReceiverOnly: orderReceiverOnly,
                         nodeNameCustomized: Config.NodeNameCustomized,
-                        backupDeviceEnrollmentApprover: ApproveBackupDeviceEnrollment)
+                        backupDeviceEnrollmentApprover: ApproveBackupDeviceEnrollment,
+                        validatedEncodersProvider: () => Config.ValidatedEncodersCache)
                     {
                         EnableOrderInfoLog = enableOrderInfoLog
                     };

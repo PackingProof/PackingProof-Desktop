@@ -13,6 +13,8 @@ public partial class PlaybackWindow
 {
     private async void PlaySelectedVideo(VideoItem video)
     {
+        _secondaryActionState.BeginVideoSelection();
+
         int requestVersion = Interlocked.Increment(
             ref _playbackRequestVersion);
         CancelPlaybackPreparation();

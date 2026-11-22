@@ -147,6 +147,27 @@ public sealed class MainWindowStatsBarTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void StatisticsNumbersOpenStatsAndToolbarActionOpensExtensionMarket()
+    {
+        string xaml = System.IO.File.ReadAllText(
+            System.IO.Path.Combine(
+                FindRepositoryPath("src", "ExpressPackingMonitoring"),
+                "UI",
+                "MainWindow.xaml"));
+
+        Assert.Contains("x:Name=\"StatsSummaryButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Click=\"StatsSummary_Click\"", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "PreviewMouseLeftButtonUp=\"StatsSummary_MouseLeftButtonUp\"",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ExtensionButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Click=\"BtnExtensionMarket_Click\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ExtensionButtonIcon\" Data=\"{StaticResource FluentBoxIcon}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"DataButton\"", xaml, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryPath(params string[] parts)
     {
         System.IO.DirectoryInfo? directory = new(System.AppContext.BaseDirectory);

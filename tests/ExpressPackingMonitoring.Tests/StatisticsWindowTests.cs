@@ -9,6 +9,7 @@ public sealed class StatisticsWindowTests
     private static readonly DateTime Now = new(2026, 7, 23, 15, 30, 0);
 
     [Theory]
+    [InlineData("Today", "2026-07-23", "2026-07-23")]
     [InlineData("Last7", "2026-07-17", "2026-07-23")]
     [InlineData("Last30", "2026-06-24", "2026-07-23")]
     [InlineData("LastYear", "2025-07-24", "2026-07-23")]

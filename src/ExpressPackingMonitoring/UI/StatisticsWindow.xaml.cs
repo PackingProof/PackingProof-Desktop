@@ -40,6 +40,7 @@ namespace ExpressPackingMonitoring.UI
     public partial class StatisticsWindow : Window, INotifyPropertyChanged
     {
         private readonly VideoDatabase _db;
+        private readonly string _initialPreset;
         private bool _isInternalUpdating = false; // 防止日期切换时触发多次刷新
         private IReadOnlyList<DailyStat> _cachedHistory = Array.Empty<DailyStat>();
         private string _cachedGroupMode = "day";
@@ -65,12 +66,12 @@ namespace ExpressPackingMonitoring.UI
         private string _summaryAvgTime = "00:00";
         public string SummaryAvgTime { get => _summaryAvgTime; set { _summaryAvgTime = value; OnPropertyChanged(nameof(SummaryAvgTime)); } }
 
-        public StatisticsWindow(VideoDatabase db)
+        public StatisticsWindow(VideoDatabase db, string initialPreset = "Last7")
         {
             InitializeComponent();
             _db = db;
+            _initialPreset = NormalizePreset(initialPreset);
             this.DataContext = this;
-            PresetCombo.SelectedIndex = 2;
             _axisLabelResizeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
             _axisLabelResizeTimer.Tick += (_, _) =>
             {
@@ -79,7 +80,8 @@ namespace ExpressPackingMonitoring.UI
             };
 
             this.Loaded += (s, e) => {
-                ApplyPreset("Last7");
+                SelectPreset(_initialPreset);
+                ApplyPreset(_initialPreset);
                 RequestDataRefresh();
             };
             this.Closed += (_, _) =>
@@ -254,6 +256,7 @@ namespace ExpressPackingMonitoring.UI
             return tag switch
             {
                 "Week" => (today.AddDays(-((7 + (today.DayOfWeek - DayOfWeek.Monday)) % 7)), today),
+                "Today" => (today, today),
                 "Month" => (new DateTime(today.Year, today.Month, 1), today),
                 "Last7" => (today.AddDays(-6), today),
                 "Last30" => (today.AddDays(-29), today),
@@ -266,6 +269,8 @@ namespace ExpressPackingMonitoring.UI
 
         private void RangePresetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (_isInternalUpdating)
+                return;
             if (PresetCombo.SelectedItem is ComboBoxItem item)
             {
                 string tag = item.Tag?.ToString() ?? string.Empty;
@@ -273,6 +278,28 @@ namespace ExpressPackingMonitoring.UI
                 RequestDataRefresh();
             }
         }
+
+        private void SelectPreset(string tag)
+        {
+            ComboBoxItem? item = PresetCombo.Items
+                .OfType<ComboBoxItem>()
+                .FirstOrDefault(candidate =>
+                    string.Equals(candidate.Tag?.ToString(), tag, StringComparison.OrdinalIgnoreCase));
+            if (item == null)
+                return;
+
+            _isInternalUpdating = true;
+            PresetCombo.SelectedItem = item;
+            _isInternalUpdating = false;
+        }
+
+        private static string NormalizePreset(string tag) =>
+            tag switch
+            {
+                "Today" or "Week" or "Month" or "Last7" or "Last30" or "LastYear" or "CurrentYear" or "All"
+                    => tag,
+                _ => "Last7"
+            };
 
         private void OnQueryFilterChanged(object sender, EventArgs e)
         {

@@ -291,6 +291,48 @@ public sealed class SettingsWindowRenderTests
         });
     }
 
+    [Fact]
+    public void NetworkCameraStreamCopy_KeepsSubCameraSettingsAndUsesStandardNoticeSpacing()
+    {
+        RunOnStaThread(() =>
+        {
+            var config = new AppConfig
+            {
+                DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+                CameraSourceKind = "network",
+                NetworkCameraUrl = "rtsp://192.0.2.10/live",
+                EnableNetworkCameraStreamCopy = true
+            };
+            AppConfig.NormalizeAfterLoad(config);
+            var context = new SettingsContext
+            {
+                Capabilities = SettingsCapabilities.ForPreset(config.DeploymentPreset),
+                ApplyAsync = _ => Task.FromResult(true)
+            };
+
+            var window = new SettingsWindow(context, config, 12d, "12%");
+            window.Measure(new Size(1200, 900));
+            window.Arrange(new Rect(0, 0, 1200, 900));
+            window.UpdateLayout();
+
+            var overlayPanel = Assert.IsType<ItemsControl>(
+                window.FindName("OverlayCameraChannelsPanel"));
+            var overlayCountRow = Assert.IsType<Grid>(
+                window.FindName("OverlayChannelCountRow"));
+            var notice = Assert.IsType<Border>(
+                window.FindName("OverlayChannelStreamCopyNotice"));
+            Assert.True(overlayPanel.IsEnabled);
+            Assert.True(overlayCountRow.IsEnabled);
+            Assert.Equal(Visibility.Visible, notice.Visibility);
+            Assert.Same(window.FindResource("SectionCardStyle"), notice.Style);
+            Assert.Equal(
+                (Thickness)window.FindResource("SectionCardMargin"),
+                notice.Margin);
+
+            window.Close();
+        });
+    }
+
     /// <summary>行样式里的右键菜单必须是"设置预留空间…"。</summary>
     private static void AssertStorageReserveMenu(DataGrid grid)
     {

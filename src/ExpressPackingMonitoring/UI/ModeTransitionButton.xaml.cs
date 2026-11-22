@@ -60,7 +60,8 @@ public partial class ModeTransitionButton : UserControl
     private void ApplyMode(string mode, bool animate)
     {
         _mode = mode == ReturnMode ? ReturnMode : PackMode;
-        ModeIcon.Data = (Geometry)FindResource(_mode == ReturnMode ? "FluentReturnIcon" : "FluentBoxIcon");
+        ModeIcon.Data = (Geometry)FindResource(
+            _mode == ReturnMode ? "FluentReturnIcon" : "FluentVehicleTruckCubeIcon");
 
         // 退货静止在按钮内（X=0），发货静止在按钮右侧之外（X=宽度）
         double restingX = _mode == ReturnMode

@@ -342,6 +342,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
             nodeId: _extensionNodeId,
             nodeName: _config.NodeName,
             deploymentPreset: DeploymentPresets.MobileBackupHost,
+            validatedEncodersProvider: () => _config.ValidatedEncodersCache,
             backupDeviceEnrollmentApprover: request =>
                 BackupDeviceEnrollmentRequested?.Invoke(request)
                 ?? BackupDeviceEnrollmentApprovalDecision.Unavailable)

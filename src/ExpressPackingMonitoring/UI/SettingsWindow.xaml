@@ -1278,8 +1278,21 @@
                                 </StackPanel>
                             </Border>
 
+                            <Border x:Name="OverlayChannelStreamCopyNotice"
+                                    Style="{StaticResource SectionCardStyle}"
+                                    Background="{DynamicResource TransferAttentionSurface}"
+                                    BorderBrush="{DynamicResource TransferAttentionText}"
+                                    Visibility="Collapsed">
+                                <TextBlock Text="{loc:Localized NetworkCameraStreamCopyOverlayNotice}"
+                                           Foreground="{DynamicResource TransferAttentionText}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"/>
+                            </Border>
+
                             <!-- 副画面：一路一张卡；加第三、第四路只是这个列表里多一项 -->
-                            <ItemsControl ItemsSource="{Binding OverlayCameraCards}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
+                            <ItemsControl x:Name="OverlayCameraChannelsPanel"
+                                          ItemsSource="{Binding OverlayCameraCards}"
+                                          Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Style="{StaticResource SectionCardStyle}">
@@ -3805,7 +3818,9 @@
                             <!-- 多路画面：这里的路数决定"设备与外观"里放几张副摄像头卡片 -->
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowStyle}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
+                                    <Grid x:Name="OverlayChannelCountRow"
+                                          Style="{StaticResource SettingRowStyle}"
+                                          Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>

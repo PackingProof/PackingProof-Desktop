@@ -964,6 +964,24 @@ namespace ExpressPackingMonitoring.UI
             if (DataContext is MainViewModel viewModel) viewModel.OpenSettings();
         }
 
+        private void BtnExtensionMarket_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel viewModel)
+                viewModel.OpenExtensionMarket(this);
+        }
+
+        private void StatsSummary_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel viewModel)
+                viewModel.OpenStatisticsWindow();
+        }
+
+        private void StatsSummary_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            StatsSummary_Click(sender, e);
+        }
+
         private void BtnMobileConnection_Click(object sender, RoutedEventArgs e)
         {
             ExecuteMobileConnection();
@@ -1338,7 +1356,7 @@ namespace ExpressPackingMonitoring.UI
         {
             Text,
             IconOnly,
-            IconOnlyNoData
+            IconOnlyNoExtension
         }
 
         internal static (bool AverageVisible, bool TotalVisible, ActionButtonLayout Buttons)
@@ -1349,7 +1367,7 @@ namespace ExpressPackingMonitoring.UI
                 BottomBarLayout.AllIconOnly => (true, true, ActionButtonLayout.IconOnly),
                 BottomBarLayout.WithoutTotalIconOnly => (true, false, ActionButtonLayout.IconOnly),
                 BottomBarLayout.OnlyTodayIconOnly => (false, false, ActionButtonLayout.IconOnly),
-                _ => (false, false, ActionButtonLayout.IconOnlyNoData)
+                _ => (false, false, ActionButtonLayout.IconOnlyNoExtension)
             };
 
         private bool _statsBarUpdating;
@@ -1367,7 +1385,7 @@ namespace ExpressPackingMonitoring.UI
                 AverageTimeGroup.Visibility = Visibility.Visible;
                 TotalTimeGroup.Visibility = Visibility.Visible;
                 ApplyBottomButtonLayout(ActionButtonLayout.Text);
-                DataButton.Visibility = Visibility.Visible;
+                ExtensionButton.Visibility = Visibility.Visible;
 
                 double todayWidth = MeasureStatsGroupWidth(TodayCountGroup);
                 double averageWidth = MeasureStatsGroupWidth(AverageTimeGroup);
@@ -1417,8 +1435,8 @@ namespace ExpressPackingMonitoring.UI
             TotalTimeGroup.Visibility =
                 totalVisible ? Visibility.Visible : Visibility.Collapsed;
             ApplyBottomButtonLayout(buttons);
-            DataButton.Visibility =
-                buttons == ActionButtonLayout.IconOnlyNoData
+            ExtensionButton.Visibility =
+                buttons == ActionButtonLayout.IconOnlyNoExtension
                     ? Visibility.Collapsed
                     : Visibility.Visible;
         }
@@ -1427,16 +1445,16 @@ namespace ExpressPackingMonitoring.UI
         {
             bool iconOnly = layout != ActionButtonLayout.Text;
             double width = iconOnly ? IconButtonWidth : 120;
-            DataButton.Width = width;
+            ExtensionButton.Width = width;
             PlaybackButton.Width = width;
             SettingsButton.Width = width;
 
-            DataButtonText.Visibility = iconOnly ? Visibility.Collapsed : Visibility.Visible;
+            ExtensionButtonText.Visibility = iconOnly ? Visibility.Collapsed : Visibility.Visible;
             PlaybackButtonText.Visibility = iconOnly ? Visibility.Collapsed : Visibility.Visible;
             SettingsButtonText.Visibility = iconOnly ? Visibility.Collapsed : Visibility.Visible;
 
             Thickness iconMargin = iconOnly ? new Thickness(0) : new Thickness(0, 0, 7, 0);
-            DataButtonIcon.Margin = iconMargin;
+            ExtensionButtonIcon.Margin = iconMargin;
             PlaybackButtonIcon.Margin = iconMargin;
             SettingsButtonIcon.Margin = iconMargin;
         }

@@ -12,6 +12,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 
@@ -227,7 +228,7 @@ public partial class PrintWorkstationWindow : Window
     private void SetControlsEnabled(bool enabled)
     {
         OpenWebButton.IsEnabled = enabled;
-        StatisticsButton.IsEnabled = _host.HasDatabase;
+        ExtensionButton.IsEnabled = true;
         PlaybackButton.IsEnabled = _host.HasDatabase;
         SettingsButton.IsEnabled = true;
         ConnectPhoneButton.IsEnabled = enabled && _host.IsLanAvailable;
@@ -304,7 +305,7 @@ public partial class PrintWorkstationWindow : Window
             _host.CreateTransferManagementSnapshotService();
         if (snapshotService == null)
         {
-            ShowToast("设备备份服务尚未准备完成", ToastSeverity.Warning);
+            ShowToast(AppLanguage.Get("设备备份服务尚未准备完成"), ToastSeverity.Warning);
             return;
         }
 
@@ -323,16 +324,31 @@ public partial class PrintWorkstationWindow : Window
 
     private void OpenStatistics_Click(object sender, RoutedEventArgs e)
     {
+        if (!_host.HasDatabase)
+        {
+            ShowToast("设备备份服务尚未准备完成", ToastSeverity.Warning);
+            return;
+        }
+
         if (_statisticsWindow is { IsLoaded: true })
         {
             _statisticsWindow.Activate();
             return;
         }
 
-        _statisticsWindow = new StatisticsWindow(_host.Database) { Owner = this };
+        _statisticsWindow = new StatisticsWindow(_host.Database, "Today") { Owner = this };
         _statisticsWindow.Closed += (_, _) => _statisticsWindow = null;
         _statisticsWindow.Show();
     }
+
+    private void BackupStats_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        OpenStatistics_Click(sender, e);
+    }
+
+    private void OpenExtension_Click(object sender, RoutedEventArgs e) =>
+        OpenExtensionMarket(this);
 
     private void OpenPlayback_Click(object sender, RoutedEventArgs e)
     {
@@ -369,12 +385,29 @@ public partial class PrintWorkstationWindow : Window
             // 打包工位自己就是备份主机（会写录像数据），可以删除回放里的录像。
             canDeleteRecords: DeploymentCapabilities
                 .ForPreset(DeploymentPresets.MobileBackupHost)
-                .CanDeleteRecordings)
+                .CanDeleteRecordings,
+            webClipUrlProvider: BuildLocalWebClipUrlAsync,
+            validatedEncoders: _config.ValidatedEncodersCache)
         {
             Owner = this
         };
         _playbackWindow.Closed += (_, _) => _playbackWindow = null;
         _playbackWindow.Show();
+    }
+
+    private Task<string?> BuildLocalWebClipUrlAsync(VideoItem video)
+    {
+        string accessUrl = _host.LocalPlaybackUrl;
+        if (string.IsNullOrWhiteSpace(accessUrl) || video.RecordId <= 0)
+            return Task.FromResult<string?>(null);
+
+        return Task.FromResult<string?>(WebClipLaunchUrlBuilder.Build(
+            accessUrl,
+            video.RecordId,
+            video.OrderId,
+            video.FileName,
+            video.DurationSeconds,
+            video.VideoCodec));
     }
 
     private async void OpenSettings_Click(object sender, RoutedEventArgs e)

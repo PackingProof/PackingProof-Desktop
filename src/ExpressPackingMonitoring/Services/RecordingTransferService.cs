@@ -192,7 +192,7 @@ internal sealed class RecordingTransferService : IDisposable
             SetHostHealth(
                 HostConnectionState.PausedByUser,
                 nextProbeAt: null,
-                reason: AppLanguage.Get("上传已暂停"),
+                reason: AppLanguage.Get("已暂停"),
                 lastSeenAt: null,
                 updateLastSeen: false);
         }
@@ -276,7 +276,7 @@ internal sealed class RecordingTransferService : IDisposable
                     SetHostHealth(
                         HostConnectionState.PausedByUser,
                         nextProbeAt: null,
-                        reason: AppLanguage.Get("上传已暂停"),
+                        reason: AppLanguage.Get("已暂停"),
                         lastSeenAt: null,
                         updateLastSeen: false);
                     return 0;
@@ -655,7 +655,7 @@ internal sealed class RecordingTransferService : IDisposable
         long totalBytes)
     {
         DateTime now = DateTime.UtcNow;
-        string reason = AppLanguage.Get("上传已暂停");
+        string reason = AppLanguage.Get("已暂停");
         _store.DeferForUserPause(task.Id, offset, reason, now);
         SetHostHealth(
             HostConnectionState.PausedByUser,

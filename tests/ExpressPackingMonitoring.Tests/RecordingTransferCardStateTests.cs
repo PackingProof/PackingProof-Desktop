@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
 using Xunit;
 
@@ -83,8 +84,36 @@ public sealed class RecordingTransferCardStateTests
             recentlyUploaded: false,
             pausedByUser: true);
 
-        Assert.Equal("上传已暂停", state.ShortStatusText);
-        Assert.Equal("已暂停上传，109 个录像保存在本机", state.DetailText);
+        Assert.Equal("已暂停", state.ShortStatusText);
+        Assert.Equal("已暂停，109 个录像保存在本机", state.DetailText);
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(null, null)]
+    public void PausingUploadsDoesNotChangeTheBoundHostOnlineState(
+        bool? currentOnline,
+        bool? expected)
+    {
+        bool? resolved = MainViewModel.ResolveBoundHostOnlineAfterHealth(
+            currentOnline,
+            HostConnectionState.PausedByUser);
+
+        Assert.Equal(
+            expected,
+            resolved);
+        Assert.Equal(
+            currentOnline switch
+            {
+                true => "在线",
+                false => "离线",
+                _ => "检查中"
+            },
+            MainViewModel.ResolveBoundHostOnlineStatusText(
+                resolved,
+                requiresReconnect: false,
+                awaitingApproval: false));
     }
 
     [Fact]

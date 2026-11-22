@@ -69,6 +69,7 @@ internal static class HostSession
             nodeId: config.NodeId,
             nodeName: config.NodeName,
             deploymentPreset: DeploymentPresets.MobileBackupHost,
+            validatedEncodersProvider: () => config.ValidatedEncodersCache,
             backupDeviceEnrollmentApprover: ApproveDeviceEnrollment);
         try
         {

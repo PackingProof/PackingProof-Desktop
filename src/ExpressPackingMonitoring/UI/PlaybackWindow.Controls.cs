@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.Services;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls.Primitives;
@@ -16,9 +17,11 @@ namespace ExpressPackingMonitoring.UI;
 public partial class PlaybackWindow
 {
     private bool _webClipOpening;
+    private readonly PlaybackSecondaryActionState _secondaryActionState = new();
 
     private void BtnTogglePlay_Click(object sender, RoutedEventArgs e)
     {
+        _secondaryActionState.AllowExplicitPlayback();
         if (_mediaPlayer == null)
             return;
 
@@ -77,6 +80,76 @@ public partial class PlaybackWindow
         }
     }
 
+    private async void CompressVideo_Click(object sender, RoutedEventArgs e)
+    {
+        VideoItem? video = GetContextMenuItem(sender);
+        if (video == null)
+            return;
+        if (!video.CanCompress)
+        {
+            AppDialog.Error(
+                this,
+                video.CompressBlockedHint,
+                AppLanguage.Get("无法导出"));
+            return;
+        }
+
+        BeginSecondaryActionPause();
+        try
+        {
+            var dialog = new VideoCompressionDialog(
+                new VideoCompressionSource(
+                    video.CopyableOrderId,
+                    video.FileName,
+                    video.FullPath,
+                    video.VideoCodec,
+                    video.DurationSeconds,
+                    video.FileSizeBytes),
+                validatedEncoders: _validatedEncoders)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() != true)
+                return;
+
+            ShowPlaybackToast(AppLanguage.Format(
+                "已生成导出压缩版本：{0}",
+                VideoCompressionPolicy.FormatFileSize(dialog.OutputSizeBytes)));
+            await Task.Run(() => WindowsShellFileLocator.Locate(dialog.OutputPath));
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Playback", $"打开压缩副本位置失败：{ex.Message}");
+        }
+        finally
+        {
+            EndSecondaryActionPause();
+        }
+    }
+
+    private void BeginSecondaryActionPause()
+    {
+        _secondaryActionState.Begin();
+        CancelAwaitingFirstFrame();
+        if (_mediaPlayer != null)
+        {
+            try
+            {
+                _mediaPlayer.Pause();
+            }
+            catch
+            {
+            }
+        }
+        _timer.Stop();
+        UpdatePlayState(false);
+    }
+
+    private void EndSecondaryActionPause()
+    {
+        _secondaryActionState.End();
+    }
+
     private async void BtnWebClip_Click(object sender, RoutedEventArgs e)
     {
         if (_webClipOpening
@@ -88,6 +161,7 @@ public partial class PlaybackWindow
             return;
         }
 
+        BeginSecondaryActionPause();
         _webClipOpening = true;
         UpdateLocateButtonState(video);
         try
@@ -114,6 +188,7 @@ public partial class PlaybackWindow
         }
         finally
         {
+            EndSecondaryActionPause();
             _webClipOpening = false;
             UpdateLocateButtonState();
         }

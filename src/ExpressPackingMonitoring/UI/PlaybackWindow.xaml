@@ -297,6 +297,14 @@
                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       IsEnabled="{Binding CanLocateFile}"/>
             <Separator Style="{StaticResource AppSeparatorStyle}"/>
+            <MenuItem Header="{loc:Localized 导出压缩版本…}"
+                      Style="{StaticResource AppMenuItemStyle}"
+                      Click="CompressVideo_Click"
+                      DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                      IsEnabled="{Binding CanCompress}"
+                      ToolTip="{Binding CompressBlockedHint}"
+                      ToolTipService.ShowOnDisabled="True"/>
+            <Separator Style="{StaticResource AppSeparatorStyle}"/>
             <MenuItem Header="{loc:Localized 删除录像…}"
                       Style="{StaticResource AppMenuItemStyle}"
                       Click="DeleteVideo_Click"

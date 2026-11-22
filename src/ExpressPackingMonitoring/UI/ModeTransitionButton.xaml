@@ -19,7 +19,7 @@
             </Border.RenderTransform>
         </Border>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-            <Path x:Name="ModeIcon" Data="{StaticResource FluentBoxIcon}" Width="22" Height="22" Stretch="Uniform" Fill="{StaticResource TextOnAccent}">
+            <Path x:Name="ModeIcon" Data="{StaticResource FluentVehicleTruckCubeIcon}" Width="22" Height="22" Stretch="Uniform" Fill="{StaticResource TextOnAccent}">
                 <Path.Style>
                     <Style TargetType="Path">
                         <Setter Property="Margin" Value="0,0,8,0"/>

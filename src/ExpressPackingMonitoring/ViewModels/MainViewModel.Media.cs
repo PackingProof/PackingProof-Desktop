@@ -36,19 +36,27 @@ namespace ExpressPackingMonitoring.ViewModels
 {
     public partial class MainViewModel
     {
-        private void OpenStatsWindow()
+        internal void OpenStatisticsWindow()
         {
-            if (ActivateExistingWindow(_statisticsWindow))
-                return;
-
-            var statsWindow = new StatisticsWindow(_db);
-            _statisticsWindow = statsWindow;
-            statsWindow.Closed += (_, _) =>
+            try
             {
-                if (ReferenceEquals(_statisticsWindow, statsWindow))
-                    _statisticsWindow = null;
-            };
-            statsWindow.Show();
+                if (ActivateExistingWindow(_statisticsWindow))
+                    return;
+
+                var statsWindow = new StatisticsWindow(_db, "Today");
+                _statisticsWindow = statsWindow;
+                statsWindow.Closed += (_, _) =>
+                {
+                    if (ReferenceEquals(_statisticsWindow, statsWindow))
+                        _statisticsWindow = null;
+                };
+                statsWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                _statisticsWindow = null;
+                RuntimeLog.Error("Statistics", "打开统计窗口失败", ex);
+            }
         }
 
         private async void OpenPlaybackWindow()
@@ -106,7 +114,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     prepareMkvForPlayback: PreparePlaybackVideoAsync,
                     webClipUrlProvider: WebServerModePolicy.ProvidesWebPlayback(webServerMode)
                         ? BuildWebClipUrlAsync
-                        : null);
+                        : null,
+                    validatedEncoders: Config.ValidatedEncodersCache);
                 // 先按最新那条录像把窗口尺寸定好，再显示：否则用户会先看到默认大小再跳一下。
                 await playbackWindow.PrepareInitialWindowSizeAsync();
                 _playbackWindow = playbackWindow;

@@ -11,7 +11,7 @@ public sealed class SettingsCapabilityVisibilityTests
         "http://schemas.microsoft.com/winfx/2006/xaml";
 
     [Theory]
-    [InlineData("StatisticsButton", "数据")]
+    [InlineData("ExtensionButton", "扩展")]
     [InlineData("PlaybackButton", "回放")]
     [InlineData("SettingsButton", "设置")]
     [InlineData("OpenWebButton", "网页回放")]
@@ -24,7 +24,37 @@ public sealed class SettingsCapabilityVisibilityTests
 
         Assert.Contains(
             button.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == content);
+            element => ((string?)element.Attribute("Text"))?.Contains(content, StringComparison.Ordinal) == true);
+
+        if (name == "ExtensionButton")
+        {
+            Assert.Contains(
+                button.Descendants(Presentation + "Path"),
+                element => ((string?)element.Attribute("Data"))?.Contains("FluentIntegrationIcon", StringComparison.Ordinal) == true);
+        }
+    }
+
+    [Fact]
+    public void NoCameraStatisticsEntriesAreTheCountButtons()
+    {
+        XDocument root = LoadXaml("Workstations", "PrintWorkstationWindow.xaml");
+        XElement summary = Assert.Single(
+            root.Descendants(Presentation + "Button"),
+            element => (string?)element.Attribute(Xaml + "Name") == "BackupStatsButton");
+
+        Assert.Equal("OpenStatistics_Click", (string?)summary.Attribute("Click"));
+        Assert.Equal(
+            "BackupStats_MouseLeftButtonUp",
+            (string?)summary.Attribute("PreviewMouseLeftButtonUp"));
+        Assert.Equal(
+            "{StaticResource StatsLinkButtonStyle}",
+            (string?)summary.Attribute("Style"));
+        Assert.Contains(
+            summary.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "今日备份");
+        Assert.Contains(
+            summary.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "累计备份");
     }
 
     [Theory]

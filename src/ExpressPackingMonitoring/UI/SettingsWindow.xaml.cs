@@ -255,6 +255,18 @@ namespace ExpressPackingMonitoring.UI
 
             // 窗口加载后异步枚举设备，避免阻塞UI线程
             this.Loaded += SettingsWindow_Loaded;
+            if (Capabilities.CanUseCamera
+                && string.Equals(
+                    Config.CameraSourceKind,
+                    "network",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                NetworkCameraPanel.Visibility = Visibility.Visible;
+            }
+            NetworkCameraStreamCopyToggle.GetBindingExpression(
+                System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty)
+                ?.UpdateTarget();
+            ApplyNetworkCameraStreamCopyConstraints();
         }
 
         private void GlobalKeyboardCheckBox_Checked(object sender, RoutedEventArgs e)

@@ -34,6 +34,17 @@ public sealed class AppDialogTests
     }
 
     [Fact]
+    public void AppDialog_FallsBackWhenOwnerClosesDuringAsyncOperation()
+    {
+        string source = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "AppDialog.cs");
+
+        Assert.Contains("new WindowInteropHelper(window).Handle != IntPtr.Zero", source, StringComparison.Ordinal);
+        Assert.Contains("catch (InvalidOperationException)", source, StringComparison.Ordinal);
+        Assert.Contains("WindowStartupLocation.CenterScreen", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AppDialog_InformationUsesDedicatedInfoIcon()
     {
         string icons = ReadRepositoryFile("src", "ExpressPackingMonitoring", "Themes", "FluentIcons.xaml");

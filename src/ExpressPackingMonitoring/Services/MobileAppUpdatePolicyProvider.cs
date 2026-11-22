@@ -24,16 +24,22 @@ internal sealed class MobileAppUpdatePolicyProvider
     };
     private const string LatestReleaseApiUrl =
         "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Mobile/releases/latest";
+    private const string ReleasesListApiUrl =
+        "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Mobile/releases";
+    private const string IosLatestManifestName = "ios-latest.json";
+    private const int ReleaseListPageSize = 100;
+    private const int MaximumReleaseListPages = 20;
     internal const string ReleasesUrl =
         "https://gitee.com/PackingProof/PackingProof-Mobile/releases/latest";
     internal const string TestFlightJoinUrl =
-        "https://testflight.apple.com/join/5QKpJuBG";
+        "https://testflight.apple.com/join/KR4qNs6t";
 
     private readonly object _gate = new();
     private DateTimeOffset _lastAttemptUtc = DateTimeOffset.MinValue;
     private bool _lastAttemptFailed;
     private Task? _refreshTask;
     private MobileAppReleaseInfo? _latestRelease;
+    private MobileAppReleaseInfo? _latestIosRelease;
 
     internal static MobileAppUpdatePolicyProvider Shared { get; } = new();
     internal static MobileAppUpdatePolicy MinimumPolicy { get; } = new(
@@ -45,7 +51,8 @@ internal sealed class MobileAppUpdatePolicyProvider
 
     internal MobileAppUpdatePolicyProvider()
     {
-        _latestRelease = LoadCachedRelease();
+        _latestRelease = LoadCachedRelease(AppPaths.MobileAppUpdateCachePath);
+        _latestIosRelease = LoadCachedRelease(AppPaths.MobileIosAppUpdateCachePath);
     }
 
     internal MobileAppReleaseInfo? LatestRelease
@@ -54,6 +61,15 @@ internal sealed class MobileAppUpdatePolicyProvider
         {
             lock (_gate)
                 return _latestRelease;
+        }
+    }
+
+    internal MobileAppReleaseInfo? LatestIosRelease
+    {
+        get
+        {
+            lock (_gate)
+                return _latestIosRelease;
         }
     }
 
@@ -90,7 +106,7 @@ internal sealed class MobileAppUpdatePolicyProvider
             return ComputeRefreshDelay(
                 DateTimeOffset.UtcNow,
                 _lastAttemptUtc,
-                _latestRelease != null,
+                _latestRelease != null || _latestIosRelease != null,
                 _lastAttemptFailed);
         }
     }
@@ -110,11 +126,12 @@ internal sealed class MobileAppUpdatePolicyProvider
 
     private async Task RefreshAsync()
     {
-        bool succeeded = false;
+        bool androidSucceeded = false;
+        bool iosSucceeded = false;
         try
         {
             await CheckLatestAsync();
-            succeeded = true;
+            androidSucceeded = true;
         }
         catch (Exception ex) when (ex is HttpRequestException
             or TaskCanceledException
@@ -123,10 +140,22 @@ internal sealed class MobileAppUpdatePolicyProvider
         {
             RuntimeLog.Warn("MobileUpdate", $"手机版本检查失败：{ex.Message}");
         }
+        try
+        {
+            await CheckLatestIosAsync();
+            iosSucceeded = true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException
+            or TaskCanceledException
+            or JsonException
+            or InvalidDataException)
+        {
+            RuntimeLog.Warn("MobileUpdate", $"iOS 手机版本检查失败：{ex.Message}");
+        }
         finally
         {
             lock (_gate)
-                _lastAttemptFailed = !succeeded;
+                _lastAttemptFailed = !androidSucceeded || !iosSucceeded;
         }
     }
 
@@ -150,8 +179,147 @@ internal sealed class MobileAppUpdatePolicyProvider
         }
         lock (_gate)
             _latestRelease = release;
-        SaveCachedRelease(release);
+        SaveCachedRelease(AppPaths.MobileAppUpdateCachePath, release);
         return release;
+    }
+
+    internal async Task<MobileAppReleaseInfo?> CheckLatestIosAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var candidates = new List<(string TagName, string ManifestUrl)>();
+        for (int page = 1; page <= MaximumReleaseListPages; page++)
+        {
+            string url =
+                $"{ReleasesListApiUrl}?page={page}&per_page={ReleaseListPageSize}";
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.UserAgent.ParseAdd("PackingProof-Desktop/1.0");
+            using HttpResponseMessage response = await Client.SendAsync(
+                request,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+            string json = await response.Content.ReadAsStringAsync(cancellationToken);
+            List<MobileAppReleaseDocument> releases =
+                JsonSerializer.Deserialize<List<MobileAppReleaseDocument>>(
+                    json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                ?? [];
+            foreach (MobileAppReleaseDocument release in releases)
+            {
+                string tagName = release.TagName?.Trim() ?? "";
+                MobileAppReleaseAsset? manifestAsset = release.Assets.FirstOrDefault(
+                    asset => string.Equals(
+                        asset.Name?.Trim(),
+                        IosLatestManifestName,
+                        StringComparison.OrdinalIgnoreCase));
+                if (tagName.Length > 0
+                    && TryResolveTrustedGiteeUrl(
+                        manifestAsset?.BrowserDownloadUrl,
+                        out string manifestUrl))
+                {
+                    candidates.Add((tagName, manifestUrl));
+                }
+            }
+
+            if (releases.Count < ReleaseListPageSize)
+                break;
+        }
+
+        MobileAppReleaseInfo? latest = null;
+        foreach ((string tagName, string manifestUrl) in candidates)
+        {
+            MobileAppReleaseInfo candidate = await FetchIosReleaseAsync(
+                tagName,
+                manifestUrl,
+                cancellationToken);
+            if (latest == null
+                || candidate.BuildNumber > latest.BuildNumber
+                || (candidate.BuildNumber == latest.BuildNumber
+                    && string.CompareOrdinal(candidate.Version, latest.Version) > 0))
+            {
+                latest = candidate;
+            }
+        }
+
+        lock (_gate)
+            _latestIosRelease = latest;
+        if (latest == null)
+            DeleteCachedRelease(AppPaths.MobileIosAppUpdateCachePath);
+        else
+            SaveCachedRelease(AppPaths.MobileIosAppUpdateCachePath, latest);
+        return latest;
+    }
+
+    private static async Task<MobileAppReleaseInfo> FetchIosReleaseAsync(
+        string tagName,
+        string manifestUrl,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, manifestUrl);
+        request.Headers.UserAgent.ParseAdd("PackingProof-Desktop/1.0");
+        using HttpResponseMessage response = await Client.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        if (response.Content.Headers.ContentLength is long contentLength
+            && contentLength > MaximumBuildManifestBytes)
+        {
+            throw new InvalidDataException("iOS 版本清单过大");
+        }
+
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, cancellationToken);
+        if (buffer.Length > MaximumBuildManifestBytes)
+            throw new InvalidDataException("iOS 版本清单过大");
+        return ParseIosLatestManifest(
+            System.Text.Encoding.UTF8.GetString(buffer.ToArray()),
+            tagName);
+    }
+
+    internal static MobileAppReleaseInfo ParseIosLatestManifest(
+        string json,
+        string releaseTag)
+    {
+        MobileIosLatestManifest? manifest =
+            JsonSerializer.Deserialize<MobileIosLatestManifest>(
+                json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        string version = manifest?.VersionName?.Trim() ?? "";
+        int buildNumber = manifest?.BuildNumber ?? 0;
+        if (manifest == null
+            || !string.Equals(manifest.Platform, "ios", StringComparison.OrdinalIgnoreCase)
+            || buildNumber <= 0
+            || !Version.TryParse(version, out _))
+        {
+            throw new InvalidDataException("iOS 版本清单格式无效");
+        }
+
+        Match tagMatch = VersionPattern.Match(releaseTag?.Trim() ?? "");
+        if (tagMatch.Success)
+        {
+            string tagVersion = tagMatch.Groups["version"].Value;
+            string tagBuildText = tagMatch.Groups["build"].Value;
+            if (!string.Equals(tagVersion, version, StringComparison.OrdinalIgnoreCase)
+                || (tagBuildText.Length > 0
+                    && (!int.TryParse(tagBuildText, out int tagBuild)
+                        || tagBuild != buildNumber)))
+            {
+                throw new InvalidDataException("iOS 版本清单与 Release 标签不一致");
+            }
+        }
+
+        string downloadUrl = TryResolveTrustedTestFlightUrl(
+            manifest.TestFlightUrl,
+            out string testFlightUrl)
+            ? testFlightUrl
+            : TestFlightJoinUrl;
+        return new MobileAppReleaseInfo(
+            releaseTag?.Trim() ?? "",
+            version,
+            buildNumber,
+            downloadUrl,
+            "ios");
     }
 
     internal static MobileAppReleaseInfo ParseLatestRelease(string json)
@@ -284,6 +452,17 @@ internal sealed class MobileAppUpdatePolicyProvider
                 || currentBuildNumber < latestRelease.BuildNumber);
     }
 
+    internal static MobileAppReleaseInfo? SelectLatestReleaseForPlatform(
+        string? platform,
+        MobileAppReleaseInfo? androidRelease,
+        MobileAppReleaseInfo? iosRelease) =>
+        (platform ?? "").Trim().ToLowerInvariant() switch
+        {
+            "android" => androidRelease,
+            "ios" => iosRelease,
+            _ => null
+        };
+
     private sealed class MobileAppReleaseDocument
     {
         [JsonPropertyName("tag_name")]
@@ -308,14 +487,55 @@ internal sealed class MobileAppUpdatePolicyProvider
         public int VersionCode { get; set; }
     }
 
-    private static MobileAppReleaseInfo? LoadCachedRelease()
+    private sealed class MobileIosLatestManifest
+    {
+        [JsonPropertyName("platform")]
+        public string Platform { get; set; } = "";
+
+        [JsonPropertyName("versionName")]
+        public string VersionName { get; set; } = "";
+
+        [JsonPropertyName("buildNumber")]
+        public int BuildNumber { get; set; }
+
+        [JsonPropertyName("sourceRevision")]
+        public string SourceRevision { get; set; } = "";
+
+        [JsonPropertyName("publishedAtUtc")]
+        public string PublishedAtUtc { get; set; } = "";
+
+        [JsonPropertyName("testFlightUrl")]
+        public string TestFlightUrl { get; set; } = "";
+    }
+
+    private static bool TryResolveTrustedTestFlightUrl(
+        string? value,
+        out string url)
+    {
+        if (Uri.TryCreate(value?.Trim(), UriKind.Absolute, out Uri? uri)
+            && uri.Scheme == Uri.UriSchemeHttps
+            && string.Equals(
+                uri.Host,
+                "testflight.apple.com",
+                StringComparison.OrdinalIgnoreCase)
+            && uri.AbsolutePath.StartsWith("/join/", StringComparison.Ordinal))
+        {
+            url = uri.AbsoluteUri;
+            return true;
+        }
+
+        url = "";
+        return false;
+    }
+
+    private static MobileAppReleaseInfo? LoadCachedRelease(string cachePath)
     {
         try
         {
-            if (!File.Exists(AppPaths.MobileAppUpdateCachePath))
+            if (!File.Exists(cachePath))
                 return null;
             return JsonSerializer.Deserialize<MobileAppReleaseInfo>(
-                File.ReadAllText(AppPaths.MobileAppUpdateCachePath));
+                File.ReadAllText(cachePath));
         }
         catch
         {
@@ -323,18 +543,32 @@ internal sealed class MobileAppUpdatePolicyProvider
         }
     }
 
-    private static void SaveCachedRelease(MobileAppReleaseInfo release)
+    private static void SaveCachedRelease(
+        string cachePath,
+        MobileAppReleaseInfo release)
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(AppPaths.MobileAppUpdateCachePath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
             File.WriteAllText(
-                AppPaths.MobileAppUpdateCachePath,
+                cachePath,
                 JsonSerializer.Serialize(release));
         }
         catch (Exception ex)
         {
             RuntimeLog.Warn("MobileUpdate", $"手机版本缓存保存失败：{ex.Message}");
+        }
+    }
+
+    private static void DeleteCachedRelease(string cachePath)
+    {
+        try
+        {
+            if (File.Exists(cachePath))
+                File.Delete(cachePath);
+        }
+        catch
+        {
         }
     }
 
@@ -350,7 +584,8 @@ internal sealed record MobileAppReleaseInfo(
     string TagName,
     string Version,
     int BuildNumber,
-    string DownloadUrl);
+    string DownloadUrl,
+    string Platform = "android");
 
 internal sealed record MobileAppUpdateAvailableInfo(
     string DeviceName,

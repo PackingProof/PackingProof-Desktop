@@ -327,7 +327,8 @@ namespace ExpressPackingMonitoring.Services
             bool orderReceiverOnly = false,
             bool nodeNameCustomized = false,
             Func<BackupDeviceEnrollmentRequest, BackupDeviceEnrollmentApprovalDecision> backupDeviceEnrollmentApprover = null,
-            string userscriptDirectory = null)
+            string userscriptDirectory = null,
+            Func<IReadOnlyList<string>> validatedEncodersProvider = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _mobileAppUpdateRefreshScheduler =
@@ -357,7 +358,8 @@ namespace ExpressPackingMonitoring.Services
                 _mkvConverter,
                 IsCurrentRecordingFile,
                 () => Task.Run(CleanWebCache),
-                _ffmpegWorkLimiter);
+                _ffmpegWorkLimiter,
+                validatedEncodersProvider);
             Port = port;
             _transCacheMaxBytes = (long)transCacheMaxMB * 1024 * 1024;
             _extensionRecordingQueries = new ExtensionRecordingQueryService(
@@ -1274,6 +1276,8 @@ namespace ExpressPackingMonitoring.Services
                             HandleClipFrame(ctx, path);
                         else if (method == "POST" && path.StartsWith("/api/videos/") && path.EndsWith("/clip/preview"))
                             HandleClipPreview(ctx, path);
+                        else if (method == "GET" && path.StartsWith("/api/videos/") && path.EndsWith("/clip/options"))
+                            HandleClipExportOptions(ctx, path);
                         else if (method == "POST" && path.StartsWith("/api/videos/") && path.EndsWith("/clip"))
                             HandleStartClip(ctx, path);
                         else if (method == "GET" && path.StartsWith("/api/videos/") && path.EndsWith("/thumbnail"))
@@ -1448,10 +1452,18 @@ namespace ExpressPackingMonitoring.Services
             {
                 return LanRequestCategory.BackupTransfer;
             }
-            if (path.Contains("/clip", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase)
+                && path.EndsWith("/clip", StringComparison.OrdinalIgnoreCase))
             {
                 return LanRequestCategory.ClipWork;
+            }
+            if (string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase)
+                && (path.EndsWith("/clip/timeline", StringComparison.OrdinalIgnoreCase)
+                    || path.EndsWith("/clip/frame", StringComparison.OrdinalIgnoreCase)
+                    || path.EndsWith("/clip/preview", StringComparison.OrdinalIgnoreCase)
+                    || path.EndsWith("/clip/prewarm", StringComparison.OrdinalIgnoreCase)))
+            {
+                return LanRequestCategory.Thumbnail;
             }
             if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase)
                 && path.EndsWith("/thumbnail", StringComparison.OrdinalIgnoreCase))
@@ -1975,7 +1987,12 @@ namespace ExpressPackingMonitoring.Services
                 _ = _mobileAppUpdatePolicy.RefreshInBackground();
                 NotifyMobileAppUpdateIfNeeded(heartbeat);
                 MobileAppUpdatePolicy updatePolicy = MobileAppUpdatePolicyProvider.MinimumPolicy;
-                MobileAppReleaseInfo latestRelease = _mobileAppUpdatePolicy.LatestRelease;
+                MobileAppReleaseInfo latestRelease =
+                    MobileAppUpdatePolicyProvider.SelectLatestReleaseForPlatform(
+                        heartbeat.Platform,
+                        _mobileAppUpdatePolicy.LatestRelease,
+                        _mobileAppUpdatePolicy.LatestIosRelease);
+                string platform = (heartbeat.Platform ?? "").Trim().ToLowerInvariant();
                 SendJson(ctx, 200, new
                 {
                     ok = true,
@@ -1993,7 +2010,11 @@ namespace ExpressPackingMonitoring.Services
                         latestVersion = latestRelease?.Version ?? "",
                         latestBuildNumber = latestRelease?.BuildNumber ?? 0,
                         latestTag = latestRelease?.TagName ?? "",
-                        downloadUrl = MobileAppUpdatePolicyProvider.ReleasesUrl
+                        latestPlatform = latestRelease?.Platform ?? "",
+                        downloadUrl = latestRelease?.DownloadUrl
+                            ?? (platform == "ios"
+                                ? MobileAppUpdatePolicyProvider.TestFlightJoinUrl
+                                : MobileAppUpdatePolicyProvider.ReleasesUrl)
                     }
                 });
             }
@@ -2117,17 +2138,19 @@ namespace ExpressPackingMonitoring.Services
             if (!ShouldNotifyUnknownMobileVersion(heartbeat))
                 return;
 
-            MobileAppReleaseInfo latest = _mobileAppUpdatePolicy.LatestRelease
-                ?? new MobileAppReleaseInfo(
-                    "",
-                    MobileAppUpdatePolicyProvider.MinimumPolicy.MinimumVersion,
-                    MobileAppUpdatePolicyProvider.MinimumPolicy.MinimumBuildNumber,
-                    MobileAppUpdatePolicyProvider.ReleasesUrl);
+            MobileAppReleaseInfo latest =
+                MobileAppUpdatePolicyProvider.SelectLatestReleaseForPlatform(
+                    heartbeat.Platform,
+                    _mobileAppUpdatePolicy.LatestRelease,
+                    _mobileAppUpdatePolicy.LatestIosRelease);
+            if (latest == null)
+                return;
 
             string nodeId = string.IsNullOrWhiteSpace(heartbeat.NodeId)
                 ? heartbeat.ClientId.Trim()
                 : heartbeat.NodeId.Trim();
-            string notificationKey = $"{nodeId}:unknown-version";
+            string notificationKey =
+                $"{nodeId}:unknown-version:{latest.Platform}";
             if (!_notifiedMobileAppUpdates.TryAdd(notificationKey, 0))
                 return;
 
@@ -5531,6 +5554,33 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
+        private void HandleClipExportOptions(HttpListenerContext ctx, string path)
+        {
+            try
+            {
+                if (!TryFindVideoId(path, "/clip/options", out long id))
+                {
+                    SendJson(ctx, 400, new { success = false, errorCode = "invalid_video_id", error = "视频 ID 无效" });
+                    return;
+                }
+
+                ClipExportInfo info = _clipService.GetExportInfo(id);
+                SendJson(ctx, 200, new
+                {
+                    success = true,
+                    durationSeconds = info.DurationSeconds,
+                    fileSizeBytes = info.FileSizeBytes,
+                    videoCodec = info.VideoCodec,
+                    av1Available = info.Av1Available
+                });
+            }
+            catch (Exception ex)
+            {
+                Log($"HandleClipExportOptions 异常: {ex.Message}");
+                SendJson(ctx, 400, new { success = false, error = ex.Message });
+            }
+        }
+
         private void HandleStartClip(HttpListenerContext ctx, string path)
         {
             try
@@ -5542,8 +5592,27 @@ namespace ExpressPackingMonitoring.Services
                 }
 
                 var request = ReadJsonBody<ClipRangeRequest>(ctx);
-                string taskId = _clipService.StartClip(id, request.StartSeconds, request.EndSeconds);
-                SendJson(ctx, 200, new { success = true, taskId });
+                ClipOutputOptions options = new(ClipOutputMode.Original);
+                if (string.Equals(request.Mode?.Trim(), "compressed", StringComparison.OrdinalIgnoreCase))
+                {
+                    VideoCompressionCodecMode codecMode = (request.Codec ?? "").Trim().ToLowerInvariant() switch
+                    {
+                        "h264" or "avc" => VideoCompressionCodecMode.H264,
+                        "h265" or "hevc" => VideoCompressionCodecMode.H265,
+                        "av1" => VideoCompressionCodecMode.Av1,
+                        _ => throw new ArgumentException("不支持的视频编码")
+                    };
+                    options = new ClipOutputOptions(
+                        ClipOutputMode.Compressed,
+                        request.TargetBytes,
+                        codecMode);
+                }
+                string taskId = _clipService.StartClip(
+                    id,
+                    request.StartSeconds,
+                    request.EndSeconds,
+                    options);
+                SendJson(ctx, 200, new { success = true, taskId, mode = options.Mode == ClipOutputMode.Compressed ? "compressed" : "original" });
             }
             catch (Exception ex)
             {

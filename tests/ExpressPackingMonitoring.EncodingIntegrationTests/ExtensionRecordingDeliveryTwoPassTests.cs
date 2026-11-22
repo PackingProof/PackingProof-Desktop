@@ -28,16 +28,17 @@ public sealed class ExtensionRecordingDeliveryTwoPassTests
             Assert.Equal(0, await RunAsync(ffmpegPath, string.Format(SourceArguments, sourcePath), directory));
 
             const long targetBytes = 1024 * 1024;
-            Assert.True(ExtensionRecordingDeliveryBitrate.TryCalculate(6, targetBytes, out ExtensionRecordingDeliveryBitrate? bitrate));
+            Assert.True(TargetSizeTranscodeBitrate.TryCalculate(6, targetBytes, out TargetSizeTranscodeBitrate? bitrate));
 
             string outputPath = Path.Combine(directory, "delivery.mp4");
             var progressValues = new List<double>();
-            bool completed = ExtensionRecordingDeliveryService.RunTwoPass(
+            bool completed = TargetSizeTranscodeEngine.RunTwoPass(
                 ffmpegPath, sourcePath, outputPath, outputPath + ".pass", "libx265", bitrate!, 6,
                 value => { lock (progressValues) progressValues.Add(value); },
-                out string failureCode);
+                TestContext.Current.CancellationToken,
+                out TargetSizeTranscodeFailure failure);
 
-            Assert.Equal("", failureCode);
+            Assert.Equal(TargetSizeTranscodeFailure.None, failure);
             Assert.True(completed);
             Assert.NotEmpty(progressValues);
             Assert.Equal(progressValues.OrderBy(value => value).ToList(), progressValues);

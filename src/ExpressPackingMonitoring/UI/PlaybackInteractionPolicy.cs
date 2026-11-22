@@ -17,6 +17,38 @@ internal readonly record struct PlaybackScreenshotDialogSize(
     double PreviewWidth,
     double PreviewHeight);
 
+internal sealed class PlaybackSecondaryActionState
+{
+    private int _activeActionCount;
+
+    internal bool IsActive => _activeActionCount > 0;
+
+    internal bool DeferAutoPlayUntilExplicitPlay { get; private set; }
+
+    internal void Begin()
+    {
+        _activeActionCount++;
+        DeferAutoPlayUntilExplicitPlay = true;
+    }
+
+    internal void End()
+    {
+        if (_activeActionCount > 0)
+            _activeActionCount--;
+    }
+
+    internal void BeginVideoSelection()
+    {
+        if (!IsActive)
+            DeferAutoPlayUntilExplicitPlay = false;
+    }
+
+    internal void AllowExplicitPlayback()
+    {
+        DeferAutoPlayUntilExplicitPlay = false;
+    }
+}
+
 internal static class PlaybackInteractionPolicy
 {
     internal const double SeekStepSeconds = 5;
@@ -84,6 +116,14 @@ internal static class PlaybackInteractionPolicy
         bool isClosing,
         bool hasLoadedMedia) =>
         wasPlaying && !isClosing && hasLoadedMedia;
+
+    internal static bool ShouldUnpauseAfterFirstFrame(
+        bool pendingStartUnpause,
+        bool secondaryActionPause,
+        bool deferAutoPlayUntilExplicitPlay) =>
+        pendingStartUnpause
+        && !secondaryActionPause
+        && !deferAutoPlayUntilExplicitPlay;
 
     internal static PlaybackScreenshotDialogSize CalculateScreenshotDialogSize(
         int pixelWidth,

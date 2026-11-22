@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using ExpressPackingMonitoring.Localization;
 
@@ -93,21 +94,28 @@ public static class AppDialog
     private static bool ShowOwned(ConfirmDialog dialog, Window? requestedOwner)
     {
         Window? owner = ResolveOwner(requestedOwner);
+        bool attachedToOwner = false;
         if (owner != null && owner != dialog)
         {
-            dialog.Owner = owner;
-            dialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            try
+            {
+                dialog.Owner = owner;
+                attachedToOwner = true;
+            }
+            catch (InvalidOperationException)
+            {
+                // 异步操作返回时原窗口可能刚刚关闭，降级为独立弹窗。
+            }
         }
-        else
-        {
-            dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        }
+        dialog.WindowStartupLocation = attachedToOwner
+            ? WindowStartupLocation.CenterOwner
+            : WindowStartupLocation.CenterScreen;
         return dialog.ShowDialog() == true;
     }
 
     private static Window? ResolveOwner(Window? requestedOwner)
     {
-        if (requestedOwner is { IsLoaded: true })
+        if (IsUsableOwner(requestedOwner))
             return requestedOwner;
 
         Application? application = Application.Current;
@@ -116,9 +124,13 @@ public static class AppDialog
 
         return application.Windows
                    .OfType<Window>()
-                   .FirstOrDefault(window => window.IsActive && window.IsLoaded)
-               ?? (application.MainWindow is { IsLoaded: true } mainWindow ? mainWindow : null);
+                   .FirstOrDefault(window => window.IsActive && IsUsableOwner(window))
+               ?? (IsUsableOwner(application.MainWindow) ? application.MainWindow : null);
     }
+
+    private static bool IsUsableOwner(Window? window) =>
+        window is { IsLoaded: true, IsVisible: true }
+        && new WindowInteropHelper(window).Handle != IntPtr.Zero;
 
     private static T InvokeOnUiThread<T>(Func<T> action)
     {

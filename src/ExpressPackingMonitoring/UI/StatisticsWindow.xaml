@@ -45,6 +45,7 @@
                 <StackPanel Orientation="Horizontal" Margin="0,0,30,0">
                     <TextBlock Text="时间范围: " VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}"/>
                     <ComboBox x:Name="PresetCombo" Width="100" SelectionChanged="RangePresetCombo_SelectionChanged">
+                        <ComboBoxItem Content="{loc:Localized 今日}" Tag="Today"/>
                         <ComboBoxItem Content="本周" Tag="Week"/>
                         <ComboBoxItem Content="本月" Tag="Month"/>
                         <ComboBoxItem Content="最近7天" Tag="Last7"/>

@@ -52,7 +52,7 @@ public partial class PlaybackWindow
     private void BeginAwaitingFirstFrame()
     {
         _awaitingFirstFrame = true;
-        _pendingStartUnpause = true;
+        _pendingStartUnpause = !_secondaryActionState.DeferAutoPlayUntilExplicitPlay;
         EnsureStartUnpauseFallbackTimer();
         _startUnpauseFallback!.Stop();
         _startUnpauseFallback.Start();
@@ -357,7 +357,10 @@ public partial class PlaybackWindow
     /// </summary>
     private void TryStartPlaybackAfterFirstFrame()
     {
-        bool shouldUnpause = _pendingStartUnpause;
+        bool shouldUnpause = PlaybackInteractionPolicy.ShouldUnpauseAfterFirstFrame(
+            _pendingStartUnpause,
+            _secondaryActionState.IsActive,
+            _secondaryActionState.DeferAutoPlayUntilExplicitPlay);
         _pendingStartUnpause = false;
         _startUnpauseFallback?.Stop();
 
@@ -366,6 +369,8 @@ public partial class PlaybackWindow
             if (!IsLoaded || _mediaPlayer == null)
                 return;
 
+            if (_secondaryActionState.IsActive)
+                shouldUnpause = false;
             if (shouldUnpause)
             {
                 _mediaPlayer.SetPause(false);

@@ -89,7 +89,12 @@
                                 <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份暂停">
-                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TransferAttentionText}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="已暂停">
+                                <Setter Property="Foreground" Value="{DynamicResource TransferAttentionText}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份位置不可用">
                                 <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>

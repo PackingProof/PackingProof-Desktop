@@ -235,6 +235,70 @@ public sealed class ExtensionMarketWindowTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ClosingWhileDetailsLoad_DoesNotPresentOwnedDialogs()
+    {
+        string source = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "ExtensionMarketWindow.xaml.cs")
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("private bool _isClosed;", source, StringComparison.Ordinal);
+        Assert.Contains("private bool CanUpdateUi => !_isClosed && IsLoaded && IsVisible;", source, StringComparison.Ordinal);
+        Assert.Contains("if (!CanUpdateUi)\n                return;", source, StringComparison.Ordinal);
+        Assert.Contains("_detailsCancellation?.Cancel();", source, StringComparison.Ordinal);
+        Assert.Contains("catch (OperationCanceledException)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SelectionKeepsCatalogInteractiveAndCancelsStaleDetails()
+    {
+        string source = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "ExtensionMarketWindow.xaml.cs")
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+        int handlerStart = source.IndexOf(
+            "private async void CatalogList_SelectionChanged",
+            StringComparison.Ordinal);
+        int handlerEnd = source.IndexOf(
+            "private void ShowDetailsLoading",
+            handlerStart,
+            StringComparison.Ordinal);
+
+        Assert.True(handlerStart >= 0 && handlerEnd > handlerStart);
+        string handler = source[handlerStart..handlerEnd];
+        Assert.Contains("_detailsCancellation?.Cancel();", handler, StringComparison.Ordinal);
+        Assert.Contains("ShowDetailsLoading(selected);", handler, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetBusy(true, \"正在读取扩展详情\")", handler, StringComparison.Ordinal);
+        Assert.Contains(
+            "BitmapImage image = await Task.Run(() => CreateScreenshotImage(bytes), token);",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DetailsUseVersionPinnedCacheBeforeNetwork()
+    {
+        string source = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "Services", "Extensions", "ExtensionMarketClient.cs")
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+        int methodStart = source.IndexOf(
+            "public async Task<ExtensionMarketDetails> LoadDetailsAsync",
+            StringComparison.Ordinal);
+        int methodEnd = source.IndexOf(
+            "public async Task<string> DownloadPackageAsync",
+            methodStart,
+            StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0 && methodEnd > methodStart);
+        string method = source[methodStart..methodEnd];
+        int cacheRead = method.IndexOf("File.ReadAllBytesAsync(cachePath", StringComparison.Ordinal);
+        int networkRead = method.IndexOf("DownloadBytesAsync(", StringComparison.Ordinal);
+        Assert.True(cacheRead >= 0 && networkRead > cacheRead);
+        Assert.Contains(
+            "catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)",
+            method,
+            StringComparison.Ordinal);
+    }
+
     private static string ReadRepositoryFile(params string[] parts)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

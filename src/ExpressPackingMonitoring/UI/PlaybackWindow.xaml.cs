@@ -59,6 +59,7 @@ namespace ExpressPackingMonitoring.UI
         public string Duration { get; set; } = "";
         public double DurationSeconds { get; set; }
         public string FileSize { get; set; } = "";
+        public long FileSizeBytes { get; set; }
         public string StopReason { get; set; } = "";
         public string VideoCodec { get; set; } = "";
         public string VideoEncoder { get; set; } = "";
@@ -101,6 +102,29 @@ namespace ExpressPackingMonitoring.UI
 
         /// <summary>不能删除的原因，作为禁用菜单项的悬浮提示。</summary>
         public string DeleteBlockedHint { get; set; } = "";
+
+        /// <summary>压缩副本需要原始文件、可计算时长，而且确实还有缩小空间。</summary>
+        public bool CanCompress =>
+            !IsUnavailable
+            && !string.IsNullOrWhiteSpace(FullPath)
+            && DurationSeconds > 0
+            && FileSizeBytes > VideoCompressionPolicy.Mebibyte;
+
+        public string CompressBlockedHint
+        {
+            get
+            {
+                if (CanCompress)
+                    return "";
+                if (IsUnavailable || string.IsNullOrWhiteSpace(FullPath))
+                    return AppLanguage.Get("录像文件不存在或当前不可访问");
+                if (DurationSeconds <= 0)
+                    return AppLanguage.Get("无法读取录像时长");
+                if (FileSizeBytes <= VideoCompressionPolicy.Mebibyte)
+                    return AppLanguage.Get("当前文件已很小，无需压缩");
+                return AppLanguage.Get("当前录像无法导出");
+            }
+        }
 
         /// <summary>这条录像在备份位置上还有归档副本：删除会保留它，确认框要说明。</summary>
         public bool HasArchiveCopy { get; set; }
@@ -236,6 +260,7 @@ namespace ExpressPackingMonitoring.UI
             CancellationToken,
             Task<MkvConversionResult>>? _prepareMkvForPlayback;
         private readonly Func<VideoItem, Task<string?>>? _webClipUrlProvider;
+        private readonly IReadOnlyCollection<string>? _validatedEncoders;
         private string _lastImportFolder;
         private readonly DispatcherTimer _timer;
         private readonly DispatcherTimer _searchTimer;
@@ -285,7 +310,8 @@ namespace ExpressPackingMonitoring.UI
             bool showDeletedVideos = true,
             string localComputerName = "",
             bool canDeleteRecords = false,
-            Func<VideoItem, Task<string?>>? webClipUrlProvider = null)
+            Func<VideoItem, Task<string?>>? webClipUrlProvider = null,
+            IReadOnlyCollection<string>? validatedEncoders = null)
             : this(
                 folderPath,
                 db,
@@ -293,7 +319,8 @@ namespace ExpressPackingMonitoring.UI
                 null,
                 localComputerName: localComputerName,
                 canDeleteRecords: canDeleteRecords,
-                webClipUrlProvider: webClipUrlProvider)
+                webClipUrlProvider: webClipUrlProvider,
+                validatedEncoders: validatedEncoders)
         {
         }
 
@@ -314,7 +341,8 @@ namespace ExpressPackingMonitoring.UI
                 string,
                 CancellationToken,
                 Task<MkvConversionResult>>? prepareMkvForPlayback = null,
-            Func<VideoItem, Task<string?>>? webClipUrlProvider = null)
+            Func<VideoItem, Task<string?>>? webClipUrlProvider = null,
+            IReadOnlyCollection<string>? validatedEncoders = null)
         {
             InitializeComponent();
             _folderPath = folderPath;
@@ -330,6 +358,7 @@ namespace ExpressPackingMonitoring.UI
             _videosImported = videosImported;
             _prepareMkvForPlayback = prepareMkvForPlayback;
             _webClipUrlProvider = webClipUrlProvider;
+            _validatedEncoders = validatedEncoders;
             BtnWebClip.Visibility = _webClipUrlProvider == null
                 ? Visibility.Collapsed
                 : Visibility.Visible;
@@ -1336,6 +1365,9 @@ namespace ExpressPackingMonitoring.UI
                 FileSize = (deleted || missing || storedOnHost || !localExists)
                     ? FormatFileSize(record.FileSizeBytes)
                     : FormatFileSize(info!.Length),
+                FileSizeBytes = (!deleted && !missing && !storedOnHost && localExists)
+                    ? info!.Length
+                    : record.FileSizeBytes,
                 StopReason = PlaybackReasonText.StopReason(record.SourceType, record.StopReason),
                 VideoCodec = record.VideoCodec,
                 VideoEncoder = record.VideoEncoder,
@@ -1394,6 +1426,7 @@ namespace ExpressPackingMonitoring.UI
                         DisplayName = GetOrderDisplayName("", "", file.Name),
                         FullPath = file.FullName,
                         FileSize = FormatFileSize(file.Length),
+                        FileSizeBytes = file.Length,
                         SourceDisplay = string.IsNullOrWhiteSpace(_computerName) ? "—" : _computerName,
                         StartTime = file.CreationTime,
                         File = file

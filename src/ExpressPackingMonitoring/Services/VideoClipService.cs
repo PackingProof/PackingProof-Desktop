@@ -16,16 +16,6 @@ using System.Threading.Tasks;
 
 namespace ExpressPackingMonitoring.Services
 {
-    public sealed class ClipRangeRequest
-    {
-        public double StartSeconds { get; set; }
-        public double EndSeconds { get; set; }
-        public double Seconds { get; set; }
-        public string PreviewSide { get; set; } = "";
-        public int FrameCount { get; set; }
-        public int FrameIndex { get; set; } = -1;
-    }
-
     public sealed class VideoClipService : IDisposable
     {
         private const int MaxTrackedClipTasks = 100;
@@ -37,6 +27,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly Func<string, bool> _isCurrentRecordingFile;
         private readonly Action _requestCacheCleanup;
         private readonly FfmpegWorkLimiter _ffmpegWorkLimiter;
+        private readonly VideoClipCompressionRunner _compressionRunner;
         private readonly ConcurrentDictionary<string, ClipTaskState> _tasks = new();
         private readonly ConcurrentDictionary<string, object> _previewLocks = new(StringComparer.OrdinalIgnoreCase);
         private readonly object _taskRegistrationLock = new();
@@ -51,14 +42,16 @@ namespace ExpressPackingMonitoring.Services
             Action<string> log,
             Func<VideoRecord, MkvConversionResult> mkvConverter = null,
             Func<string, bool> isCurrentRecordingFile = null,
-            Action requestCacheCleanup = null)
+            Action requestCacheCleanup = null,
+            Func<IReadOnlyList<string>> validatedEncodersProvider = null)
             : this(
                 db,
                 log,
                 mkvConverter,
                 isCurrentRecordingFile,
                 requestCacheCleanup,
-                new FfmpegWorkLimiter())
+                new FfmpegWorkLimiter(),
+                validatedEncodersProvider)
         {
         }
 
@@ -68,7 +61,8 @@ namespace ExpressPackingMonitoring.Services
             Func<VideoRecord, MkvConversionResult> mkvConverter,
             Func<string, bool> isCurrentRecordingFile,
             Action requestCacheCleanup,
-            FfmpegWorkLimiter ffmpegWorkLimiter)
+            FfmpegWorkLimiter ffmpegWorkLimiter,
+            Func<IReadOnlyList<string>> validatedEncodersProvider = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _log = log ?? (_ => { });
@@ -76,8 +70,21 @@ namespace ExpressPackingMonitoring.Services
             _isCurrentRecordingFile = isCurrentRecordingFile ?? (_ => false);
             _requestCacheCleanup = requestCacheCleanup ?? (() => { });
             _ffmpegWorkLimiter = ffmpegWorkLimiter ?? throw new ArgumentNullException(nameof(ffmpegWorkLimiter));
+            _compressionRunner = new VideoClipCompressionRunner(
+                _ffmpegWorkLimiter,
+                validatedEncodersProvider);
             Directory.CreateDirectory(AppPaths.ClipPreviewDir);
             Directory.CreateDirectory(AppPaths.ClipsDir);
+        }
+
+        internal ClipExportInfo GetExportInfo(long videoId)
+        {
+            var record = GetAvailableRecord(videoId);
+            string sourcePath = ResolveClipSourcePath(record);
+            return _compressionRunner.GetExportInfo(
+                record,
+                sourcePath,
+                ResolveDuration(record));
         }
 
         public ClipPreviewResult CreatePreview(long videoId, double startSeconds, double endSeconds, string previewSide = "")
@@ -270,15 +277,51 @@ namespace ExpressPackingMonitoring.Services
 
         public string StartClip(long videoId, double startSeconds, double endSeconds)
         {
+            return StartClip(
+                videoId,
+                startSeconds,
+                endSeconds,
+                new ClipOutputOptions(ClipOutputMode.Original));
+        }
+
+        internal string StartClip(
+            long videoId,
+            double startSeconds,
+            double endSeconds,
+            ClipOutputOptions options)
+        {
             ThrowIfDisposed();
+            options ??= new ClipOutputOptions(ClipOutputMode.Original);
             var record = GetAvailableRecord(videoId);
             string sourcePath = ResolveClipSourcePath(record);
             double duration = ResolveDuration(record);
             ValidateRange(startSeconds, endSeconds, duration);
+            if (options.Mode == ClipOutputMode.Compressed
+                && options.TargetBytes <= 0)
+            {
+                throw new ArgumentException("目标大小无效");
+            }
+            if (options.Mode == ClipOutputMode.Compressed
+                && options.CodecMode == VideoCompressionCodecMode.Av1
+                && _compressionRunner.ResolveAv1Encoder().Length == 0)
+            {
+                throw new InvalidOperationException("没有已验证可用的 AV1 编码器，请改用 H.265");
+            }
+            VideoClipCompressionRunner.ValidateTarget(
+                record,
+                sourcePath,
+                duration,
+                startSeconds,
+                endSeconds,
+                options);
 
             string taskId = Guid.NewGuid().ToString("N");
             string sourceName = Path.GetFileNameWithoutExtension(record.FilePath);
-            string outputName = SanitizeFileName($"{sourceName}_clip_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
+            string outputName = VideoClipFilePolicy.BuildOutputFileName(
+                sourceName,
+                taskId,
+                DateTime.Now,
+                options);
             string outputPath = Path.Combine(AppPaths.ClipsDir, outputName);
 
             var task = new ClipTaskState
@@ -289,6 +332,7 @@ namespace ExpressPackingMonitoring.Services
                 OutputPath = outputPath,
                 DownloadUrl = "/api/clips/" + Uri.EscapeDataString(outputName),
                 PlayUrl = "/api/clips/" + Uri.EscapeDataString(outputName) + "?inline=1",
+                Options = options,
                 CreatedAtUtc = DateTime.UtcNow
             };
             lock (_taskRegistrationLock)
@@ -299,7 +343,12 @@ namespace ExpressPackingMonitoring.Services
                 _tasks[taskId] = task;
             }
 
-            _ = Task.Run(() => RunClipTaskAsync(task, sourcePath, startSeconds, endSeconds));
+            _ = Task.Run(() => RunClipTaskAsync(
+                task,
+                record,
+                sourcePath,
+                startSeconds,
+                endSeconds));
             return taskId;
         }
 
@@ -316,6 +365,8 @@ namespace ExpressPackingMonitoring.Services
                     Success = !string.Equals(task.Status, "failed", StringComparison.OrdinalIgnoreCase),
                     Status = task.Status,
                     Message = task.Message,
+                    Stage = task.Stage,
+                    Progress = task.ProgressPercent,
                     DownloadUrl = completed ? task.DownloadUrl : "",
                     PlayUrl = completed ? task.PlayUrl : ""
                 };
@@ -334,6 +385,7 @@ namespace ExpressPackingMonitoring.Services
 
                 task.CancelRequested = true;
                 task.Status = "canceled";
+                task.Stage = "canceled";
                 task.Message = "剪辑已取消";
                 task.CompletedAtUtc = DateTime.UtcNow;
                 task.Cancellation.Cancel();
@@ -349,7 +401,7 @@ namespace ExpressPackingMonitoring.Services
             }
 
             TryDelete(task.OutputPath);
-            TryDelete(GetTempClipPath(task.OutputPath));
+            TryDelete(VideoClipFilePolicy.GetTempClipPath(task.OutputPath));
             return GetTask(taskId);
         }
 
@@ -363,11 +415,15 @@ namespace ExpressPackingMonitoring.Services
             return ResolveFileInDirectory(AppPaths.ClipsDir, fileName, ".mp4");
         }
 
-        private async Task RunClipTaskAsync(ClipTaskState task, string inputPath, double startSeconds, double endSeconds)
+        private async Task RunClipTaskAsync(
+            ClipTaskState task,
+            VideoRecord record,
+            string inputPath,
+            double startSeconds,
+            double endSeconds)
         {
-            string tmpPath = GetTempClipPath(task.OutputPath);
+            string tmpPath = VideoClipFilePolicy.GetTempClipPath(task.OutputPath);
             double duration = endSeconds - startSeconds;
-            string args = $"-y -ss {FormatSeconds(startSeconds)} -i {Quote(inputPath)} -t {FormatSeconds(duration)} -map 0:v:0 -map 0:a? -c copy -avoid_negative_ts make_zero -movflags +faststart -f mp4 {Quote(tmpPath)}";
             bool slotEntered = false;
             using var taskCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 _disposeCts.Token,
@@ -381,11 +437,33 @@ namespace ExpressPackingMonitoring.Services
                     if (_disposed || task.CancelRequested || task.Status == "canceled")
                         return;
                     task.Status = "running";
-                    task.Message = "监控端正在剪辑中，请稍候……";
+                    task.Stage = "running";
+                    task.Message = task.Options.Mode == ClipOutputMode.Compressed
+                        ? "监控端正在压缩剪辑，请稍候……"
+                        : "监控端正在剪辑中，请稍候……";
                 }
 
-                int timeoutMs = (int)Math.Clamp(duration * 2000 + 60_000, 60_000, 15 * 60_000);
-                var result = RunFFmpeg(args, tmpPath, timeoutMs, task, taskCancellation.Token);
+                string failureMessage = "";
+                bool completed;
+                if (task.Options.Mode == ClipOutputMode.Compressed)
+                {
+                    completed = await RunCompressedClipAsync(
+                        task,
+                        record,
+                        inputPath,
+                        tmpPath,
+                        startSeconds,
+                        duration,
+                        taskCancellation.Token);
+                }
+                else
+                {
+                    string args = $"-y -ss {FormatSeconds(startSeconds)} -i {Quote(inputPath)} -t {FormatSeconds(duration)} -map 0:v:0 -map 0:a? -c copy -avoid_negative_ts make_zero -movflags +faststart -f mp4 {Quote(tmpPath)}";
+                    int timeoutMs = (int)Math.Clamp(duration * 2000 + 60_000, 60_000, 15 * 60_000);
+                    var result = RunFFmpeg(args, tmpPath, timeoutMs, task, taskCancellation.Token);
+                    completed = result.Success;
+                    failureMessage = result.Success ? "" : "FFmpeg 剪辑失败";
+                }
                 lock (task.Sync)
                 {
                     if (task.CancelRequested || task.Status == "canceled")
@@ -396,16 +474,23 @@ namespace ExpressPackingMonitoring.Services
                         return;
                     }
 
-                    if (!result.Success)
+                    if (!completed)
                     {
                         task.Status = "failed";
-                        task.Message = "FFmpeg 剪辑失败";
+                        task.Stage = "failed";
+                        if (!string.IsNullOrWhiteSpace(failureMessage))
+                            task.Message = failureMessage;
+                        else if (string.IsNullOrWhiteSpace(task.Message)
+                            || task.Message == "监控端正在压缩剪辑，请稍候……")
+                            task.Message = "视频处理失败";
                         TryDelete(tmpPath);
                         return;
                     }
 
                     File.Move(tmpPath, task.OutputPath, overwrite: true);
                     task.Status = "completed";
+                    task.Stage = "completed";
+                    task.ProgressPercent = 100;
                     task.Message = "剪辑完成";
                     RequestCacheCleanup();
                 }
@@ -416,6 +501,7 @@ namespace ExpressPackingMonitoring.Services
                 {
                     task.CancelRequested = true;
                     task.Status = "canceled";
+                    task.Stage = "canceled";
                     task.Message = _disposeCts.IsCancellationRequested
                         ? "服务已停止，剪辑已取消"
                         : "剪辑已取消";
@@ -430,6 +516,7 @@ namespace ExpressPackingMonitoring.Services
                     if (task.Status != "canceled")
                     {
                         task.Status = "failed";
+                        task.Stage = "failed";
                         task.Message = "FFmpeg 剪辑失败";
                     }
                 }
@@ -448,6 +535,63 @@ namespace ExpressPackingMonitoring.Services
                 if (slotEntered)
                     _clipSlots.Release();
                 CleanupTrackedTasks();
+            }
+        }
+
+        private async Task<bool> RunCompressedClipAsync(
+            ClipTaskState task,
+            VideoRecord record,
+            string inputPath,
+            string outputPath,
+            double startSeconds,
+            double durationSeconds,
+            CancellationToken cancellationToken)
+        {
+            var progress = new Progress<VideoCompressionProgress>(value =>
+            {
+                lock (task.Sync)
+                {
+                    if (task.CancelRequested
+                        || task.Status is "completed" or "failed" or "canceled")
+                        return;
+                    task.Stage = value.Stage switch
+                    {
+                        VideoCompressionStage.Preparing => "preparing",
+                        VideoCompressionStage.VerifyingSize => "verifying",
+                        VideoCompressionStage.Retrying => "retrying",
+                        VideoCompressionStage.Publishing => "publishing",
+                        _ => "compressing"
+                    };
+                    task.ProgressPercent = Math.Clamp(value.Percent, 0, 100);
+                    task.Message = value.Stage switch
+                    {
+                        VideoCompressionStage.Preparing => "正在准备压缩",
+                        VideoCompressionStage.VerifyingSize => "正在确认输出大小",
+                        VideoCompressionStage.Retrying => "正在重新压缩以缩小文件",
+                        VideoCompressionStage.Publishing => "正在保存压缩版本",
+                        _ => $"正在压缩 {task.ProgressPercent}%"
+                    };
+                }
+            });
+
+            try
+            {
+                await _compressionRunner.CompressAsync(
+                    record,
+                    inputPath,
+                    outputPath,
+                    startSeconds,
+                    durationSeconds,
+                    task.Options,
+                    progress,
+                    cancellationToken).ConfigureAwait(false);
+                return true;
+            }
+            catch (VideoCompressionException ex)
+            {
+                lock (task.Sync)
+                    task.Message = ex.Message;
+                return false;
             }
         }
 
@@ -561,7 +705,7 @@ namespace ExpressPackingMonitoring.Services
                 throw new InvalidOperationException("FFmpeg 处理失败");
         }
 
-        private FFmpegResult RunFFmpeg(
+        private ClipFFmpegResult RunFFmpeg(
             string args,
             string outputPath,
             int timeoutMs,
@@ -586,7 +730,7 @@ namespace ExpressPackingMonitoring.Services
 
             using var proc = Process.Start(psi);
             if (proc == null)
-                return new FFmpegResult(false, -1, "无法启动 FFmpeg");
+                return new ClipFFmpegResult(false, -1, "无法启动 FFmpeg");
 
             if (task != null)
             {
@@ -620,14 +764,14 @@ namespace ExpressPackingMonitoring.Services
                 try { proc.Kill(entireProcessTree: true); } catch { }
                 stderr = "FFmpeg 执行超时";
                 _log($"VideoClip FFmpeg: 退出码=-1, stderr={stderr}");
-                return new FFmpegResult(false, -1, stderr);
+                return new ClipFFmpegResult(false, -1, stderr);
             }
 
             try { stderr = stderrTask.GetAwaiter().GetResult(); } catch { }
             cancellationToken.ThrowIfCancellationRequested();
             bool success = proc.ExitCode == 0 && IsUsableFile(outputPath);
             _log($"VideoClip FFmpeg: 退出码={proc.ExitCode}, stderr={TrimForLog(stderr)}");
-            return new FFmpegResult(success, proc.ExitCode, stderr);
+            return new ClipFFmpegResult(success, proc.ExitCode, stderr);
         }
 
         private string EnsurePreviewFrame(long videoId, string filePath, double seconds, double duration, string label, bool requestCleanup = true)
@@ -831,20 +975,6 @@ namespace ExpressPackingMonitoring.Services
             return File.Exists(path) && new FileInfo(path).Length > 0;
         }
 
-        private static string SanitizeFileName(string fileName)
-        {
-            foreach (char c in Path.GetInvalidFileNameChars())
-                fileName = fileName.Replace(c, '_');
-            return fileName;
-        }
-
-        private static string GetTempClipPath(string outputPath)
-        {
-            return Path.Combine(
-                Path.GetDirectoryName(outputPath) ?? AppPaths.ClipsDir,
-                Path.GetFileNameWithoutExtension(outputPath) + ".tmp" + Path.GetExtension(outputPath));
-        }
-
         private static string TrimForLog(string value)
         {
             if (string.IsNullOrEmpty(value)) return "";
@@ -861,64 +991,5 @@ namespace ExpressPackingMonitoring.Services
             catch { }
         }
 
-        private sealed class ClipTaskState
-        {
-            public string TaskId { get; set; }
-            public string Status { get; set; }
-            public string Message { get; set; }
-            public string OutputPath { get; set; }
-            public string DownloadUrl { get; set; }
-            public string PlayUrl { get; set; }
-            public bool CancelRequested { get; set; }
-            public Process Process { get; set; }
-            public CancellationTokenSource Cancellation { get; } = new();
-            public DateTime CreatedAtUtc { get; set; }
-            public DateTime? CompletedAtUtc { get; set; }
-            public object Sync { get; } = new();
-        }
-
-        private readonly record struct FFmpegResult(bool Success, int ExitCode, string Stderr);
-    }
-
-    public sealed class ClipPreviewResult
-    {
-        public bool Success { get; set; }
-        public double VideoDuration { get; set; }
-        public double StartSeconds { get; set; }
-        public double EndSeconds { get; set; }
-        public double DurationSeconds { get; set; }
-        public string StartPreviewUrl { get; set; }
-        public string EndPreviewUrl { get; set; }
-    }
-
-    public sealed class ClipTaskSnapshot
-    {
-        public bool Success { get; set; }
-        public string Status { get; set; }
-        public string Message { get; set; }
-        public string DownloadUrl { get; set; } = "";
-        public string PlayUrl { get; set; } = "";
-    }
-
-    public sealed class ClipTimelineResult
-    {
-        public bool Success { get; set; }
-        public double VideoDuration { get; set; }
-        public List<ClipTimelineFrame> Frames { get; set; } = new();
-    }
-
-    public sealed class ClipTimelineFrame
-    {
-        public int Index { get; set; }
-        public double Seconds { get; set; }
-        public string Url { get; set; } = "";
-    }
-
-    public sealed class ClipPreviewFrameResult
-    {
-        public bool Success { get; set; }
-        public double VideoDuration { get; set; }
-        public double Seconds { get; set; }
-        public string Url { get; set; } = "";
     }
 }

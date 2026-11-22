@@ -210,6 +210,23 @@ public sealed class UiScreenshotTests
                 SizeToContent = SizeToContent.Manual,
                 Height = 420
             });
+        TryCapture(
+            "video-compression-dialog",
+            outputDirectory,
+            () =>
+            {
+                var dialog = new VideoCompressionDialog(
+                    new VideoCompressionSource(
+                        "SF1234567890",
+                        "source.mp4",
+                        Path.Combine(Path.GetTempPath(), "source.mp4"),
+                        "h264",
+                        95,
+                        286L * VideoCompressionPolicy.Mebibyte));
+                if (dialog.FindName("TargetSizeSlider") is Slider targetSize)
+                    targetSize.Value = 143;
+                return dialog;
+            });
         // 扩展市场构造时会去拉远端目录，截图时容易被网络重试卡住，先跳过。
     }
 

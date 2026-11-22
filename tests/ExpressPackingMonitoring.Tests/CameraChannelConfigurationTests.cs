@@ -678,7 +678,8 @@ public sealed class CameraChannelConfigurationTests
     {
         string settings = ReadProjectFile(Path.Combine("UI", "SettingsWindow.xaml"));
 
-        Assert.Contains("ItemsControl ItemsSource=\"{Binding OverlayCameraCards}\"", settings, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"OverlayCameraChannelsPanel\"", settings, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding OverlayCameraCards}\"", settings, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding DeviceChoices}\"", settings, StringComparison.Ordinal);
         Assert.Contains("SelectedItem=\"{Binding SelectedDevice, Mode=TwoWay}\"", settings, StringComparison.Ordinal);
         // 来源就是开关：选"无"时其余选项整块收起。

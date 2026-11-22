@@ -204,57 +204,64 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <WrapPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,24,0">
-                            <TextBlock Text="今日备份"
-                                       FontSize="15"
-                                       VerticalAlignment="Bottom"
-                                       Margin="0,0,8,4"
-                                       Foreground="{DynamicResource TextSecondary}"/>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,30,0">
-                                <TextBlock x:Name="TodayBackupCountTextBlock"
-                                           Text="0"
-                                           FontSize="27"
-                                           FontWeight="Black"
-                                           Foreground="{DynamicResource AccentBlueDark}"/>
-                                <TextBlock Text="个"
+                    <Button x:Name="BackupStatsButton"
+                            Style="{StaticResource StatsLinkButtonStyle}"
+                            Click="OpenStatistics_Click"
+                            PreviewMouseLeftButtonUp="BackupStats_MouseLeftButtonUp"
+                            ToolTip="{loc:Localized 数据统计}">
+                        <WrapPanel VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,24,0">
+                                <TextBlock Text="今日备份"
                                            FontSize="15"
-                                           Margin="2,0,0,4"
                                            VerticalAlignment="Bottom"
-                                           Foreground="{DynamicResource AccentBlueDark}"/>
+                                           Margin="0,0,8,4"
+                                           Foreground="{DynamicResource TextSecondary}"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,30,0">
+                                    <TextBlock x:Name="TodayBackupCountTextBlock"
+                                               Text="0"
+                                               FontSize="27"
+                                               FontWeight="Black"
+                                               Foreground="{DynamicResource AccentBlueDark}"/>
+                                    <TextBlock Text="个"
+                                               FontSize="15"
+                                               Margin="2,0,0,4"
+                                               VerticalAlignment="Bottom"
+                                               Foreground="{DynamicResource AccentBlueDark}"/>
+                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="累计备份"
-                                       FontSize="15"
-                                       VerticalAlignment="Bottom"
-                                       Margin="0,0,8,4"
-                                       Foreground="{DynamicResource TextSecondary}"/>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock x:Name="TotalBackupCountTextBlock"
-                                           Text="0"
-                                           FontSize="27"
-                                           FontWeight="Black"
-                                           Foreground="{DynamicResource AccentBlueDark}"/>
-                                <TextBlock Text="个"
+                                <TextBlock Text="累计备份"
                                            FontSize="15"
-                                           Margin="2,0,0,4"
                                            VerticalAlignment="Bottom"
-                                           Foreground="{DynamicResource AccentBlueDark}"/>
+                                           Margin="0,0,8,4"
+                                           Foreground="{DynamicResource TextSecondary}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="TotalBackupCountTextBlock"
+                                               Text="0"
+                                               FontSize="27"
+                                               FontWeight="Black"
+                                               Foreground="{DynamicResource AccentBlueDark}"/>
+                                    <TextBlock Text="个"
+                                               FontSize="15"
+                                               Margin="2,0,0,4"
+                                               VerticalAlignment="Bottom"
+                                               Foreground="{DynamicResource AccentBlueDark}"/>
+                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
-                    </WrapPanel>
+                        </WrapPanel>
+                    </Button>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button x:Name="StatisticsButton"
+                        <Button x:Name="ExtensionButton"
                                 Style="{StaticResource SummaryButtonStyle}"
                                 Margin="0,0,10,0"
-                                Click="OpenStatistics_Click">
+                                Click="OpenExtension_Click"
+                                ToolTip="{loc:Localized 扩展市场}">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <Path Data="{StaticResource FluentDataIcon}"
+                                <Path Data="{StaticResource FluentIntegrationIcon}"
                                       Width="17" Height="17" Stretch="Uniform"
                                       Fill="{DynamicResource AccentBlue}"/>
-                                <TextBlock Text="数据" Margin="7,0,0,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Localized 扩展}" Margin="7,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="PlaybackButton"

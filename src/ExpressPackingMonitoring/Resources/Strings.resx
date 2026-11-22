@@ -1103,6 +1103,8 @@ Continue? After packaging, send the archive to {0}</value></data>
   <data name="Extension.Access.None" xml:space="preserve"><value>• No usable API access requested</value></data>
   <data name="Extension.Market.PreviewLoadFailed" xml:space="preserve"><value>Could not load extension preview: {0}</value></data>
   <data name="Extension.Market.OfflineLocalAvailable" xml:space="preserve"><value>Extension market is unavailable, but local extensions can still be installed: {0}</value></data>
+  <data name="正在读取兼容信息" xml:space="preserve"><value>Loading compatibility information</value></data>
+  <data name="正在读取扩展详情" xml:space="preserve"><value>Loading extension details</value></data>
   <data name="扫码预录制" xml:space="preserve"><value>Scan pre-recording</value></data>
   <data name="约 0 秒 / 0 MB 内存" xml:space="preserve"><value>About 0 seconds / 0 MB memory</value></data>
   <data name="播报时调为最大音量" xml:space="preserve"><value>Max volume for announcements</value></data>
@@ -1925,10 +1927,9 @@ Continue? After packaging, send the archive to {0}</value></data>
   <data name="等待主机允许连接，录像仍保存在本机" xml:space="preserve"><value>Waiting for the host to allow this client. Recordings remain on this computer.</value></data>
   <data name="暂停上传" xml:space="preserve"><value>Pause uploads</value></data>
   <data name="继续上传" xml:space="preserve"><value>Resume uploads</value></data>
-  <data name="上传已暂停" xml:space="preserve"><value>Uploads paused</value></data>
   <data name="已暂停" xml:space="preserve"><value>Paused</value></data>
-  <data name="已暂停上传，{0} 个录像保存在本机" xml:space="preserve"><value>Uploads paused; {0} recordings kept on this computer</value></data>
-  <data name="上传已暂停，暂无待上传录像" xml:space="preserve"><value>Uploads are paused; no pending recordings</value></data>
+  <data name="已暂停，{0} 个录像保存在本机" xml:space="preserve"><value>Paused; {0} recordings kept on this computer</value></data>
+  <data name="已暂停，暂无待上传录像" xml:space="preserve"><value>Paused; no pending recordings</value></data>
   <data name="保存上传状态失败：{0}" xml:space="preserve"><value>Could not save upload state: {0}</value></data>
   <data name="保存主机拒绝了本机连接申请，可重新申请或更换保存主机" xml:space="preserve"><value>The storage host denied this connection request. Retry or choose another host.</value></data>
   <data name="保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”" xml:space="preserve"><value>The storage host did not allow this connection. Retry and choose Allow on the storage host.</value></data>
@@ -1945,12 +1946,15 @@ Continue? After packaging, send the archive to {0}</value></data>
   <data name="正在重新连接" xml:space="preserve"><value>Reconnecting</value></data>
   <data name="无法保存主机连接状态" xml:space="preserve"><value>Could not save the host connection state</value></data>
   <data name="NetworkCameraStreamCopy" xml:space="preserve"><value>Source stream copy (experimental)</value></data>
-  <data name="NetworkCameraStreamCopyHint" xml:space="preserve"><value>No re-encoding; low-spec friendly. Some features are unavailable</value></data>
+  <data name="NetworkCameraStreamCopyHint" xml:space="preserve"><value>No re-encoding; low-spec friendly</value></data>
   <data name="以下功能将失效" xml:space="preserve"><value>These features will be unavailable</value></data>
-  <data name="NetworkCameraStreamCopyUnavailableFeatures" xml:space="preserve"><value>Recording watermark
+  <data name="NetworkCameraStreamCopyUnavailableFeatures" xml:space="preserve"><value>Compositing sub-camera video into recordings
+Recording watermark
 Camera rotation
 Pre-record buffer
 Local audio</value></data>
+  <data name="NetworkCameraStreamCopySubCameraScanStillAvailable" xml:space="preserve"><value>Sub-cameras can still be used for barcode scanning</value></data>
+  <data name="NetworkCameraStreamCopyOverlayNotice" xml:space="preserve"><value>With source stream copy on, sub-camera video is not composited into recordings but remains available for preview and barcode scanning</value></data>
   <data name="原码流直存启动失败，已回退到普通录像" xml:space="preserve"><value>Direct network stream copy failed; switched to standard recording</value></data>
   <data name="原码流直存条件不满足，本次使用普通录像" xml:space="preserve"><value>Direct network stream copy requirements are not met; using standard recording</value></data>
   <data name="原码流直传中断，正在结束录像" xml:space="preserve"><value>Direct network stream copy stopped unexpectedly; ending the recording</value></data>
@@ -1968,4 +1972,56 @@ Local audio</value></data>
   <data name="WindowsDevicePermission.CameraOpenSettings" xml:space="preserve"><value>Open camera permission settings</value></data>
   <data name="WindowsDevicePermission.MicrophoneOpenSettings" xml:space="preserve"><value>Open microphone permission settings</value></data>
   <data name="WindowsDevicePermission.OpenFailed" xml:space="preserve"><value>Could not open Windows permission settings</value></data>
+  <data name="导出压缩版本" xml:space="preserve"><value>Export compressed version</value></data>
+  <data name="导出压缩版本…" xml:space="preserve"><value>Export compressed version…</value></data>
+  <data name="生成较小的新文件，不修改原录像" xml:space="preserve"><value>Create a smaller copy without changing the original recording</value></data>
+  <data name="单号" xml:space="preserve"><value>Order number</value></data>
+  <data name="原始大小" xml:space="preserve"><value>Original size</value></data>
+  <data name="录制时长" xml:space="preserve"><value>Duration</value></data>
+  <data name="当前编码" xml:space="preserve"><value>Current codec</value></data>
+  <data name="编码方式" xml:space="preserve"><value>Codec</value></data>
+  <data name="目标大小" xml:space="preserve"><value>Target size</value></data>
+  <data name="预计大小" xml:space="preserve"><value>Estimated size</value></data>
+  <data name="开始导出" xml:space="preserve"><value>Start export</value></data>
+  <data name="原录像不会被修改" xml:space="preserve"><value>The original recording will not be changed</value></data>
+  <data name="保存导出压缩版本" xml:space="preserve"><value>Save exported compressed version</value></data>
+  <data name="MP4 视频 (*.mp4)|*.mp4" xml:space="preserve"><value>MP4 video (*.mp4)|*.mp4</value></data>
+  <data name="导出压缩版本必须保存为另一个 MP4 文件" xml:space="preserve"><value>The exported compressed version must be saved as a separate MP4 file</value></data>
+  <data name="导出失败，请稍后重试" xml:space="preserve"><value>Export failed. Try again later</value></data>
+  <data name="确定取消本次导出吗？临时文件会自动清理" xml:space="preserve"><value>Cancel this export? Temporary files will be cleaned up</value></data>
+  <data name="继续导出" xml:space="preserve"><value>Keep exporting</value></data>
+  <data name="目标大小必须在 {0} 到 {1} MB 之间" xml:space="preserve"><value>Target size must be between {0} and {1} MB</value></data>
+  <data name="请输入 {0} 到 {1} MB" xml:space="preserve"><value>Enter a value from {0} to {1} MB</value></data>
+  <data name="约 {0}" xml:space="preserve"><value>About {0}</value></data>
+  <data name="比原文件减少 {0}" xml:space="preserve"><value>{0} smaller than the original</value></data>
+  <data name="预计耗时：约 {0}" xml:space="preserve"><value>Estimated time: about {0}</value></data>
+  <data name="正在导出压缩版本" xml:space="preserve"><value>Exporting compressed version</value></data>
+  <data name="正在处理录像，请稍候" xml:space="preserve"><value>Processing the recording. Please wait</value></data>
+  <data name="正在准备压缩" xml:space="preserve"><value>Preparing compression</value></data>
+  <data name="目标约 {0} MB" xml:space="preserve"><value>Target: about {0} MB</value></data>
+  <data name="正在确认输出大小" xml:space="preserve"><value>Checking output size</value></data>
+  <data name="正在重新压缩以缩小文件" xml:space="preserve"><value>Recompressing to reduce the file size</value></data>
+  <data name="正在保存导出压缩版本" xml:space="preserve"><value>Saving exported compressed version</value></data>
+  <data name="正在压缩 {0}%" xml:space="preserve"><value>Compressing {0}%</value></data>
+  <data name="正在读取录像并计算压缩参数" xml:space="preserve"><value>Reading the recording and calculating compression settings</value></data>
+  <data name="录像文件不存在或当前不可访问" xml:space="preserve"><value>The recording is missing or currently unavailable</value></data>
+  <data name="录像仍在写入或文件中途发生变化，请等录像完成后重试" xml:space="preserve"><value>The recording is still being written or changed. Try again after recording finishes</value></data>
+  <data name="没有已验证可用的 AV1 编码器，请改用 H.265" xml:space="preserve"><value>No validated AV1 encoder is available. Use H.265 instead</value></data>
+  <data name="当前 FFmpeg 不可用已验证的 AV1 编码器，请改用 H.265" xml:space="preserve"><value>The current FFmpeg does not provide a validated AV1 encoder. Use H.265 instead</value></data>
+  <data name="目标大小不能超过原文件" xml:space="preserve"><value>Target size cannot exceed the original file</value></data>
+  <data name="目标大小太小，无法生成可播放的视频" xml:space="preserve"><value>Target size is too small to create a playable video</value></data>
+  <data name="未找到视频处理组件 ffmpeg.exe" xml:space="preserve"><value>The video processor ffmpeg.exe was not found</value></data>
+  <data name="目标大小太小，已停止压缩" xml:space="preserve"><value>The target size is too small; compression stopped</value></data>
+  <data name="视频处理长时间没有进展，已停止压缩" xml:space="preserve"><value>Video processing stalled and was stopped</value></data>
+  <data name="视频处理超时，已停止压缩" xml:space="preserve"><value>Video processing timed out and was stopped</value></data>
+  <data name="视频处理失败" xml:space="preserve"><value>Video processing failed</value></data>
+  <data name="编码未知" xml:space="preserve"><value>Unknown codec</value></data>
+  <data name="{0} 秒" xml:space="preserve"><value>{0} sec</value></data>
+  <data name="{0} 分钟" xml:space="preserve"><value>{0} min</value></data>
+  <data name="{0} 分 {1} 秒" xml:space="preserve"><value>{0} min {1} sec</value></data>
+  <data name="无法读取录像时长" xml:space="preserve"><value>Could not read the recording duration</value></data>
+  <data name="当前文件已很小，无需压缩" xml:space="preserve"><value>The file is already small and does not need compression</value></data>
+  <data name="当前录像无法导出" xml:space="preserve"><value>This recording cannot be exported</value></data>
+  <data name="已生成导出压缩版本：{0}" xml:space="preserve"><value>Exported compressed version created: {0}</value></data>
+  <data name="无法导出" xml:space="preserve"><value>Cannot export</value></data>
 </root>

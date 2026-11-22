@@ -79,6 +79,23 @@ internal sealed class ExtensionMarketClient : IExtensionMarketSource
         if (item.DetailsSha256.Length != 64 || !item.DetailsSha256.All(Uri.IsHexDigit))
             throw new InvalidDataException("扩展详情缺少可信 SHA-256");
         string cacheName = $"details-{item.Id}.json";
+        string cachePath = Path.Combine(_cacheDirectory, cacheName);
+        Exception? cacheError = null;
+        try
+        {
+            byte[] cached = await File.ReadAllBytesAsync(cachePath, cancellationToken);
+            VerifySha256(cached, item.DetailsSha256, "缓存扩展详情");
+            return ParseDetails(cached);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
+        {
+            cacheError = ex;
+        }
+
         foreach (string registryBase in session.RegistryBases)
         {
             try
@@ -88,13 +105,19 @@ internal sealed class ExtensionMarketClient : IExtensionMarketSource
                 await WriteCacheAsync(cacheName, bytes, cancellationToken);
                 return ParseDetails(bytes);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or JsonException or TaskCanceledException)
             {
             }
         }
-        byte[] cached = await File.ReadAllBytesAsync(Path.Combine(_cacheDirectory, cacheName), cancellationToken);
-        VerifySha256(cached, item.DetailsSha256, "缓存扩展详情");
-        return ParseDetails(cached);
+        throw new InvalidDataException(
+            cacheError == null
+                ? "所有发布源均无法提供扩展详情"
+                : $"所有发布源均无法提供扩展详情，可信缓存也不可用：{cacheError.Message}",
+            cacheError);
     }
 
     public async Task<string> DownloadPackageAsync(

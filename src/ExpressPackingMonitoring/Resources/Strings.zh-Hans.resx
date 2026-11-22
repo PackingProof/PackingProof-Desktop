@@ -1080,6 +1080,8 @@
   <data name="Extension.Access.None" xml:space="preserve"><value>• 不申请可用接口</value></data>
   <data name="Extension.Market.PreviewLoadFailed" xml:space="preserve"><value>读取扩展预览图失败：{0}</value></data>
   <data name="Extension.Market.OfflineLocalAvailable" xml:space="preserve"><value>扩展市场暂时不可用，仍可安装本地扩展：{0}</value></data>
+  <data name="正在读取兼容信息" xml:space="preserve"><value>正在读取兼容信息</value></data>
+  <data name="正在读取扩展详情" xml:space="preserve"><value>正在读取扩展详情</value></data>
   <data name="扫码预录制" xml:space="preserve"><value>扫码预录制</value></data>
   <data name="约 0 秒 / 0 MB 内存" xml:space="preserve"><value>约 0 秒 / 0 MB 内存</value></data>
   <data name="播报时调为最大音量" xml:space="preserve"><value>播报时调为最大音量</value></data>
@@ -1927,10 +1929,9 @@
   <data name="等待主机允许连接，录像仍保存在本机" xml:space="preserve"><value>等待主机允许连接，录像仍保存在本机</value></data>
   <data name="暂停上传" xml:space="preserve"><value>暂停上传</value></data>
   <data name="继续上传" xml:space="preserve"><value>继续上传</value></data>
-  <data name="上传已暂停" xml:space="preserve"><value>上传已暂停</value></data>
   <data name="已暂停" xml:space="preserve"><value>已暂停</value></data>
-  <data name="已暂停上传，{0} 个录像保存在本机" xml:space="preserve"><value>已暂停上传，{0} 个录像保存在本机</value></data>
-  <data name="上传已暂停，暂无待上传录像" xml:space="preserve"><value>上传已暂停，暂无待上传录像</value></data>
+  <data name="已暂停，{0} 个录像保存在本机" xml:space="preserve"><value>已暂停，{0} 个录像保存在本机</value></data>
+  <data name="已暂停，暂无待上传录像" xml:space="preserve"><value>已暂停，暂无待上传录像</value></data>
   <data name="保存上传状态失败：{0}" xml:space="preserve"><value>保存上传状态失败：{0}</value></data>
   <data name="保存主机拒绝了本机连接申请，可重新申请或更换保存主机" xml:space="preserve"><value>保存主机拒绝了本机连接申请，可重新申请或更换保存主机</value></data>
   <data name="保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”" xml:space="preserve"><value>保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”</value></data>
@@ -1947,12 +1948,15 @@
   <data name="正在重新连接" xml:space="preserve"><value>正在重新连接</value></data>
   <data name="无法保存主机连接状态" xml:space="preserve"><value>无法保存主机连接状态</value></data>
   <data name="NetworkCameraStreamCopy" xml:space="preserve"><value>源码流直存（实验）</value></data>
-  <data name="NetworkCameraStreamCopyHint" xml:space="preserve"><value>不重新编码，对低配机友好；部分功能不可用</value></data>
+  <data name="NetworkCameraStreamCopyHint" xml:space="preserve"><value>不重新编码，对低配机友好</value></data>
   <data name="以下功能将失效" xml:space="preserve"><value>以下功能将失效</value></data>
-  <data name="NetworkCameraStreamCopyUnavailableFeatures" xml:space="preserve"><value>录像水印
+  <data name="NetworkCameraStreamCopyUnavailableFeatures" xml:space="preserve"><value>副摄像头合入录像
+录像水印
 摄像头旋转
 预录制缓存
 本地音频</value></data>
+  <data name="NetworkCameraStreamCopySubCameraScanStillAvailable" xml:space="preserve"><value>副摄像头仍可用于扫码识别</value></data>
+  <data name="NetworkCameraStreamCopyOverlayNotice" xml:space="preserve"><value>开启码流直存后，副摄像头不会合成到画面中，但仍可预览和用于扫码识别</value></data>
   <data name="原码流直存启动失败，已回退到普通录像" xml:space="preserve"><value>原码流直存启动失败，已回退到普通录像</value></data>
   <data name="原码流直存条件不满足，本次使用普通录像" xml:space="preserve"><value>原码流直存条件不满足，本次使用普通录像</value></data>
   <data name="原码流直传中断，正在结束录像" xml:space="preserve"><value>原码流直传中断，正在结束录像</value></data>
@@ -1970,4 +1974,56 @@
   <data name="WindowsDevicePermission.CameraOpenSettings" xml:space="preserve"><value>打开摄像头权限设置</value></data>
   <data name="WindowsDevicePermission.MicrophoneOpenSettings" xml:space="preserve"><value>打开麦克风权限设置</value></data>
   <data name="WindowsDevicePermission.OpenFailed" xml:space="preserve"><value>无法打开 Windows 权限设置</value></data>
+  <data name="导出压缩版本" xml:space="preserve"><value>导出压缩版本</value></data>
+  <data name="导出压缩版本…" xml:space="preserve"><value>导出压缩版本…</value></data>
+  <data name="生成较小的新文件，不修改原录像" xml:space="preserve"><value>生成较小的新文件，不修改原录像</value></data>
+  <data name="单号" xml:space="preserve"><value>单号</value></data>
+  <data name="原始大小" xml:space="preserve"><value>原始大小</value></data>
+  <data name="录制时长" xml:space="preserve"><value>录制时长</value></data>
+  <data name="当前编码" xml:space="preserve"><value>当前编码</value></data>
+  <data name="编码方式" xml:space="preserve"><value>编码方式</value></data>
+  <data name="目标大小" xml:space="preserve"><value>目标大小</value></data>
+  <data name="预计大小" xml:space="preserve"><value>预计大小</value></data>
+  <data name="开始导出" xml:space="preserve"><value>开始导出</value></data>
+  <data name="原录像不会被修改" xml:space="preserve"><value>原录像不会被修改</value></data>
+  <data name="保存导出压缩版本" xml:space="preserve"><value>保存导出压缩版本</value></data>
+  <data name="MP4 视频 (*.mp4)|*.mp4" xml:space="preserve"><value>MP4 视频 (*.mp4)|*.mp4</value></data>
+  <data name="导出压缩版本必须保存为另一个 MP4 文件" xml:space="preserve"><value>导出压缩版本必须保存为另一个 MP4 文件</value></data>
+  <data name="导出失败，请稍后重试" xml:space="preserve"><value>导出失败，请稍后重试</value></data>
+  <data name="确定取消本次导出吗？临时文件会自动清理" xml:space="preserve"><value>确定取消本次导出吗？临时文件会自动清理</value></data>
+  <data name="继续导出" xml:space="preserve"><value>继续导出</value></data>
+  <data name="目标大小必须在 {0} 到 {1} MB 之间" xml:space="preserve"><value>目标大小必须在 {0} 到 {1} MB 之间</value></data>
+  <data name="请输入 {0} 到 {1} MB" xml:space="preserve"><value>请输入 {0} 到 {1} MB</value></data>
+  <data name="约 {0}" xml:space="preserve"><value>约 {0}</value></data>
+  <data name="比原文件减少 {0}" xml:space="preserve"><value>比原文件减少 {0}</value></data>
+  <data name="预计耗时：约 {0}" xml:space="preserve"><value>预计耗时：约 {0}</value></data>
+  <data name="正在导出压缩版本" xml:space="preserve"><value>正在导出压缩版本</value></data>
+  <data name="正在处理录像，请稍候" xml:space="preserve"><value>正在处理录像，请稍候</value></data>
+  <data name="正在准备压缩" xml:space="preserve"><value>正在准备压缩</value></data>
+  <data name="目标约 {0} MB" xml:space="preserve"><value>目标约 {0} MB</value></data>
+  <data name="正在确认输出大小" xml:space="preserve"><value>正在确认输出大小</value></data>
+  <data name="正在重新压缩以缩小文件" xml:space="preserve"><value>正在重新压缩以缩小文件</value></data>
+  <data name="正在保存导出压缩版本" xml:space="preserve"><value>正在保存导出压缩版本</value></data>
+  <data name="正在压缩 {0}%" xml:space="preserve"><value>正在压缩 {0}%</value></data>
+  <data name="正在读取录像并计算压缩参数" xml:space="preserve"><value>正在读取录像并计算压缩参数</value></data>
+  <data name="录像文件不存在或当前不可访问" xml:space="preserve"><value>录像文件不存在或当前不可访问</value></data>
+  <data name="录像仍在写入或文件中途发生变化，请等录像完成后重试" xml:space="preserve"><value>录像仍在写入或文件中途发生变化，请等录像完成后重试</value></data>
+  <data name="没有已验证可用的 AV1 编码器，请改用 H.265" xml:space="preserve"><value>没有已验证可用的 AV1 编码器，请改用 H.265</value></data>
+  <data name="当前 FFmpeg 不可用已验证的 AV1 编码器，请改用 H.265" xml:space="preserve"><value>当前 FFmpeg 不可用已验证的 AV1 编码器，请改用 H.265</value></data>
+  <data name="目标大小不能超过原文件" xml:space="preserve"><value>目标大小不能超过原文件</value></data>
+  <data name="目标大小太小，无法生成可播放的视频" xml:space="preserve"><value>目标大小太小，无法生成可播放的视频</value></data>
+  <data name="未找到视频处理组件 ffmpeg.exe" xml:space="preserve"><value>未找到视频处理组件 ffmpeg.exe</value></data>
+  <data name="目标大小太小，已停止压缩" xml:space="preserve"><value>目标大小太小，已停止压缩</value></data>
+  <data name="视频处理长时间没有进展，已停止压缩" xml:space="preserve"><value>视频处理长时间没有进展，已停止压缩</value></data>
+  <data name="视频处理超时，已停止压缩" xml:space="preserve"><value>视频处理超时，已停止压缩</value></data>
+  <data name="视频处理失败" xml:space="preserve"><value>视频处理失败</value></data>
+  <data name="编码未知" xml:space="preserve"><value>编码未知</value></data>
+  <data name="{0} 秒" xml:space="preserve"><value>{0} 秒</value></data>
+  <data name="{0} 分钟" xml:space="preserve"><value>{0} 分钟</value></data>
+  <data name="{0} 分 {1} 秒" xml:space="preserve"><value>{0} 分 {1} 秒</value></data>
+  <data name="无法读取录像时长" xml:space="preserve"><value>无法读取录像时长</value></data>
+  <data name="当前文件已很小，无需压缩" xml:space="preserve"><value>当前文件已很小，无需压缩</value></data>
+  <data name="当前录像无法导出" xml:space="preserve"><value>当前录像无法导出</value></data>
+  <data name="已生成导出压缩版本：{0}" xml:space="preserve"><value>已生成导出压缩版本：{0}</value></data>
+  <data name="无法导出" xml:space="preserve"><value>无法导出</value></data>
 </root>

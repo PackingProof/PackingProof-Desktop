@@ -78,7 +78,11 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     const page = await context.newPage();
     // 页面脚本未捕获异常必须直接失败：初始化中途抛错时，后面的列表/搜索都不会执行
     const pageErrors = [];
+    let clipTimelineRequests = 0;
     page.on('pageerror', error => pageErrors.push(String(error)));
+    page.on('request', request => {
+      if (new URL(request.url()).pathname.endsWith('/clip/timeline')) clipTimelineRequests++;
+    });
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     await assert.doesNotReject(() => page.getByRole('heading', { name: 'PackingProof 包裹留证' }).waitFor());
     await page.waitForFunction(() => /^第 \d+ \/ \d+ 页$/.test(
@@ -266,17 +270,50 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
 
     await article.getByRole('button', { name: '播放', exact: true }).click();
     await assert.doesNotReject(() => page.locator('#playerOverlay.active').waitFor());
+    assert.equal(await page.locator('.page').evaluate(element => element.inert), true);
     await page.waitForFunction(() => /\/api\/videos\/\d+\/play/.test(
       document.querySelector('#videoPlayer')?.getAttribute('src') || ''));
     const source = await page.locator('#videoPlayer').getAttribute('src');
     assert.match(source ?? '', /\/api\/videos\/\d+\/play/);
     await page.waitForFunction(() => document.querySelector('#playerTitle')?.textContent?.includes(
       'H.264 · 直接播放原片'));
+    await page.waitForFunction(() => {
+      const player = document.querySelector('#videoPlayer');
+      return player?.readyState >= 2 && player?.paused === false;
+    });
+    await page.locator('#videoPlayer').press('Space');
+    await page.waitForFunction(() => document.querySelector('#videoPlayer')?.paused === true);
+    assert.equal(await page.locator('#playerOverlay').isVisible(), true);
+    assert.equal(await page.locator('#videoPlayer').getAttribute('src'), source);
     await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.page').evaluate(element => element.inert), false);
 
     await article.getByRole('button', { name: '剪辑' }).click();
     await assert.doesNotReject(() => page.locator('#clipOverlay.active').waitFor());
     await page.waitForFunction(() => typeof clipState !== 'undefined' && clipState?.sourceReady === true);
+    assert.equal(await page.locator('.page').evaluate(element => element.inert), true);
+    assert.match(await page.locator('#clipEstimateSize').innerText(), /MB|GB/);
+    await page.waitForFunction(() => document.querySelectorAll('#clipFrameTrack .clip-frame.pending').length === 0);
+    const initialPlayhead = await page.evaluate(() => clipState.playhead);
+    await page.evaluate(() => document.querySelector('article button[aria-label="剪辑"]').focus());
+    await page.keyboard.press('Space');
+    await page.waitForFunction(() => clipState?.selectionPlaying === true);
+    assert.ok(await page.evaluate(() => clipState.playhead) >= initialPlayhead - 0.08);
+    assert.equal(await page.locator('#clipOverlay').isVisible(), true);
+    await page.keyboard.press('Space');
+    await page.waitForFunction(() => clipState?.selectionPlaying === false);
+    const timelineRequestsBeforeSpace = clipTimelineRequests;
+    await page.evaluate(() => seekClipSource(Math.min(1.1, Math.max(0, clipState.total - 0.3))));
+    const playheadBeforeSpace = await page.evaluate(() => clipState.playhead);
+    await page.locator('#clipPlayhead').focus();
+    await page.keyboard.press('Space');
+    await page.waitForFunction(() => clipState?.selectionPlaying === true);
+    await page.waitForTimeout(300);
+    assert.equal(clipTimelineRequests, timelineRequestsBeforeSpace);
+    assert.ok(await page.evaluate(() => clipState.playhead) >= playheadBeforeSpace - 0.08);
+    assert.equal(await page.locator('#clipError').isVisible(), false);
+    await page.keyboard.press('Space');
+    await page.waitForFunction(() => clipState?.selectionPlaying === false);
     await page.setViewportSize({ width: 1760, height: 1272 });
     await page.evaluate(() => applyClipSourceLayout(1920, 1080));
     const desktopClipGeometry = await page.locator('#clipOverlay').evaluate(overlay => {
@@ -284,24 +321,23 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
       const body = overlay.querySelector('#clipEditorBody');
       const playButton = overlay.querySelector('#clipPlaySelectionBtn').getBoundingClientRect();
       const playIcon = overlay.querySelector('#clipPlaySelectionBtn .icon').getBoundingClientRect();
-      const submitButton = overlay.querySelector('#clipSubmitBtn').getBoundingClientRect();
-      const submitIcon = overlay.querySelector('#clipSubmitBtn .icon').getBoundingClientRect();
+      const qualityButton = overlay.querySelector('#clipQualityButton').getBoundingClientRect();
       return {
         dialogHeight: dialog.height,
         bodyClientHeight: body.clientHeight,
         bodyScrollHeight: body.scrollHeight,
         playIconWidth: playIcon.width,
-        submitIconWidth: submitIcon.width,
         playCenterDelta: Math.abs((playButton.top + playButton.height / 2) - (playIcon.top + playIcon.height / 2)),
-        submitCenterDelta: Math.abs((submitButton.top + submitButton.height / 2) - (submitIcon.top + submitIcon.height / 2))
+        qualityButtonHeight: qualityButton.height,
+        qualityButtonWidth: qualityButton.width
       };
     });
     assert.ok(desktopClipGeometry.dialogHeight > 820);
     assert.ok(desktopClipGeometry.bodyScrollHeight <= desktopClipGeometry.bodyClientHeight + 1);
     assert.ok(desktopClipGeometry.playIconWidth >= 19);
-    assert.ok(desktopClipGeometry.submitIconWidth >= 19);
     assert.ok(desktopClipGeometry.playCenterDelta <= 1);
-    assert.ok(desktopClipGeometry.submitCenterDelta <= 1);
+    assert.ok(desktopClipGeometry.qualityButtonHeight >= 40);
+    assert.ok(desktopClipGeometry.qualityButtonWidth >= 112);
     await page.evaluate(() => applyClipSourceLayout(1080, 1920));
     assert.equal(await page.locator('#clipMainPreview').getAttribute('data-orientation'), 'portrait');
     assert.equal(await page.locator('body').evaluate(element => element.classList.contains('clip-open')), true);
@@ -309,14 +345,14 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     const portraitClipGeometry = await page.locator('#clipOverlay').evaluate(overlay => {
       const preview = overlay.querySelector('#clipMainPreview').getBoundingClientRect();
       const actions = overlay.querySelector('.clip-actions').getBoundingClientRect();
-      const submit = overlay.querySelector('#clipSubmitBtn').getBoundingClientRect();
+      const quality = overlay.querySelector('#clipQualityButton').getBoundingClientRect();
       return {
         previewHeight: preview.height,
         previewWidth: preview.width,
         actionsTop: actions.top,
         actionsBottom: actions.bottom,
-        submitTop: submit.top,
-        submitBottom: submit.bottom,
+        qualityTop: quality.top,
+        qualityBottom: quality.bottom,
         viewportHeight: window.innerHeight
       };
     });
@@ -324,17 +360,23 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     assert.ok(portraitClipGeometry.previewWidth <= 620);
     assert.ok(portraitClipGeometry.actionsTop >= 0);
     assert.ok(portraitClipGeometry.actionsBottom <= portraitClipGeometry.viewportHeight);
-    assert.ok(portraitClipGeometry.submitTop >= 0);
-    assert.ok(portraitClipGeometry.submitBottom <= portraitClipGeometry.viewportHeight);
+    assert.ok(portraitClipGeometry.qualityTop >= 0);
+    assert.ok(portraitClipGeometry.qualityBottom <= portraitClipGeometry.viewportHeight);
     const compactInfo = await page.locator('#clipEditorBody').evaluate(body => ({
       infoColumns: getComputedStyle(body.querySelector('.clip-info')).gridTemplateColumns.split(' ').length,
-      rangeDisplay: getComputedStyle(body.querySelector('.clip-summary-item')).display,
-      durationDisplay: getComputedStyle(body.querySelector('.clip-summary-item.duration')).display
+      timeFieldsDisplay: getComputedStyle(body.querySelector('.clip-time-fields')).display,
+      summaryDisplay: getComputedStyle(body.querySelector('.clip-summary')).display,
+      durationDisplay: getComputedStyle(body.querySelector('.clip-summary-item.duration')).display,
+      estimateDisplay: getComputedStyle(body.querySelector('.clip-summary-item.estimate')).display,
+      qualityDisplay: getComputedStyle(body.querySelector('#clipQualityButton')).display
     }));
     assert.deepEqual(compactInfo, {
-      infoColumns: 3,
-      rangeDisplay: 'none',
-      durationDisplay: 'flex'
+      infoColumns: 1,
+      timeFieldsDisplay: 'grid',
+      summaryDisplay: 'grid',
+      durationDisplay: 'none',
+      estimateDisplay: 'flex',
+      qualityDisplay: 'flex'
     });
     await page.locator('#clipCloseBtn').click();
     assert.equal(await page.locator('body').evaluate(element => element.classList.contains('clip-open')), false);
@@ -437,6 +479,61 @@ test('Web UI follows browser language and persists an explicit override', { skip
     await article.getByRole('button', { name: 'Clip', exact: true }).click();
     await assert.doesNotReject(() => page.locator('#clipOverlay.active').waitFor());
     assert.doesNotMatch(await page.locator('#clipOverlay').innerText(), /[\u3400-\u9fff]/);
+    await page.locator('#clipQualityButton').click();
+    await assert.doesNotReject(() => page.locator('#clipQualityOverlay.active').waitFor());
+    assert.equal(await page.locator('#clipOverlay').evaluate(element => element.inert), true);
+    assert.equal(await page.locator('[data-quality-mode]').count(), 0);
+    await page.waitForFunction(() => document.querySelector('#clipQualityCompleteBtn')?.disabled === false);
+    const originalTarget = await page.locator('#clipTargetSlider').evaluate(slider => ({
+      value: Number(slider.value),
+      max: Number(slider.max)
+    }));
+    assert.ok(Math.abs(originalTarget.value - originalTarget.max) < 0.11);
+    assert.equal(await page.locator('#clipCodecSelect').isDisabled(), false);
+    assert.match(await page.locator('#clipTargetHint').innerText(), /^100% · Original quality$/);
+    assert.deepEqual(
+      await page.evaluate(() => [
+        normalizeSourceCodec('h.264'),
+        normalizeSourceCodec('H.265'),
+        normalizeSourceCodec('av01')
+      ]),
+      ['h264', 'h265', 'av1']
+    );
+    await page.evaluate(() => {
+      clipState.qualityEditor.sourceBytes = 10 * 1048576;
+      const slider = document.getElementById('clipTargetSlider');
+      slider.max = '10';
+      slider.value = '10';
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.locator('#clipCodecSelect').selectOption('h265');
+    await page.waitForFunction(() => clipState?.qualityEditor?.mode === 'compressed');
+    assert.match(await page.locator('#clipTargetHint').innerText(), /^100% · H\.265$/);
+    await page.locator('#clipCodecSelect').selectOption('h264');
+    await page.waitForFunction(() => clipState?.qualityEditor?.mode === 'original');
+    await page.evaluate(() => {
+      const slider = document.getElementById('clipTargetSlider');
+      slider.value = '3';
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.waitForFunction(() => document.querySelector('#clipCodecSelect')?.disabled === false);
+    assert.doesNotMatch(await page.locator('#clipQualityOverlay').innerText(), /[\u3400-\u9fff]/);
+    await page.locator('#clipTargetSlider').evaluate(slider => {
+      slider.value = slider.max;
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    assert.equal(await page.locator('#clipCodecSelect').isDisabled(), false);
+    assert.equal(await page.evaluate(() => clipState?.qualityEditor?.mode), 'original');
+    await page.evaluate(() => {
+      clipState.downloadUrl = '/api/clips/stale.mp4';
+      text('clipExportSubmitText', '重新下载');
+    });
+    await page.locator('#clipQualityCompleteBtn').click();
+    assert.equal(await page.locator('#clipQualityOverlay').isVisible(), false);
+    assert.equal(await page.locator('#clipOverlay').evaluate(element => element.inert), false);
+    assert.equal(await page.evaluate(() => clipState.downloadUrl), '');
+    assert.equal(await page.locator('#clipExportSubmitText').innerText(), 'Create and download');
+    assert.equal(await page.locator('#clipQualityButton').innerText(), 'Configure quality and encoding');
     await page.locator('#clipCloseBtn').click();
 
     await search.fill('AUTO_WEB_NO_MATCH_EN');

@@ -67,6 +67,128 @@ public sealed class WindowConstructionTests
             "这些登记项已经不存在了，请从守卫名单里删掉: " + string.Join("、", staleCovered));
     }
 
+    [Fact]
+    public void VideoCompressionDialog_KeepsActionsInsideWindowOutsideScroll()
+    {
+        RunOnStaThread(() =>
+        {
+            var dialog = new VideoCompressionDialog(
+                new VideoCompressionSource(
+                    "TEST-001",
+                    "source.mp4",
+                    Path.Combine(Path.GetTempPath(), "source.mp4"),
+                    "h264",
+                    60,
+                    120L * VideoCompressionPolicy.Mebibyte),
+                validatedEncoders: ["av1_nvenc"]);
+            dialog.Measure(new Size(620, 500));
+            dialog.Arrange(new Rect(0, 0, 620, 500));
+            dialog.UpdateLayout();
+
+            var layout = Assert.IsType<Grid>(dialog.FindName("DialogLayout"));
+            var start = Assert.IsType<Button>(dialog.FindName("StartButton"));
+            var codecBox = Assert.IsType<ComboBox>(
+                dialog.FindName("CodecModeBox"));
+            Assert.Equal("h264", codecBox.SelectedValue);
+            Assert.Equal(3, codecBox.Items.Count);
+            var targetSlider = Assert.IsType<Slider>(
+                dialog.FindName("TargetSizeSlider"));
+            var preset50 = Assert.IsType<Button>(
+                dialog.FindName("TargetPreset50Button"));
+            targetSlider.Value = 60;
+            Assert.Equal(60, targetSlider.Value, precision: 3);
+            Assert.Same(
+                dialog.FindResource("PresetButtonActiveStyle"),
+                preset50.Style);
+            targetSlider.Value = 65;
+            Assert.Equal(65, targetSlider.Value, precision: 3);
+            Assert.Same(
+                dialog.FindResource("PresetButtonStyle"),
+                preset50.Style);
+            Point bottomRight = start.TransformToAncestor(layout)
+                .Transform(new Point(start.ActualWidth, start.ActualHeight));
+
+            Assert.InRange(bottomRight.X, 0, layout.ActualWidth + 0.5);
+            Assert.InRange(bottomRight.Y, 0, layout.ActualHeight + 0.5);
+
+            DependencyObject? current = start;
+            while (current != null)
+            {
+                Assert.IsNotType<ScrollViewer>(current);
+                current = VisualTreeHelper.GetParent(current);
+            }
+            dialog.Close();
+        });
+    }
+
+    [Fact]
+    public void VideoCompressionDialog_SelectsSourceCodecAndOnlyShowsAvailableAv1()
+    {
+        RunOnStaThread(() =>
+        {
+            (
+                string SourceCodec,
+                bool Av1Available,
+                string ExpectedCodec,
+                int ExpectedItemCount)[] cases =
+            [
+                ("h264", true, "h264", 3),
+                ("h265", false, "h265", 2),
+                ("hevc", true, "h265", 3),
+                ("av1", true, "av1", 3),
+                ("av1", false, "h265", 2)
+            ];
+
+            foreach (var testCase in cases)
+            {
+                var dialog = new VideoCompressionDialog(
+                    new VideoCompressionSource(
+                        "TEST-CODEC",
+                        "source.mp4",
+                        Path.Combine(Path.GetTempPath(), "source.mp4"),
+                        testCase.SourceCodec,
+                        60,
+                        120L * VideoCompressionPolicy.Mebibyte),
+                    validatedEncoders: testCase.Av1Available
+                        ? ["av1_nvenc"]
+                        : []);
+                var codecBox = Assert.IsType<ComboBox>(
+                    dialog.FindName("CodecModeBox"));
+
+                Assert.Equal(testCase.ExpectedCodec, codecBox.SelectedValue);
+                Assert.Equal(testCase.ExpectedItemCount, codecBox.Items.Count);
+                dialog.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void StatusCard_UsesAttentionColorForPausedStates()
+    {
+        RunOnStaThread(() =>
+        {
+            foreach (string status in new[] { "已暂停", "备份暂停" })
+            {
+                var card = new StatusCard
+                {
+                    ShortStatusText = status
+                };
+                card.Measure(new Size(320, 80));
+                card.Arrange(new Rect(0, 0, 320, 80));
+                card.UpdateLayout();
+
+                var text = Assert.IsType<TextBlock>(
+                    card.FindName("ShortStatusTextBlock"));
+                var expected = Assert.IsType<SolidColorBrush>(
+                    card.FindResource("TransferAttentionText"));
+                var actual = Assert.IsType<SolidColorBrush>(text.Foreground);
+
+                Assert.Equal(expected.Color, actual.Color);
+                Assert.Equal(FontWeights.SemiBold, text.FontWeight);
+            }
+        });
+    }
+
     /// <summary>
     /// 品牌地址编辑器在真实控件树上走一遍：老地址回填、品牌路径重新拼、未知路径落到"其他"。
     /// </summary>
@@ -375,6 +497,16 @@ public sealed class WindowConstructionTests
                 Body = "测试说明",
                 DownloadUrl = "https://example.invalid/download"
             }));
+        yield return (
+            "ExpressPackingMonitoring.UI.VideoCompressionDialog",
+            () => new VideoCompressionDialog(
+                new VideoCompressionSource(
+                    "TEST-001",
+                    "source.mp4",
+                    Path.Combine(Path.GetTempPath(), "source.mp4"),
+                    "h264",
+                    60,
+                    120L * VideoCompressionPolicy.Mebibyte)));
         yield return (
             "ExpressPackingMonitoring.UI.VideoImportDialog",
             () => new VideoImportDialog(

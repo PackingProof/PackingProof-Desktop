@@ -1130,7 +1130,8 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         
-                        <StackPanel x:Name="StatsPanel" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Button x:Name="StatsSummaryButton" Grid.Column="0" Style="{StaticResource StatsLinkButtonStyle}" Click="StatsSummary_Click" PreviewMouseLeftButtonUp="StatsSummary_MouseLeftButtonUp" ToolTip="{loc:Localized 数据统计}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <StackPanel x:Name="StatsPanel" Orientation="Horizontal">
                             <StackPanel x:Name="TodayCountGroup" Orientation="Horizontal" Margin="0,0,16,0">
                                 <TextBlock Text="今日" FontSize="14" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,6,3"/>
                                 <TextBlock FontSize="22" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}">
@@ -1153,13 +1154,14 @@
                                     <Run Text="{Binding TotalPackTimeDisplay.SecondValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.SecondUnit, Mode=OneWay}" FontSize="14"/>
                                 </TextBlock>
                             </StackPanel>
-                        </StackPanel>
+                            </StackPanel>
+                        </Button>
 
                         <StackPanel x:Name="ActionButtonsPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="DataButton" Style="{StaticResource ModernBtn}" Command="{Binding OpenStatsCommand}" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="110" Height="42" Margin="0,0,8,0" ToolTip="数据">
+                            <Button x:Name="ExtensionButton" Style="{StaticResource ModernBtn}" Click="BtnExtensionMarket_Click" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="110" Height="42" Margin="0,0,8,0" ToolTip="{loc:Localized 扩展市场}">
                                 <StackPanel Orientation="Horizontal">
-                                    <Path x:Name="DataButtonIcon" Data="{StaticResource FluentDataIcon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,7,0"/>
-                                    <TextBlock x:Name="DataButtonText" Text="数据" Foreground="{DynamicResource TextPrimary}"/>
+                                    <Path x:Name="ExtensionButtonIcon" Data="{StaticResource FluentBoxIcon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,7,0"/>
+                                    <TextBlock x:Name="ExtensionButtonText" Text="{loc:Localized 扩展}" Foreground="{DynamicResource TextPrimary}"/>
                                 </StackPanel>
                             </Button>
                             <Button x:Name="PlaybackButton" Style="{StaticResource ModernBtn}" Command="{Binding OpenPlaybackCommand}" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="110" Height="42" Margin="0,0,8,0" ToolTip="回放">

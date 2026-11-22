@@ -55,6 +55,21 @@ public sealed class NetworkCameraStreamCopyRecorderTests
     }
 
     [Fact]
+    public void NetworkStreamCopy_DoesNotStopSubCameraCapture()
+    {
+        string recording = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Recording.cs"));
+
+        Assert.DoesNotContain(
+            "StopOverlayChannelsAsync();",
+            recording,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void StreamCopyEncoderLabelIsUserFacing()
     {
         string label = EncodingHelper.GetEncoderLabel(
@@ -122,6 +137,11 @@ public sealed class NetworkCameraStreamCopyRecorderTests
             "ExpressPackingMonitoring",
             "ViewModels",
             "MainViewModel.Recording.cs"));
+        string settings = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "SettingsWindow.xaml"));
 
         Assert.Contains(
             "NetworkCameraStreamCopyToggle_Changed",
@@ -150,6 +170,18 @@ public sealed class NetworkCameraStreamCopyRecorderTests
         Assert.Contains(
             "_networkCameraStreamCopyControlStates",
             settingsCode,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "OverlayChannelCountRow",
+            settings,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "OverlayCameraChannelsPanel",
+            settings,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "NetworkCameraStreamCopyOverlayNotice",
+            settings,
             StringComparison.Ordinal);
         Assert.Contains(
             "MicSelectionRow",

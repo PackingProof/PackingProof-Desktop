@@ -40,6 +40,27 @@ public sealed class ModeToggleResponsivenessTests
             "模式切换不应再依赖 ViewModel 侧的动画等待: " + string.Join(" | ", offenders));
     }
 
+    [Fact]
+    public void ModeAndExtensionIcons_UseDistinctShippingAndPackageSymbols()
+    {
+        string root = FindRepositoryRoot();
+        string project = Path.Combine(root, "src", "ExpressPackingMonitoring");
+        string buttonSource = File.ReadAllText(Path.Combine(
+            project, "UI", "ModeTransitionButton.xaml.cs"));
+        string buttonXaml = File.ReadAllText(Path.Combine(
+            project, "UI", "ModeTransitionButton.xaml"));
+        string mainXaml = File.ReadAllText(Path.Combine(
+            project, "UI", "MainWindow.xaml"));
+
+        Assert.Contains("FluentVehicleTruckCubeIcon", buttonSource, StringComparison.Ordinal);
+        Assert.Contains("FluentReturnIcon", buttonSource, StringComparison.Ordinal);
+        Assert.Contains("Data=\"{StaticResource FluentVehicleTruckCubeIcon}\"", buttonXaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "x:Name=\"ExtensionButtonIcon\" Data=\"{StaticResource FluentBoxIcon}\"",
+            mainXaml,
+            StringComparison.Ordinal);
+    }
+
     private static string ReadScannerSource() =>
         File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),

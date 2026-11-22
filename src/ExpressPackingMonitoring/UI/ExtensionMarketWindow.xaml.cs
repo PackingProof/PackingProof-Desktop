@@ -25,8 +25,10 @@ public partial class ExtensionMarketWindow : Window
     private readonly ObservableCollection<ExtensionMarketDisplayItem> _items = new();
     private readonly ObservableCollection<ExtensionMarketScreenshotItem> _screenshots = new();
     private CancellationTokenSource? _operationCancellation;
+    private CancellationTokenSource? _detailsCancellation;
     private CancellationTokenSource? _screenshotCancellation;
     private bool _localMutationBusy;
+    private bool _isClosed;
     private ExtensionMarketSession? _session;
     private ExtensionMarketDetails? _selectedDetails;
     private ExtensionMarketRelease? _selectedRelease;
@@ -57,18 +59,26 @@ public partial class ExtensionMarketWindow : Window
         Loaded += async (_, _) => await RefreshMarketAsync(showErrorDialog: false);
         Closed += (_, _) =>
         {
+            _isClosed = true;
             _operationCancellation?.Cancel();
+            _detailsCancellation?.Cancel();
             _screenshotCancellation?.Cancel();
         };
     }
 
+    private bool CanUpdateUi => !_isClosed && IsLoaded && IsVisible;
+
     private async Task RefreshMarketAsync(bool showErrorDialog = true)
     {
+        if (_isClosed)
+            return;
+
         SetBusy(true, "正在读取经过签名的市场目录");
         try
         {
             _operationCancellation?.Cancel();
             _operationCancellation = new CancellationTokenSource();
+            _detailsCancellation?.Cancel();
             _screenshotCancellation?.Cancel();
             _screenshots.Clear();
             _selectedDetails = null;
@@ -76,6 +86,8 @@ public partial class ExtensionMarketWindow : Window
             _session = null;
             PopulateDisplayItems([]);
             _session = await _marketClient.LoadCatalogAsync(_operationCancellation.Token);
+            if (!CanUpdateUi)
+                return;
             PopulateDisplayItems(_session.Catalog.Extensions);
             ShowMarketReadyStatus();
         }
@@ -84,6 +96,8 @@ public partial class ExtensionMarketWindow : Window
         }
         catch (Exception ex)
         {
+            if (!CanUpdateUi)
+                return;
             SourceStatusText.Text = AppLanguage.Format(
                 "Extension.Market.OfflineLocalAvailable",
                 ex.Message);
@@ -93,7 +107,8 @@ public partial class ExtensionMarketWindow : Window
         }
         finally
         {
-            SetBusy(false);
+            if (CanUpdateUi)
+                SetBusy(false);
         }
     }
 
@@ -136,7 +151,12 @@ public partial class ExtensionMarketWindow : Window
 
     private async void CatalogList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (!CanUpdateUi)
+            return;
         if (CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected) return;
+        _detailsCancellation?.Cancel();
+        _detailsCancellation?.Dispose();
+        _detailsCancellation = null;
         if (selected.IsLocalOnly)
         {
             _selectedDetails = null;
@@ -147,14 +167,23 @@ public partial class ExtensionMarketWindow : Window
             return;
         }
         if (_session == null) return;
+
+        var detailsCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            _operationCancellation?.Token ?? CancellationToken.None);
+        _detailsCancellation = detailsCancellation;
+        CancellationToken cancellationToken = detailsCancellation.Token;
+        ShowDetailsLoading(selected);
         bool restoreReadyStatus = false;
-        SetBusy(true, "正在读取扩展详情");
         try
         {
             _selectedDetails = await _marketClient.LoadDetailsAsync(
                 _session,
                 selected.Item,
-                _operationCancellation?.Token ?? CancellationToken.None);
+                cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!CanUpdateUi
+                || !ReferenceEquals(_detailsCancellation, detailsCancellation))
+                return;
             if (!ReferenceEquals(CatalogList.SelectedItem, selected)) return;
             _selectedRelease = ExtensionMarketVersionPolicy.SelectInstallableRelease(
                 _selectedDetails,
@@ -163,10 +192,17 @@ public partial class ExtensionMarketWindow : Window
             restoreReadyStatus = await LoadScreenshotsAsync(
                 _selectedDetails.Extension,
                 selected.Item.Id,
-                _operationCancellation?.Token ?? CancellationToken.None);
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception ex)
         {
+            if (!CanUpdateUi
+                || !ReferenceEquals(_detailsCancellation, detailsCancellation)
+                || !ReferenceEquals(CatalogList.SelectedItem, selected))
+                return;
             _selectedDetails = null;
             _selectedRelease = null;
             InstallButton.IsEnabled = false;
@@ -179,9 +215,57 @@ public partial class ExtensionMarketWindow : Window
         }
         finally
         {
-            SetBusy(false);
-            if (restoreReadyStatus) ShowMarketReadyStatus();
+            if (ReferenceEquals(_detailsCancellation, detailsCancellation))
+            {
+                _detailsCancellation = null;
+                detailsCancellation.Dispose();
+                if (CanUpdateUi
+                    && ReferenceEquals(CatalogList.SelectedItem, selected)
+                    && restoreReadyStatus)
+                    ShowMarketReadyStatus();
+            }
         }
+    }
+
+    private void ShowDetailsLoading(ExtensionMarketDisplayItem selected)
+    {
+        _selectedDetails = null;
+        _selectedRelease = null;
+        _screenshotCancellation?.Cancel();
+        _screenshotCancellation?.Dispose();
+        _screenshotCancellation = null;
+        _screenshots.Clear();
+        InstalledExtensionRecord? installed = _installationService.GetInstalled()
+            .FirstOrDefault(value => value.Id == selected.Item.Id);
+        ExtensionNameRun.Text = selected.Name;
+        ExtensionNameLink.NavigateUri = null;
+        ExtensionNameLink.IsEnabled = false;
+        PublisherNameRun.Text = selected.AuthorText;
+        PublisherLink.NavigateUri = null;
+        PublisherLink.IsEnabled = false;
+        LatestVersionText.Text = string.IsNullOrWhiteSpace(selected.Item.LatestVersion)
+            ? AppLanguage.Get("最新版本：暂无")
+            : AppLanguage.Format("最新版本：{0}", selected.Item.LatestVersion);
+        InstalledVersionText.Text = installed == null
+            ? AppLanguage.Get("尚未安装")
+            : AppLanguage.Format("已安装：{0}", installed.Version);
+        CompatibilityText.Text = AppLanguage.Get("正在读取兼容信息");
+        DescriptionText.Text = selected.Summary;
+        RiskPanel.Visibility = Visibility.Collapsed;
+        SourceTagText.Text = selected.SourceLabel;
+        SourceTagText.Tag = selected.SourceLabel;
+        SourceTagBorder.Tag = selected.SourceLabel;
+        TypeTagText.Text = selected.TypeLabel;
+        InstallButton.IsEnabled = false;
+        InstallOtherVersionButton.IsEnabled = false;
+        LaunchButton.Visibility = installed?.Type == "external-adapter"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        LaunchButton.IsEnabled = installed?.Type == "external-adapter"
+            && !string.IsNullOrWhiteSpace(installed.LauncherPath);
+        OpenFolderButton.Visibility = installed != null ? Visibility.Visible : Visibility.Collapsed;
+        RemoveButton.Visibility = installed != null ? Visibility.Visible : Visibility.Collapsed;
+        SourceStatusText.Text = AppLanguage.Get("正在读取扩展详情");
     }
 
     private async Task<bool> LoadScreenshotsAsync(
@@ -190,6 +274,8 @@ public partial class ExtensionMarketWindow : Window
         CancellationToken cancellationToken)
     {
         _screenshotCancellation?.Cancel();
+        _screenshotCancellation?.Dispose();
+        _screenshotCancellation = null;
         _screenshots.Clear();
         if (extension.Screenshots.Count == 0) return true;
 
@@ -201,10 +287,14 @@ public partial class ExtensionMarketWindow : Window
             {
                 byte[] bytes = await _marketClient.DownloadScreenshotAsync(screenshot, token);
                 token.ThrowIfCancellationRequested();
+                if (!CanUpdateUi)
+                    return false;
                 if (CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected
                     || !string.Equals(selected.Item.Id, extensionId, StringComparison.Ordinal))
                     return false;
-                _screenshots.Add(new ExtensionMarketScreenshotItem(CreateScreenshotImage(bytes), screenshot.Alt));
+                BitmapImage image = await Task.Run(() => CreateScreenshotImage(bytes), token);
+                token.ThrowIfCancellationRequested();
+                _screenshots.Add(new ExtensionMarketScreenshotItem(image, screenshot.Alt));
             }
             return true;
         }
@@ -214,6 +304,8 @@ public partial class ExtensionMarketWindow : Window
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or NotSupportedException or FormatException or ArgumentException)
         {
+            if (!CanUpdateUi)
+                return false;
             SourceStatusText.Text = AppLanguage.Format("Extension.Market.PreviewLoadFailed", ex.Message);
             return false;
         }
