@@ -103,7 +103,7 @@ public sealed class NoCameraWorkstationTests : IDisposable
         Assert.Matches(
             "x:Name=\"ConnectPhoneButton\"[\\s\\S]*?FluentWifiIcon",
             xaml);
-        Assert.Contains("FluentDataIcon", xaml, StringComparison.Ordinal);
+        Assert.Contains("FluentArrowSwapIcon", xaml, StringComparison.Ordinal);
         Assert.Contains("FluentVideoIcon", xaml, StringComparison.Ordinal);
         Assert.Contains("FluentSettingsIcon", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("打印工位", xaml, StringComparison.Ordinal);

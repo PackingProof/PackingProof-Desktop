@@ -453,7 +453,9 @@ public sealed class CameraChannelChoiceUiTests
         Assert.Contains("Loaded=\"CameraChannelCards_Loaded\"", xaml, StringComparison.Ordinal);
 
         // 叠加画面是一套模板 + 一个列表：加第三、第四路不用改 XAML。
-        Assert.Contains("ItemsControl ItemsSource=\"{Binding OverlayCameraCards}\"", xaml, StringComparison.Ordinal);
+        Assert.Matches(
+            "ItemsControl[\\s\\S]*?ItemsSource=\"\\{Binding OverlayCameraCards\\}\"",
+            xaml);
         Assert.Contains("ItemsSource=\"{Binding DeviceChoices}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("SelectedItem=\"{Binding SelectedDevice, Mode=TwoWay}\"", xaml, StringComparison.Ordinal);
         // 路数固定：界面上没有"添加副画面/删除"这种入口，不接就选"无"。

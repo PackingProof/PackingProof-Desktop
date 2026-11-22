@@ -764,9 +764,9 @@ public sealed class DeploymentStartupTests
             "x:Name=\"SendTestOrderButton\"[\\s\\S]*?StaticResource FluentBroadcastIcon",
             mobileBackupXaml);
 
+        Assert.Contains("StaticResource FluentDataIcon", recordingXaml, StringComparison.Ordinal);
         foreach (string xaml in new[] { recordingXaml, mobileBackupXaml })
         {
-            Assert.Contains("StaticResource FluentDataIcon", xaml, StringComparison.Ordinal);
             Assert.Contains("StaticResource FluentVideoIcon", xaml, StringComparison.Ordinal);
             Assert.Contains("StaticResource FluentSettingsIcon", xaml, StringComparison.Ordinal);
         }
