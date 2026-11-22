@@ -21,6 +21,11 @@ using NAudio.Wave;
 
 namespace ExpressPackingMonitoring.ViewModels
 {
+    internal sealed record RecordingFailurePresentation(
+        bool IsEncoderFailure,
+        string Title,
+        string Message);
+
     public partial class MainViewModel
     {
         private (bool ok, string error) RunFFmpegPipeline(string filePath, string ffmpegPath, CancellationToken token,
@@ -279,20 +284,99 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private static string ExtractFFmpegError(string stderr)
+        internal static string ExtractFFmpegError(string stderr)
         {
             if (string.IsNullOrEmpty(stderr)) return "";
-            var lines = stderr.Split('\n');
-            for (int i = lines.Length - 1; i >= Math.Max(0, lines.Length - 10); i--)
+            string[] lines = stderr
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            int start = Math.Max(0, lines.Length - 24);
+            string? trailerLine = null;
+            string? storageCue = null;
+            for (int i = lines.Length - 1; i >= start; i--)
             {
-                string line = lines[i].Trim();
+                string line = lines[i];
+                if (line.Contains("Error writing trailer", StringComparison.OrdinalIgnoreCase))
+                    trailerLine = line;
+                if (line.Contains("No space left", StringComparison.OrdinalIgnoreCase)
+                    || line.Contains("Permission denied", StringComparison.OrdinalIgnoreCase)
+                    || line.Contains("Input/output error", StringComparison.OrdinalIgnoreCase)
+                    || line.Contains("Invalid argument", StringComparison.OrdinalIgnoreCase)
+                    || line.Contains("Could not open", StringComparison.OrdinalIgnoreCase))
+                {
+                    storageCue = line;
+                }
+            }
+            if (trailerLine != null)
+            {
+                string detail = storageCue != null
+                    && !string.Equals(storageCue, trailerLine, StringComparison.OrdinalIgnoreCase)
+                        ? $"{storageCue} | {trailerLine}"
+                        : trailerLine;
+                return detail.Length > 240 ? detail[..240] : detail;
+            }
+
+            for (int i = lines.Length - 1; i >= start; i--)
+            {
+                string line = lines[i];
                 if (line.Contains("Error", StringComparison.OrdinalIgnoreCase) ||
                     line.Contains("Could not", StringComparison.OrdinalIgnoreCase) ||
                     line.Contains("No such", StringComparison.OrdinalIgnoreCase) ||
                     line.Contains("not found", StringComparison.OrdinalIgnoreCase))
-                    return line.Length > 80 ? line[..80] : line;
+                    return line.Length > 240 ? line[..240] : line;
             }
             return "";
+        }
+
+        internal static bool IsOutputStorageFailure(string? errorDetail) =>
+            !string.IsNullOrWhiteSpace(errorDetail)
+            && (errorDetail.Contains("Error writing trailer", StringComparison.OrdinalIgnoreCase)
+                || errorDetail.Contains("No space left", StringComparison.OrdinalIgnoreCase)
+                || errorDetail.Contains("Permission denied", StringComparison.OrdinalIgnoreCase)
+                || errorDetail.Contains("Input/output error", StringComparison.OrdinalIgnoreCase)
+                || errorDetail.Contains("Invalid argument", StringComparison.OrdinalIgnoreCase)
+                || errorDetail.Contains("Could not open", StringComparison.OrdinalIgnoreCase));
+
+        internal static RecordingFailurePresentation BuildRecordingFailurePresentation(
+            string errorDetail,
+            string filePath,
+            string requestedEncoder)
+        {
+            if (IsOutputStorageFailure(errorDetail))
+            {
+                var details = new List<string>
+                {
+                    AppLanguage.Get("录像文件在收尾写入时失败，可能不完整或未保存"),
+                    AppLanguage.Format("目标位置：{0}", filePath)
+                };
+                try
+                {
+                    string? root = Path.GetPathRoot(Path.GetFullPath(filePath));
+                    if (!string.IsNullOrWhiteSpace(root) && new DriveInfo(root).IsReady)
+                    {
+                        details.Add(AppLanguage.Format(
+                            "磁盘可用空间：{0}",
+                            FormatBytesForLog(new DriveInfo(root).AvailableFreeSpace)));
+                    }
+                }
+                catch
+                {
+                }
+                details.Add(AppLanguage.Format("错误详情：{0}", errorDetail));
+                details.Add(AppLanguage.Get("请检查目标磁盘剩余空间、磁盘连接、写入权限或安全软件拦截后重试"));
+                details.Add(AppLanguage.Get("这不是切换编码器能解决的问题"));
+                return new RecordingFailurePresentation(
+                    false,
+                    AppLanguage.Get("录像写入失败"),
+                    string.Join("\n", details));
+            }
+
+            return new RecordingFailurePresentation(
+                true,
+                AppLanguage.Get("录制失败"),
+                AppLanguage.Format(
+                    "当前设置的编码器无法完成录制，视频未保存。\n\n请求编码器: {0}\n错误详情: {1}\n\n请重新检测编码器、检查显卡驱动，或选择设置列表中的其他可用编码器",
+                    EncodingHelper.GetEncoderLabel(requestedEncoder),
+                    errorDetail));
         }
 
         private static string TrimForRuntimeLog(string text)

@@ -378,6 +378,46 @@ public sealed class EncodingEssentialsTests
         Assert.Contains("选择其他可用编码器", message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TrailerWriteFailureIsReportedAsStorageFailure()
+    {
+        const string stderr =
+            "av_interleaved_write_frame(): No space left on device\n" +
+            "Error writing trailer of C:\\PackingProofVideos\\2026-11-22\\record.mkv: No space left on device";
+
+        string detail = MainViewModel.ExtractFFmpegError(stderr);
+        Assert.Contains("No space left on device", detail, StringComparison.Ordinal);
+        Assert.Contains("Error writing trailer", detail, StringComparison.Ordinal);
+        Assert.True(MainViewModel.IsOutputStorageFailure(detail));
+
+        RecordingFailurePresentation presentation =
+            MainViewModel.BuildRecordingFailurePresentation(
+                detail,
+                @"C:\PackingProofVideos\2026-11-22\record.mkv",
+                "libx264");
+
+        Assert.False(presentation.IsEncoderFailure);
+        Assert.Equal("录像写入失败", presentation.Title);
+        Assert.Contains("目标位置", presentation.Message, StringComparison.Ordinal);
+        Assert.Contains("磁盘可用空间", presentation.Message, StringComparison.Ordinal);
+        Assert.Contains("这不是切换编码器能解决的问题", presentation.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DecoderLoadFailureStillUsesEncoderGuidance()
+    {
+        RecordingFailurePresentation presentation =
+            MainViewModel.BuildRecordingFailurePresentation(
+                "Cannot load nvcuda.dll",
+                @"C:\PackingProofVideos\2026-11-22\record.mkv",
+                "h264_nvenc");
+
+        Assert.True(presentation.IsEncoderFailure);
+        Assert.Equal("录制失败", presentation.Title);
+        Assert.Contains("请求编码器", presentation.Message, StringComparison.Ordinal);
+        Assert.Contains("重新检测编码器", presentation.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("No capable devices found")]
     [InlineData("Cannot load nvcuda.dll")]

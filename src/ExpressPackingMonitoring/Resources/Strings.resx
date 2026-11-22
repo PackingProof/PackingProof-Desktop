@@ -1968,6 +1968,15 @@ Local audio</value></data>
   <data name="直存收尾异常" xml:space="preserve"><value>Direct copy finalization failed</value></data>
   <data name="原码流" xml:space="preserve"><value>Original stream</value></data>
   <data name="当前设置的编码器不可用，请重新检测编码器或在设置中选择其他可用编码器" xml:space="preserve"><value>The selected encoder is unavailable. Detect encoders again or choose another available encoder in Settings</value></data>
+  <data name="录制失败" xml:space="preserve"><value>Recording failed</value></data>
+  <data name="录像写入失败" xml:space="preserve"><value>Recording write failed</value></data>
+  <data name="录像文件在收尾写入时失败，可能不完整或未保存" xml:space="preserve"><value>The recording failed while finalizing the output file; it may be incomplete or not saved</value></data>
+  <data name="目标位置：{0}" xml:space="preserve"><value>Output location: {0}</value></data>
+  <data name="磁盘可用空间：{0}" xml:space="preserve"><value>Free disk space: {0}</value></data>
+  <data name="错误详情：{0}" xml:space="preserve"><value>Error details: {0}</value></data>
+  <data name="请检查目标磁盘剩余空间、磁盘连接、写入权限或安全软件拦截后重试" xml:space="preserve"><value>Check free disk space, drive connection, write permission, or security software blocking and try again</value></data>
+  <data name="这不是切换编码器能解决的问题" xml:space="preserve"><value>Changing encoders will not solve this issue</value></data>
+  <data name="当前设置的编码器无法完成录制，视频未保存。&#xA;&#xA;请求编码器: {0}&#xA;错误详情: {1}&#xA;&#xA;请重新检测编码器、检查显卡驱动，或选择设置列表中的其他可用编码器" xml:space="preserve"><value>The selected encoder could not complete the recording, so no video was saved.&#xA;&#xA;Requested encoder: {0}&#xA;Error details: {1}&#xA;&#xA;Run encoder detection again, update the graphics driver, or choose another available encoder in Settings</value></data>
   <data name="当前设置无法启动录制" xml:space="preserve"><value>The current setting cannot start recording</value></data>
   <data name="WindowsDevicePermission.DialogTitle" xml:space="preserve"><value>Camera or microphone permission is off</value></data>
   <data name="WindowsDevicePermission.CameraTitle" xml:space="preserve"><value>Camera permission</value></data>

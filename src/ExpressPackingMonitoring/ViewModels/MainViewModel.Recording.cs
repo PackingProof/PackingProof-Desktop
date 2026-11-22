@@ -1296,12 +1296,22 @@ namespace ExpressPackingMonitoring.ViewModels
                 DeleteAudioTempFile(StopAudioRecording());
                 try { if (File.Exists(filePath) && new FileInfo(filePath).Length == 0) File.Delete(filePath); } catch { }
                 string errorDetail = err;
+                RecordingFailurePresentation presentation =
+                    BuildRecordingFailurePresentation(
+                        errorDetail,
+                        filePath,
+                        requestedEncoder);
 
                 RuntimeLog.Error("FFmpeg", $"Recording failed. requested={requestedEncoder}, final={encoder}, file={Path.GetFileName(filePath)}, error={errorDetail}");
 
                 _ = Application.Current.Dispatcher.BeginInvoke(() =>
                 {
-                    MarkCurrentRecordingFailed("编码失败", errorDetail, filePath, EncodingHelper.GetCodecFromEncoder(encoder), encoder);
+                    MarkCurrentRecordingFailed(
+                        presentation.IsEncoderFailure ? "编码失败" : "录像写入失败",
+                        errorDetail,
+                        filePath,
+                        EncodingHelper.GetCodecFromEncoder(encoder),
+                        encoder);
                     if (_currentScanRecord != null)
                     {
                         _currentScanRecord.IsActive = false;
@@ -1328,12 +1338,12 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
                     }
 
-                    ShowToast("录制启动失败", ToastSeverity.Error);
+                    ShowToast(presentation.Title, ToastSeverity.Error);
                     SpeakWarning(DefaultSpeechCatalog.RecordingFailed);
                     AppDialog.Error(
                         null,
-                        $"当前设置的编码器无法完成录制，视频未保存。\n\n请求编码器: {EncodingHelper.GetEncoderLabel(requestedEncoder)}\n错误详情: {errorDetail}\n\n请重新检测编码器、检查显卡驱动，或选择设置列表中的其他可用编码器",
-                        "录制失败");
+                        presentation.Message,
+                        presentation.Title);
                 });
             }
         }
