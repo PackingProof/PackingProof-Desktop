@@ -10,9 +10,9 @@ public sealed class RecordingFailureScanRecordTests
         string code = LoadRecordingSource();
 
         int failureIndex = code.IndexOf(
-            "MarkCurrentRecordingFailed(\"编码失败\"",
+            "MarkCurrentRecordingFailed(",
             StringComparison.Ordinal);
-        Assert.True(failureIndex >= 0, "找不到编码失败分支");
+        Assert.True(failureIndex >= 0, "找不到录像失败分支");
 
         string failureBranch = code[failureIndex..];
         int nextMethod = failureBranch.IndexOf(
@@ -21,6 +21,10 @@ public sealed class RecordingFailureScanRecordTests
         if (nextMethod >= 0)
             failureBranch = failureBranch[..nextMethod];
 
+        Assert.Contains(
+            "presentation.IsEncoderFailure ? \"编码失败\" : \"录像写入失败\"",
+            failureBranch,
+            StringComparison.Ordinal);
         Assert.Contains("_currentScanRecord.IsActive = false", failureBranch);
         Assert.Contains("_currentScanRecord.Duration = \"失败\"", failureBranch);
         Assert.Contains("_currentScanRecord = null", failureBranch);
