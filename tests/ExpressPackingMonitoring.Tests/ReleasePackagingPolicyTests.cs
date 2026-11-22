@@ -1100,6 +1100,16 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("远端直推统一使用 `tools\\Push-ReleaseBot.ps1`", agentGuide, StringComparison.Ordinal);
         Assert.Contains("禁止直接运行 `git push`", agentGuide, StringComparison.Ordinal);
         Assert.Contains("发布标签必须打在", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("版本标签必须先在本地指向该提交", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("全部通过后才用 `Push-ReleaseBot.ps1` 推送", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("发布标签 $Name 必须指向本地 main 的当前提交", pusher, StringComparison.Ordinal);
+        Assert.Contains("[switch]$ReplaceTag", pusher, StringComparison.Ordinal);
+        Assert.Contains("git push --porcelain $remote --delete", pusher, StringComparison.Ordinal);
+        Assert.Contains("-ReplaceTag -Confirmed", releaseDocument, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "用 `Push-ReleaseBot.ps1` 机器人直推 GitHub/Gitee 的 `main` → 按 `docs/development/RELEASE_CHECKLIST.md` 做变更审计",
+            releaseDocument,
+            StringComparison.Ordinal);
         Assert.Contains(
             "$env:PACKINGPROOF_SKIP_CAMERA_TESTS = \"1\"",
             releaseTests,

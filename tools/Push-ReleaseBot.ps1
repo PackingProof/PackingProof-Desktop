@@ -9,6 +9,7 @@ param(
     [string]$Target = "",
     [string]$GitHubRemote = "Github",
     [string]$GiteeRemote = "Gitee",
+    [switch]$ReplaceTag,
     [switch]$Confirmed,
     [switch]$DryRun
 )
@@ -87,6 +88,9 @@ if ($Kind -eq "branch" -and $Name -ne "main") {
 if ($Kind -eq "tag" -and $Name -notmatch '^(?:v|launcher-v)\d+\.\d+\.\d+$') {
     throw "发布标签必须使用 vX.Y.Z 或 launcher-vX.Y.Z 形式：$Name"
 }
+if ($ReplaceTag -and $Kind -ne "tag") {
+    throw "-ReplaceTag 只能用于标签推送"
+}
 if (git status --porcelain --untracked-files=all) {
     throw "远端推送前工作区必须干净"
 }
@@ -96,6 +100,24 @@ $sourceRef = if ($Kind -eq "tag") {
     $tagCommit = & git rev-parse --verify --quiet "refs/tags/$Name^{commit}" 2>$null
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tagCommit)) {
         throw "找不到本地标签：$Name"
+    }
+    if ($Name -match '^v\d+\.\d+\.\d+$') {
+        $localMainCommit = & git rev-parse --verify --quiet "refs/heads/main^{commit}" 2>$null
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($localMainCommit)) {
+            throw "找不到本地 main，无法确认发布标签位置"
+        }
+        if (-not [string]::Equals(
+                $tagCommit.Trim(),
+                $localMainCommit.Trim(),
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "发布标签 $Name 必须指向本地 main 的当前提交；请先完成本地快进和发布门禁"
+        }
+        if (-not [string]::Equals(
+                $tagCommit.Trim(),
+                $headCommit,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "发布标签 $Name 必须指向当前 HEAD；请切到发布提交后再推送"
+        }
     }
     "refs/tags/$Name"
 }
@@ -122,6 +144,9 @@ if (-not $Confirmed -and -not $DryRun) {
 if ($DryRun) {
     foreach ($platform in $targets) {
         $remote = Get-RemoteName $platform
+        if ($ReplaceTag) {
+            Write-Host "  [dry-run] git push $remote --delete $destinationRef"
+        }
         Write-Host "  [dry-run] git push $remote $sourceRef`:$destinationRef"
     }
     return
@@ -139,6 +164,17 @@ foreach ($platform in $targets) {
         & git merge-base --is-ancestor "refs/remotes/$remote/$Name" HEAD
         if ($LASTEXITCODE -ne 0) {
             throw "本地 $Name 不是 $remote/$Name 的快进后继；禁止强推，先同步远端"
+        }
+    }
+    elseif ($ReplaceTag) {
+        $existingTag = & git ls-remote --tags $remote $destinationRef 2>$null |
+            Select-Object -First 1
+        if (-not [string]::IsNullOrWhiteSpace($existingTag)) {
+            & git push --porcelain $remote --delete $destinationRef
+            if ($LASTEXITCODE -ne 0) {
+                throw "发布机器人删除 $remote/$destinationRef 失败"
+            }
+            Write-Host "  $remote 旧标签已删除：$destinationRef"
         }
     }
 

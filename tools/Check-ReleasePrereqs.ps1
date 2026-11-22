@@ -298,4 +298,4 @@ if ($blockers.Count -gt 0) {
 
 Write-Host ""
 Write-Host "本机发布前置条件齐备"
-Write-Host "下一步：用发布机器人直推 main 并创建版本标签，再运行 pwsh -NoProfile -File tools\Prepare-Release.ps1 -Version <X.Y.Z>"
+Write-Host "下一步：先在本地 main 的发布提交创建版本标签，再运行 pwsh -NoProfile -File tools\Prepare-Release.ps1 -Version <X.Y.Z>；门禁与产物校验通过后才推送远端"

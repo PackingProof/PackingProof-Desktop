@@ -101,7 +101,7 @@ pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 ## 测试与验证
 
 - 每次改动至少运行 `dotnet build ExpressPackingMonitoring.sln -c Debug` 和与改动直接相关的回归测试（`dotnet test tests/ExpressPackingMonitoring.Tests/ExpressPackingMonitoring.Tests.csproj -c Debug --filter ...`）。全量 `dotnet test` 只在版本提交/发版前运行，或改动跨模块、关键路径（更新/自更新/打包、录像/存储/删除、扩展 API 授权、Web 协议）时运行；同一代码状态已经跑过全量且未再改动时不要重复跑。
-- 正式发布先把发布提交以快进方式对齐到本地 `main`，使用 `tools\Push-ReleaseBot.ps1 -Kind branch -Name main -Confirmed` 直推 GitHub/Gitee，再在同一个提交上创建版本标签并运行 `tools\Prepare-Release.ps1`。该脚本只执行一次发布自动验收，并以 `-SkipFullTest` 出包；不要再先跑 `Test-CI.ps1`、`Test-Release-Automated.ps1` 又让打包脚本重复跑全量测试。
+- 正式发布先把发布提交以快进方式对齐到本地 `main`，并在同一提交创建本地 `vX.Y.Z` 标签，再运行 `tools\Prepare-Release.ps1`。该脚本只执行一次发布自动验收，并以 `-SkipFullTest` 出包；门禁、审计和产物校验全部通过后，才使用 `tools\Push-ReleaseBot.ps1` 推送 `main` 与标签。不要再先跑 `Test-CI.ps1`、`Test-Release-Automated.ps1` 又让打包脚本重复跑全量测试。
 - 补丁基线版本是发布链路的一项同步配置：当迁移锚点或正式基线变化时，必须在同一次改动中同步 `tools\打包脚本-增量.bat`、`tools\Publish-CleanPackage.ps1`、`tools\Prepare-Release.ps1`、发布专题文档和对应守卫测试；禁止只改批处理或单个默认参数，`ReleasePackagingPolicyTests` 必须通过。
 - 单一界面、文案或局部逻辑的小改动按上一条执行即可，不要求每次微调都跑全量；但不得跳过构建和对应回归测试。
 - 录像、Web 播放、TTS、打包或 FFmpeg 变更还要验证受影响的实际流程；油猴解析使用 `Test/HTML/` 样本。

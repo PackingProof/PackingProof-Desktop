@@ -47,7 +47,7 @@ if (-not [string]::Equals(
 $releaseTag = "v$requestedVersion"
 & git rev-parse --verify --quiet "$releaseTag^{commit}" *> $null
 if ($LASTEXITCODE -ne 0) {
-    throw "找不到 $releaseTag。请先用发布机器人把主线同步到远端 main，再在该提交上创建标签"
+    throw "找不到 $releaseTag。请先把发布提交快进到本地 main，并在该提交创建本地标签"
 }
 $headCommit = (git rev-parse HEAD).Trim()
 $tagCommit = (git rev-parse "$releaseTag^{commit}").Trim()
@@ -106,4 +106,4 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Host "发布门禁与出包完成：$releaseTag"
-Write-Host "下一步：校验产物并执行 tools\Publish-Releases.ps1"
+Write-Host "下一步：执行 tools\Publish-Releases.ps1 -ValidateOnly；校验通过后才推送 main 与标签"
