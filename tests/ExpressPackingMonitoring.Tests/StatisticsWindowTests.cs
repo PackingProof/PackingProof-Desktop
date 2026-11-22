@@ -8,6 +8,32 @@ public sealed class StatisticsWindowTests
 {
     private static readonly DateTime Now = new(2026, 7, 23, 15, 30, 0);
 
+    [Fact]
+    public void DefaultPreset_UsesLast30Days()
+    {
+        Assert.Equal("Last30", StatisticsWindow.DefaultPreset);
+        Assert.Equal(
+            (new DateTime(2026, 6, 24), new DateTime(2026, 7, 23)),
+            StatisticsWindow.GetPresetRange(StatisticsWindow.DefaultPreset, Now));
+
+        string mainViewModel = File.ReadAllText(FindRepositoryFile(
+            "src", "ExpressPackingMonitoring", "ViewModels", "MainViewModel.Media.cs"));
+        string printWorkstation = File.ReadAllText(FindRepositoryFile(
+            "src", "ExpressPackingMonitoring", "Workstations", "PrintWorkstationWindow.xaml.cs"));
+        Assert.Contains("new StatisticsWindow(_db)", mainViewModel, StringComparison.Ordinal);
+        Assert.Contains("new StatisticsWindow(_host.Database)", printWorkstation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ClosingStatisticsWindow_ClearsOwnerKeyboardFocus()
+    {
+        string code = File.ReadAllText(FindRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "StatisticsWindow.xaml.cs"));
+
+        Assert.Contains("ClearOwnerKeyboardFocus(Owner)", code, StringComparison.Ordinal);
+        Assert.Contains("new Action(Keyboard.ClearFocus)", code, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("Today", "2026-07-23", "2026-07-23")]
     [InlineData("Last7", "2026-07-17", "2026-07-23")]

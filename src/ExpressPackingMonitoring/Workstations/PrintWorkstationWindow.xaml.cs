@@ -357,7 +357,7 @@ public partial class PrintWorkstationWindow : Window
             return;
         }
 
-        _statisticsWindow = new StatisticsWindow(_host.Database, "Today") { Owner = this };
+        _statisticsWindow = new StatisticsWindow(_host.Database) { Owner = this };
         _statisticsWindow.Closed += (_, _) => _statisticsWindow = null;
         _statisticsWindow.Show();
     }

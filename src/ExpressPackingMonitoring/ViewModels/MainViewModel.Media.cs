@@ -43,7 +43,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (ActivateExistingWindow(_statisticsWindow))
                     return;
 
-                var statsWindow = new StatisticsWindow(_db, "Today");
+                var statsWindow = new StatisticsWindow(_db);
                 _statisticsWindow = statsWindow;
                 statsWindow.Closed += (_, _) =>
                 {

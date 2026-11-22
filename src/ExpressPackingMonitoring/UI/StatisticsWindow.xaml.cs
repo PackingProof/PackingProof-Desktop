@@ -9,6 +9,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace ExpressPackingMonitoring.UI
@@ -39,6 +40,8 @@ namespace ExpressPackingMonitoring.UI
 
     public partial class StatisticsWindow : Window, INotifyPropertyChanged
     {
+        internal const string DefaultPreset = "Last30";
+
         private readonly VideoDatabase _db;
         private readonly string _initialPreset;
         private bool _isInternalUpdating = false; // 防止日期切换时触发多次刷新
@@ -66,7 +69,7 @@ namespace ExpressPackingMonitoring.UI
         private string _summaryAvgTime = "00:00";
         public string SummaryAvgTime { get => _summaryAvgTime; set { _summaryAvgTime = value; OnPropertyChanged(nameof(SummaryAvgTime)); } }
 
-        public StatisticsWindow(VideoDatabase db, string initialPreset = "Last7")
+        public StatisticsWindow(VideoDatabase db, string initialPreset = DefaultPreset)
         {
             InitializeComponent();
             _db = db;
@@ -88,7 +91,15 @@ namespace ExpressPackingMonitoring.UI
             {
                 _isClosed = true;
                 _axisLabelResizeTimer.Stop();
+                ClearOwnerKeyboardFocus(Owner);
             };
+        }
+
+        internal static void ClearOwnerKeyboardFocus(Window? owner)
+        {
+            owner?.Dispatcher.BeginInvoke(
+                DispatcherPriority.Input,
+                new Action(Keyboard.ClearFocus));
         }
 
         private void RequestDataRefresh()
@@ -263,7 +274,7 @@ namespace ExpressPackingMonitoring.UI
                 "LastYear" => (today.AddYears(-1).AddDays(1), today),
                 "CurrentYear" => (new DateTime(today.Year, 1, 1), today),
                 "All" => (today.AddYears(-2), today),
-                _ => (today.AddDays(-6), today)
+                _ => (today.AddDays(-29), today)
             };
         }
 
@@ -298,7 +309,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 "Today" or "Week" or "Month" or "Last7" or "Last30" or "LastYear" or "CurrentYear" or "All"
                     => tag,
-                _ => "Last7"
+                _ => DefaultPreset
             };
 
         private void OnQueryFilterChanged(object sender, EventArgs e)

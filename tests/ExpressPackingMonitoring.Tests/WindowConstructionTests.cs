@@ -3,7 +3,9 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
@@ -383,6 +385,35 @@ public sealed class WindowConstructionTests
             }
 
             window.Close();
+        });
+    }
+
+    [Fact]
+    public void StatisticsWindowFocusCleanup_ClearsOwnerButtonKeyboardFocus()
+    {
+        RunOnStaThread(() =>
+        {
+            var owner = new Window { Width = 640, Height = 480 };
+            var statsButton = new Button { Content = "统计" };
+            owner.Content = statsButton;
+            owner.Show();
+            try
+            {
+                statsButton.Focus();
+                Keyboard.Focus(statsButton);
+                Assert.Same(statsButton, Keyboard.FocusedElement);
+
+                StatisticsWindow.ClearOwnerKeyboardFocus(owner);
+                Dispatcher.CurrentDispatcher.Invoke(
+                    () => { },
+                    DispatcherPriority.ApplicationIdle);
+
+                Assert.NotSame(statsButton, Keyboard.FocusedElement);
+            }
+            finally
+            {
+                owner.Close();
+            }
         });
     }
 
