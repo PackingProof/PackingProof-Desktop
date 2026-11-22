@@ -7,6 +7,8 @@ param(
     [string]$Name = "main",
     [ValidateSet("gitee", "github", "both")]
     [string]$Target = "",
+    [string]$GitHubRemote = "Github",
+    [string]$GiteeRemote = "Gitee",
     [switch]$Confirmed,
     [switch]$DryRun
 )
@@ -68,9 +70,15 @@ function Get-RemoteName {
     param([Parameter(Mandatory = $true)][string]$Platform)
 
     if ($Platform -eq "github") {
-        return "Github"
+        if ([string]::IsNullOrWhiteSpace($GitHubRemote)) {
+            throw "GitHub 远端名不能为空"
+        }
+        return $GitHubRemote.Trim()
     }
-    return "Gitee"
+    if ([string]::IsNullOrWhiteSpace($GiteeRemote)) {
+        throw "Gitee 远端名不能为空"
+    }
+    return $GiteeRemote.Trim()
 }
 
 if ($Kind -eq "branch" -and $Name -ne "main") {
