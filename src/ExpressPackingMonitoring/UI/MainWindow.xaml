@@ -1133,22 +1133,22 @@
                         <Button x:Name="StatsSummaryButton" Grid.Column="0" Style="{StaticResource StatsLinkButtonStyle}" Click="StatsSummary_Click" PreviewMouseLeftButtonUp="StatsSummary_MouseLeftButtonUp" ToolTip="{loc:Localized 数据统计}" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <StackPanel x:Name="StatsPanel" Orientation="Horizontal">
                             <StackPanel x:Name="TodayCountGroup" Orientation="Horizontal" Margin="0,0,16,0">
-                                <TextBlock Text="今日" FontSize="14" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,6,3"/>
-                                <TextBlock FontSize="22" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}">
+                                <TextBlock Text="今日" FontSize="14" Style="{StaticResource StatsLinkLabelTextStyle}" VerticalAlignment="Bottom" Margin="0,0,6,3"/>
+                                <TextBlock FontSize="22" FontWeight="Black" Style="{StaticResource StatsLinkValueTextStyle}">
                                     <Run Text="{Binding TotalPieces, Mode=OneWay}"/><Run Text="件" FontSize="14"/>
                                 </TextBlock>
                             </StackPanel>
                             <StackPanel x:Name="AverageTimeGroup" Orientation="Horizontal" Margin="0,0,16,0">
-                                <TextBlock Text="平均" FontSize="14" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,6,3"/>
-                                <TextBlock FontSize="22" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}">
+                                <TextBlock Text="平均" FontSize="14" Style="{StaticResource StatsLinkLabelTextStyle}" VerticalAlignment="Bottom" Margin="0,0,6,3"/>
+                                <TextBlock FontSize="22" FontWeight="Black" Style="{StaticResource StatsLinkValueTextStyle}">
                                     <Run Text="{Binding AveragePackTimeDisplay.HourValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.HourUnit, Mode=OneWay}" FontSize="14"/>
                                     <Run Text="{Binding AveragePackTimeDisplay.MinuteValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.MinuteUnit, Mode=OneWay}" FontSize="14"/>
                                     <Run Text="{Binding AveragePackTimeDisplay.SecondValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.SecondUnit, Mode=OneWay}" FontSize="14"/>
                                 </TextBlock>
                             </StackPanel>
                             <StackPanel x:Name="TotalTimeGroup" Orientation="Horizontal">
-                                <TextBlock Text="总耗时" FontSize="14" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,6,3"/>
-                                <TextBlock FontSize="22" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}">
+                                <TextBlock Text="总耗时" FontSize="14" Style="{StaticResource StatsLinkLabelTextStyle}" VerticalAlignment="Bottom" Margin="0,0,6,3"/>
+                                <TextBlock FontSize="22" FontWeight="Black" Style="{StaticResource StatsLinkValueTextStyle}">
                                     <Run Text="{Binding TotalPackTimeDisplay.HourValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.HourUnit, Mode=OneWay}" FontSize="14"/>
                                     <Run Text="{Binding TotalPackTimeDisplay.MinuteValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.MinuteUnit, Mode=OneWay}" FontSize="14"/>
                                     <Run Text="{Binding TotalPackTimeDisplay.SecondValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.SecondUnit, Mode=OneWay}" FontSize="14"/>

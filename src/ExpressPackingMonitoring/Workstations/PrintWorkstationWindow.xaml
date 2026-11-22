@@ -206,6 +206,7 @@
 
                     <Button x:Name="BackupStatsButton"
                             Style="{StaticResource StatsLinkButtonStyle}"
+                            Margin="0,0,10,0"
                             Click="OpenStatistics_Click"
                             PreviewMouseLeftButtonUp="BackupStats_MouseLeftButtonUp"
                             ToolTip="{loc:Localized 数据统计}">
@@ -215,44 +216,44 @@
                                         Margin="0,0,28,0">
                                 <TextBlock Text="{loc:Localized 今日}"
                                            FontSize="15"
+                                           Style="{StaticResource StatsLinkLabelTextStyle}"
                                            VerticalAlignment="Center"
                                            TextWrapping="NoWrap"
-                                           Margin="0,0,7,0"
-                                           Foreground="{DynamicResource TextSecondary}"/>
+                                           Margin="0,0,7,0"/>
                                 <TextBlock x:Name="TodayBackupCountTextBlock"
                                            Text="0"
                                            FontSize="27"
                                            FontWeight="Black"
+                                           Style="{StaticResource StatsLinkValueTextStyle}"
                                            VerticalAlignment="Center"
-                                           TextWrapping="NoWrap"
-                                           Foreground="{DynamicResource AccentBlueDark}"/>
+                                           TextWrapping="NoWrap"/>
                                 <TextBlock Text="{loc:Localized 今日数量单位}"
                                            FontSize="15"
+                                           Style="{StaticResource StatsLinkValueTextStyle}"
                                            Margin="2,0,0,0"
                                            VerticalAlignment="Center"
-                                           TextWrapping="NoWrap"
-                                           Foreground="{DynamicResource AccentBlueDark}"/>
+                                           TextWrapping="NoWrap"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="{loc:Localized 累计}"
                                            FontSize="15"
+                                           Style="{StaticResource StatsLinkLabelTextStyle}"
                                            VerticalAlignment="Center"
                                            TextWrapping="NoWrap"
-                                           Margin="0,0,7,0"
-                                           Foreground="{DynamicResource TextSecondary}"/>
+                                           Margin="0,0,7,0"/>
                                 <TextBlock x:Name="TotalBackupCountTextBlock"
                                            Text="0"
                                            FontSize="27"
                                            FontWeight="Black"
+                                           Style="{StaticResource StatsLinkValueTextStyle}"
                                            VerticalAlignment="Center"
-                                           TextWrapping="NoWrap"
-                                           Foreground="{DynamicResource AccentBlueDark}"/>
+                                           TextWrapping="NoWrap"/>
                                 <TextBlock Text="{loc:Localized 今日数量单位}"
                                            FontSize="15"
+                                           Style="{StaticResource StatsLinkValueTextStyle}"
                                            Margin="2,0,0,0"
                                            VerticalAlignment="Center"
-                                           TextWrapping="NoWrap"
-                                           Foreground="{DynamicResource AccentBlueDark}"/>
+                                           TextWrapping="NoWrap"/>
                             </StackPanel>
                         </StackPanel>
                     </Button>

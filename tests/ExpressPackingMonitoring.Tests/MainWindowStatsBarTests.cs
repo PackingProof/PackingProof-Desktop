@@ -168,6 +168,44 @@ public sealed class MainWindowStatsBarTests
         Assert.DoesNotContain("x:Name=\"DataButton\"", xaml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void StatisticsLinksUseSharedHoverContrastStyles()
+    {
+        string theme = System.IO.File.ReadAllText(
+            System.IO.Path.Combine(
+                FindRepositoryPath("src", "ExpressPackingMonitoring"),
+                "Themes",
+                "ButtonTheme.xaml"));
+        string mainXaml = System.IO.File.ReadAllText(
+            System.IO.Path.Combine(
+                FindRepositoryPath("src", "ExpressPackingMonitoring"),
+                "UI",
+                "MainWindow.xaml"));
+        string backupXaml = System.IO.File.ReadAllText(
+            System.IO.Path.Combine(
+                FindRepositoryPath("src", "ExpressPackingMonitoring"),
+                "Workstations",
+                "PrintWorkstationWindow.xaml"));
+
+        Assert.Contains("x:Key=\"StatsLinkLabelTextStyle\"", theme, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"StatsLinkValueTextStyle\"", theme, StringComparison.Ordinal);
+        Assert.Contains(
+            "Binding=\"{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}\" Value=\"True\"",
+            theme,
+            StringComparison.Ordinal);
+        foreach (string xaml in new[] { mainXaml, backupXaml })
+        {
+            Assert.Contains(
+                "{StaticResource StatsLinkLabelTextStyle}",
+                xaml,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                "{StaticResource StatsLinkValueTextStyle}",
+                xaml,
+                StringComparison.Ordinal);
+        }
+    }
+
     private static string FindRepositoryPath(params string[] parts)
     {
         System.IO.DirectoryInfo? directory = new(System.AppContext.BaseDirectory);

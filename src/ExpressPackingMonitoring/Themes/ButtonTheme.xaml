@@ -144,4 +144,22 @@
             </Trigger>
         </Style.Triggers>
     </Style>
+
+    <Style x:Key="StatsLinkLabelTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="StatsLinkValueTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBlueDark}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
 </ResourceDictionary>

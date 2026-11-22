@@ -49,6 +49,7 @@ public sealed class SettingsCapabilityVisibilityTests
         Assert.Equal(
             "{StaticResource StatsLinkButtonStyle}",
             (string?)summary.Attribute("Style"));
+        Assert.Equal("0,0,10,0", (string?)summary.Attribute("Margin"));
         Assert.Contains(
             summary.Descendants(Presentation + "TextBlock"),
             element => (string?)element.Attribute("Text") == "{loc:Localized 今日}");

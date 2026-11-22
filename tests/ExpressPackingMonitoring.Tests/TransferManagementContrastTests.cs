@@ -22,6 +22,7 @@ public sealed class TransferManagementContrastTests
         {
             ("TextPrimary", "PanelBackground"),
             ("TextPrimary", "ControlBackground"),
+            ("TextPrimary", "ActionHoverBackground"),
             ("TextSecondaryStrong", "PanelBackground"),
             ("TextSecondaryStrong", "ControlBackground"),
             ("TextSecondaryStrong", "TransferFailureSurface"),
