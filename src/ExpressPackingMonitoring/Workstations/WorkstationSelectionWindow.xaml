@@ -99,7 +99,7 @@
                         Padding="14,11"
                         Margin="0,0,0,14">
                     <StackPanel>
-                        <TextBlock Text="另一个版本正在作为保存主机。这台电脑只能选择查看端或录像从机，不能再次作为保存主机"
+                        <TextBlock Text="另一个版本正在作为备份主机。这台电脑只能选择查看端或录像从机，不能再次作为备份主机"
                                    FontSize="13"
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource TextSecondary}"/>
@@ -184,12 +184,12 @@
                     <RadioButton x:Name="StorageYesChoice"
                                  Grid.Column="0"
                                  GroupName="StoragePurpose"
-                                 AutomationProperties.Name="要，作为保存主机（支持 NAS）"
+                                 AutomationProperties.Name="要，作为备份主机（支持 NAS）"
                                  Style="{StaticResource PurposeChoiceStyle}"
                                  Tag="{StaticResource FluentCheckIcon}"
                                  Checked="StorageChoice_Checked">
                         <StackPanel>
-                            <TextBlock Text="要，作为保存主机（支持 NAS）"
+                            <TextBlock Text="要，作为备份主机（支持 NAS）"
                                        FontSize="16"
                                        TextWrapping="Wrap"
                                        FontWeight="Bold"
@@ -216,7 +216,7 @@
                                        FontWeight="Bold"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="本机录像时作为“录像从机”，录像先保存在本机，再上传给保存主机；不录像时作为“查看端”，连接主机查看录像"
+                            <TextBlock Text="本机录像时作为“录像从机”，录像先保存在本机，再上传给备份主机；不录像时作为“查看端”，连接主机查看录像"
                                        Margin="0,5,0,0"
                                        FontSize="12"
                                        LineHeight="18"

@@ -4,7 +4,7 @@ using ExpressPackingMonitoring.Services;
 namespace ExpressPackingMonitoring.Host;
 
 /// <summary>
-/// 查看端模式：不录像也不保存，只负责在局域网里找到保存主机并打开它的网页回放。
+/// 查看端模式：不录像也不保存，只负责在局域网里找到备份主机并打开它的网页回放。
 /// 主机发现、网页预检与设备登记全部复用桌面端已有的实现。
 /// </summary>
 internal static class ViewerSession
@@ -19,7 +19,7 @@ internal static class ViewerSession
             hostProgress: null,
             token);
 
-        // 本机不能连自己：这台电脑自己是保存主机时，连自己会在同一台机器上弹"设备请求连接本机"，
+        // 本机不能连自己：这台电脑自己是备份主机时，连自己会在同一台机器上弹"设备请求连接本机"，
         // 而用途是互斥的，本机永远排除在可选主机之外
         IReadOnlyList<PackingProofNodeInfo> candidates = hosts
             .Where(host => !IsSelf(config, host))
@@ -28,12 +28,12 @@ internal static class ViewerSession
         if (candidates.Count == 0)
         {
             MacDialog.ShowMessage(hosts.Count > 0
-                ? "只找到本机自己。请确认另一台保存主机已开机，并且与本机在同一个局域网。"
-                : "未找到保存主机。请确认主机已开机，并且与本机在同一个局域网。");
+                ? "只找到本机自己。请确认另一台备份主机已开机，并且与本机在同一个局域网。"
+                : "未找到备份主机。请确认主机已开机，并且与本机在同一个局域网。");
             return 1;
         }
 
-        Console.WriteLine($"发现 {candidates.Count} 台保存主机：");
+        Console.WriteLine($"发现 {candidates.Count} 台备份主机：");
         foreach (PackingProofNodeInfo discovered in candidates)
             Console.WriteLine($"  · {Describe(discovered)}");
 
@@ -70,7 +70,7 @@ internal static class ViewerSession
                 // 首次连接必须让主人知道要去主机上点允许，否则只会在主机端莫名弹窗
                 MacDialog.ShowMessage(
                     $"「{Describe(host)}」还没有允许这台电脑查看。\n\n"
-                        + "请到保存主机上点“允许”，允许后这台电脑以后可以直接查看，不用再确认。",
+                        + "请到备份主机上点“允许”，允许后这台电脑以后可以直接查看，不用再确认。",
                     "PackingProof 查看端");
                 Console.WriteLine($"主机开启了网页访问保护，正在申请接入，请到 {Describe(host)} 上点允许…");
                 BackupDeviceEnrollmentResult enrollment;
@@ -98,7 +98,7 @@ internal static class ViewerSession
                 }
                 break;
             default:
-                MacDialog.ShowMessage($"无法连接保存主机 {host.NodeName}（{address}）。");
+                MacDialog.ShowMessage($"无法连接备份主机 {host.NodeName}（{address}）。");
                 return 1;
         }
 

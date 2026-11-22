@@ -177,7 +177,7 @@ internal static class MenuCommands
         };
         if (mapped.Length == 0)
         {
-            WriteJson(new { ok = false, error = "用途只能是保存主机或查看端" });
+            WriteJson(new { ok = false, error = "用途只能是备份主机或查看端" });
             return;
         }
 
@@ -270,7 +270,7 @@ internal static class MenuCommands
         WriteJson(new { ok = true, path = full });
     }
 
-    /// <summary>开关开机自启；装了自启时保存主机归 launchd 托管。</summary>
+    /// <summary>开关开机自启；装了自启时备份主机归 launchd 托管。</summary>
     private static void ApplyAutostart(string value)
     {
         bool enable = value.Trim().ToLowerInvariant() is "on" or "true" or "1";
@@ -342,7 +342,7 @@ internal static class MenuCommands
         });
     }
 
-    /// <summary>发现同一网络里的保存主机；复用桌面端查看窗口的同一套发现代码。</summary>
+    /// <summary>发现同一网络里的备份主机；复用桌面端查看窗口的同一套发现代码。</summary>
     private static async Task<List<object>> DiscoverHostsAsync(CancellationToken token)
     {
         AppConfig config = WorkstationConfigStore.Load();

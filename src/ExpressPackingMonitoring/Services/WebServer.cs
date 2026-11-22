@@ -931,7 +931,7 @@ namespace ExpressPackingMonitoring.Services
                             SendJson(ctx, 503, new
                             {
                                 errorCode = "server_busy",
-                                error = "保存主机当前请求较多，请稍后重试"
+                                error = "备份主机当前请求较多，请稍后重试"
                             });
                             continue;
                         }
@@ -1001,7 +1001,7 @@ namespace ExpressPackingMonitoring.Services
 
                 ApplyCorsHeaders(ctx);
                 ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-                ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Content-Range, X-EPM-Access-Key, X-EPM-Auth-Version, X-EPM-Timestamp, X-EPM-Nonce, X-EPM-Content-SHA256, X-EPM-Signature, X-EPM-Device-Id, X-EPM-Device-Name, X-EPM-Device-Kind, X-EPM-Device-Platform, X-Chunk-SHA256, X-PackingProof-Extension-Version, X-PackingProof-Extension-Id, X-PackingProof-Extension-Credential-Generation, X-PackingProof-Extension-Timestamp, X-PackingProof-Extension-Nonce, X-PackingProof-Extension-Content-SHA256, X-PackingProof-Extension-Signature");
+                ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Content-Range, X-EPM-Access-Key, X-EPM-Auth-Version, X-EPM-App-Version, X-EPM-Timestamp, X-EPM-Nonce, X-EPM-Content-SHA256, X-EPM-Signature, X-EPM-Device-Id, X-EPM-Device-Name, X-EPM-Device-Kind, X-EPM-Device-Platform, X-Chunk-SHA256, X-PackingProof-Extension-Version, X-PackingProof-Extension-Id, X-PackingProof-Extension-Credential-Generation, X-PackingProof-Extension-Timestamp, X-PackingProof-Extension-Nonce, X-PackingProof-Extension-Content-SHA256, X-PackingProof-Extension-Signature");
 
                 if (method == "POST")
                 {
@@ -1046,10 +1046,16 @@ namespace ExpressPackingMonitoring.Services
                         errorCode = obsoleteProtocol ? "backup_protocol_upgrade_required"
                             : missingBackupKey ? "enrollment_required" : "device_token_invalid",
                         error = obsoleteProtocol ? "备份协议已升级，请更新客户端后重新连接"
-                            : missingBackupKey ? "需要重新连接保存主机" : "设备令牌无效，请重新连接"
+                            : missingBackupKey ? "需要重新连接备份主机" : "设备令牌无效，请重新连接"
                     });
                     return;
                 }
+                if (RejectIncompatibleWorkstationMobileBackupRequest(
+                        ctx,
+                        path,
+                        isDeviceEnrollment,
+                        hasDeviceAssetTicket))
+                    return;
 
                 bool isSignedExtensionRequest = IsSignedExtensionPath(path, method)
                     || (IsLegacyExtensionPath(path, method) && HasExtensionSignatureIntent(ctx));
@@ -1664,18 +1670,7 @@ namespace ExpressPackingMonitoring.Services
             var compatibilityFailure = BackupCompatibilityPolicy.ValidateClient(request);
             if (compatibilityFailure != null)
             {
-                SendJson(ctx, 426, new
-                {
-                    errorCode = "backup_client_upgrade_required",
-                    error = compatibilityFailure.Message,
-                    updateTarget = compatibilityFailure.UpdateTarget,
-                    minimumVersion = compatibilityFailure.MinimumVersion,
-                    minimumBuildNumber = compatibilityFailure.MinimumBuildNumber,
-                    downloadUrl = compatibilityFailure.DownloadUrl,
-                    protocol = BackupCompatibilityPolicy.BackupProtocol,
-                    enrollmentVersion = BackupCompatibilityPolicy.EnrollmentVersion,
-                    authVersion = BackupCompatibilityPolicy.AuthenticationVersion
-                });
+                SendBackupClientUpgradeRequired(ctx, compatibilityFailure);
                 return;
             }
             string pendingKey = $"{deviceKind}:{deviceId.ToLowerInvariant()}:{remoteAddress.ToLowerInvariant()}";
@@ -1715,7 +1710,7 @@ namespace ExpressPackingMonitoring.Services
                     SendJson(ctx, 429, new
                     {
                         errorCode = "enrollment_approval_busy",
-                        error = "保存主机正在确认另一台设备，请稍后自动重试",
+                        error = "备份主机正在确认另一台设备，请稍后自动重试",
                         retryAfterSeconds = 3
                     });
                     return;
@@ -1752,7 +1747,7 @@ namespace ExpressPackingMonitoring.Services
             if (operation.Decision == BackupDeviceEnrollmentApprovalDecision.Denied)
             {
                 RuntimeLog.Info("BackupEnrollment", $"Connection denied deviceKind={deviceKind}, deviceId={SafeDeviceId(deviceId)}, remote={remoteAddress}");
-                SendJson(ctx, 403, new { errorCode = "enrollment_denied", error = "保存主机已拒绝本次连接" });
+                SendJson(ctx, 403, new { errorCode = "enrollment_denied", error = "备份主机已拒绝本次连接" });
                 return;
             }
             if (operation.Decision != BackupDeviceEnrollmentApprovalDecision.Approved
@@ -1762,7 +1757,7 @@ namespace ExpressPackingMonitoring.Services
                 SendJson(ctx, 503, new
                 {
                     errorCode = "enrollment_approval_unavailable",
-                    error = "电脑端暂时无法显示连接确认窗口，请打开保存主机界面后重试"
+                    error = "电脑端暂时无法显示连接确认窗口，请打开备份主机界面后重试"
                 });
                 return;
             }
@@ -1944,12 +1939,14 @@ namespace ExpressPackingMonitoring.Services
                             ? "enrollment_required"
                             : "device_token_invalid",
                         error = missingBackupKey
-                            ? "需要重新连接保存主机"
+                            ? "需要重新连接备份主机"
                             : "设备令牌无效，请重新连接"
                     });
                     return;
                 }
                 ConnectedClientHeartbeat heartbeat = ReadJsonBody<ConnectedClientHeartbeat>(ctx);
+                if (RejectIncompatibleWorkstationHeartbeat(ctx, heartbeat))
+                    return;
                 if (_authenticatedDeviceIds.TryGetValue(ctx, out string authenticatedDeviceId))
                 {
                     heartbeat.ClientId = authenticatedDeviceId;
@@ -2306,13 +2303,13 @@ namespace ExpressPackingMonitoring.Services
             if (record == null || record.IsDeleted || string.IsNullOrWhiteSpace(resolvedAttestationPath)
                 || !string.Equals(record.SourceDeviceId, sourceDeviceId, StringComparison.OrdinalIgnoreCase))
             {
-                SendJson(ctx, 404, new { errorCode = "verified_record_missing", error = "保存主机未找到完整录像" });
+                SendJson(ctx, 404, new { errorCode = "verified_record_missing", error = "备份主机未找到完整录像" });
                 return;
             }
             long fileSizeBytes = new FileInfo(resolvedAttestationPath).Length;
             if (fileSizeBytes <= 0 || string.IsNullOrWhiteSpace(record.ContentSha256))
             {
-                SendJson(ctx, 409, new { errorCode = "verified_record_invalid", error = "保存主机录像尚未完成校验" });
+                SendJson(ctx, 409, new { errorCode = "verified_record_invalid", error = "备份主机录像尚未完成校验" });
                 return;
             }
             long verifiedAtUnixSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();

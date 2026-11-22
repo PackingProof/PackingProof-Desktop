@@ -1497,7 +1497,8 @@ public sealed class MobileBackupTests
                 workstationId,
                 workstationToken,
                 [],
-                cancellationToken);
+                cancellationToken,
+                appVersion: "0.0.55");
             using JsonDocument workstationVideosJson = JsonDocument.Parse(
                 await workstationVideos.Content.ReadAsStringAsync(cancellationToken));
             Assert.Equal(0, workstationVideosJson.RootElement.GetProperty("total").GetInt32());
@@ -1508,7 +1509,8 @@ public sealed class MobileBackupTests
                 workstationId,
                 workstationToken,
                 [],
-                cancellationToken);
+                cancellationToken,
+                appVersion: "0.0.55");
             Assert.Equal(HttpStatusCode.NotFound, workstationCrossDevicePlay.StatusCode);
 
             using HttpResponseMessage mobileStatus = await SendSignedAsync(
@@ -1531,7 +1533,8 @@ public sealed class MobileBackupTests
                 workstationId,
                 workstationToken,
                 [],
-                cancellationToken);
+                cancellationToken,
+                appVersion: "0.0.55");
             using JsonDocument workstationStatusJson = JsonDocument.Parse(
                 await workstationStatus.Content.ReadAsStringAsync(cancellationToken));
             Assert.Equal(
@@ -1592,7 +1595,8 @@ public sealed class MobileBackupTests
                 workstationId,
                 workstationToken,
                 clipBody,
-                cancellationToken);
+                cancellationToken,
+                appVersion: "0.0.55");
             Assert.Equal(HttpStatusCode.Forbidden, workstationClip.StatusCode);
 
             using var obsoleteRequest = new HttpRequestMessage(HttpMethod.Get, "/api/mobile-backup/capabilities");
@@ -2124,7 +2128,8 @@ public sealed class MobileBackupTests
         string deviceId,
         string credential,
         byte[] content,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? appVersion = null)
     {
         var request = new HttpRequestMessage(method, path);
         if (method != HttpMethod.Get)
@@ -2132,7 +2137,7 @@ public sealed class MobileBackupTests
             request.Content = new ByteArrayContent(content);
             request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
         }
-        AddSignedHeaders(request, deviceId, credential, content);
+        AddSignedHeaders(request, deviceId, credential, content, appVersion);
         return await client.SendAsync(request, cancellationToken);
     }
 
@@ -2140,7 +2145,8 @@ public sealed class MobileBackupTests
         HttpRequestMessage request,
         string deviceId,
         string credential,
-        byte[] content)
+        byte[] content,
+        string? appVersion = null)
     {
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         string nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
@@ -2148,6 +2154,12 @@ public sealed class MobileBackupTests
         string path = request.RequestUri?.OriginalString ?? "/";
         request.Headers.TryAddWithoutValidation("X-EPM-Device-Id", deviceId);
         request.Headers.TryAddWithoutValidation("X-EPM-Device-Kind", "mobile");
+        if (!string.IsNullOrWhiteSpace(appVersion))
+        {
+            request.Headers.TryAddWithoutValidation(
+                BackupCompatibilityPolicy.ClientVersionHeader,
+                appVersion);
+        }
         request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.VersionHeader, "3");
         request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.TimestampHeader, timestamp.ToString());
         request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.NonceHeader, nonce);

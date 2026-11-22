@@ -45,13 +45,13 @@ struct PurposeChooserView: View {
                 choiceCard(
                     selection: .host,
                     symbol: "checkmark.circle",
-                    title: "要，作为保存主机",
+                    title: "要，作为备份主机",
                     detail: "主机就是负责长期保存录像的电脑，可接收手机和其他电脑上传的录像，并在局域网里提供网页回放")
                 choiceCard(
                     selection: .viewer,
                     symbol: "xmark.circle",
                     title: "不要，只连接主机查看",
-                    detail: "本机不保存录像，只在局域网里发现保存主机，并用浏览器打开它的网页回放")
+                    detail: "本机不保存录像，只在局域网里发现备份主机，并用浏览器打开它的网页回放")
             }
             .padding(.bottom, 20)
 
@@ -185,7 +185,7 @@ struct PurposeChooserView: View {
 
     private var resultTitle: String {
         switch choice {
-        case .host: return "保存主机"
+        case .host: return "备份主机"
         case .viewer: return "查看端"
         case nil: return "请完成上面的选择"
         }
@@ -209,7 +209,7 @@ struct PurposeChooserView: View {
             ]
         case .viewer:
             return [
-                "在局域网里自动发现保存主机",
+                "在局域网里自动发现备份主机",
                 "首次连接由主机确认一次，之后直接查看",
                 "搜索、播放与剪辑都在主机的网页里完成"
             ]

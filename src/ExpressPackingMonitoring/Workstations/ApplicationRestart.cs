@@ -10,7 +10,7 @@ namespace ExpressPackingMonitoring;
 
 /// <summary>
 /// 程序重启（WPF 部分）：重启程序并关闭窗口。
-/// 拆分出来是为了让不引用 WPF 的宿主（例如 macOS 保存主机）复用它其余的网络与发现逻辑。
+/// 拆分出来是为了让不引用 WPF 的宿主（例如 macOS 备份主机）复用它其余的网络与发现逻辑。
 /// </summary>
 public static class ApplicationRestart
 {

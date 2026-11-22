@@ -68,7 +68,7 @@ public partial class VideoDatabase
             archiveStatus);
 
     /// <summary>
-    /// 已有可信备份的本地副本：NAS 已校验，或录像已成功上传并由保存主机校验。
+    /// 已有可信备份的本地副本：NAS 已校验，或录像已成功上传并由备份主机校验。
     /// 后者属于录像从机的缓存，不能被误报成“尚未备份到 NAS”。
     /// </summary>
     public IReadOnlyList<VideoRecord> GetManualCleanupBackedUpCandidates(

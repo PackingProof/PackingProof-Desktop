@@ -6,7 +6,7 @@ namespace ExpressPackingMonitoring.Services;
 
 /// <summary>
 /// 二维码渲染入口。默认输出 SVG data URI：不依赖任何图像库，非 Windows 宿主（例如
-/// macOS 保存主机）可以直接用；Windows 端在启动时注册 WPF 实现，保持原有 PNG 输出。
+/// macOS 备份主机）可以直接用；Windows 端在启动时注册 WPF 实现，保持原有 PNG 输出。
 /// </summary>
 internal static class QrCodeRenderer
 {

@@ -25,7 +25,7 @@ internal static class HostOptions
     }
 
     /// <summary>服务模式只写日志；交互运行时才弹窗告诉用户。</summary>
-    internal static void ReportProblem(string message, string title = "PackingProof 保存主机")
+    internal static void ReportProblem(string message, string title = "PackingProof 备份主机")
     {
         Console.Error.WriteLine(message);
         if (DialogsEnabled && !ServiceMode) MacDialog.ShowMessage(message, title);

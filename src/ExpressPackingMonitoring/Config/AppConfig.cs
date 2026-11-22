@@ -255,12 +255,12 @@ namespace ExpressPackingMonitoring.Config
         public string LastKnownHostNodeName { get; set; } = "";
         public string LastKnownHostAddress { get; set; } = "";
         public string LastKnownHostAccessKey { get; set; } = "";
-        // 查看端保存主机的网页访问密钥；与录制工位使用的设备令牌 LastKnownHostAccessKey 区分。
+        // 查看端备份主机的网页访问密钥；与录制工位使用的设备令牌 LastKnownHostAccessKey 区分。
         public string LastKnownHostWebAccessKey { get; set; } = "";
         public int LastKnownHostBackupAuthVersion { get; set; }
         /// <summary>录像从机用户主动暂停上传；只影响上传调度，不删本地录像或队列。</summary>
         public bool RecordingUploadPaused { get; set; }
-        /// <summary>保存主机连接申请正在进行；只在这个窗口内显示等待授权。</summary>
+        /// <summary>备份主机连接申请正在进行；只在这个窗口内显示等待授权。</summary>
         public bool RecordingHostApprovalPending { get; set; }
         public DateTime? RecordingHostApprovalRequestedAtUtc { get; set; }
         /// <summary>上次连接申请的稳定错误码；界面按当前语言生成文案。</summary>
@@ -1716,7 +1716,7 @@ namespace ExpressPackingMonitoring.Config
         /// <summary>
         /// 清掉落在只读系统卷根下的保存位置。旧版把 Windows 默认值（D:\快递打包视频 一类）
         /// 在 macOS 上归一化成 /快递打包视频，而 "/" 是只读系统卷，这个目录永远建不出来，
-        /// 留着它会让保存主机每次启动都失败、菜单栏一直显示"启动中"。
+        /// 留着它会让备份主机每次启动都失败、菜单栏一直显示"启动中"。
         /// 只是移除无效项，改由默认位置规则重建；其它平台的配置一律不动。
         /// </summary>
         internal static bool RemoveUnusableStorageLocations(

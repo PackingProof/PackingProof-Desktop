@@ -104,7 +104,7 @@ public sealed class RecordingTransferTests
 
             RecordingTransferHostHealth health = service.GetHostHealth();
             Assert.Equal(HostConnectionState.Offline, health.State);
-            Assert.Contains("需要重新连接保存主机", health.Reason);
+            Assert.Contains("需要重新连接备份主机", health.Reason);
             Assert.Contains("超时", health.Reason);
         }
         finally
@@ -1194,7 +1194,7 @@ public sealed class RecordingTransferTests
             RecordingTransferSummary summary = reopened.GetSummary();
             Assert.Equal(0, summary.FailedCount);
             Assert.Equal(1, summary.AbandonedCount);
-            Assert.Contains("保存主机与当前配置不一致", summary.LastError);
+            Assert.Contains("备份主机与当前配置不一致", summary.LastError);
             Assert.Empty(reopened.GetReady(DateTime.UtcNow.AddMinutes(10)));
             Assert.True(File.Exists(videoPath));
         }
@@ -1511,7 +1511,7 @@ public sealed class RecordingTransferTests
                 "http://127.0.0.1:5280",
                 DateTime.UtcNow));
 
-            store.MarkAbandoned(1, "保存主机上已存在同编号的其它录像", DateTime.UtcNow);
+            store.MarkAbandoned(1, "备份主机上已存在同编号的其它录像", DateTime.UtcNow);
             Assert.Equal(1, store.GetSummary().AbandonedCount);
             Assert.Empty(store.GetReady(DateTime.UtcNow));
 
@@ -1563,7 +1563,7 @@ public sealed class RecordingTransferTests
                 DateTime.UtcNow);
             store.MarkAbandoned(
                 tasks[1].Id,
-                "保存主机上已存在同编号的其它录像，已停止自动重试",
+                "备份主机上已存在同编号的其它录像，已停止自动重试",
                 DateTime.UtcNow);
             store.MarkAbandoned(
                 tasks[2].Id,
@@ -1608,7 +1608,7 @@ public sealed class RecordingTransferTests
     {
         var exception = new RecordingTransferHostException(
             errorCode,
-            "需要重新连接保存主机");
+            "需要重新连接备份主机");
 
         Assert.Empty(RecordingTransferFailurePolicy.ClassifyFailure(exception));
         Assert.Equal(
@@ -1649,7 +1649,7 @@ public sealed class RecordingTransferTests
     [InlineData("server_busy", HttpStatusCode.ServiceUnavailable, false)]
     [InlineData("storage_unavailable", HttpStatusCode.BadRequest, false)]
     [InlineData("upload_not_found", HttpStatusCode.NotFound, false)]
-    [InlineData("backup_client_upgrade_required", HttpStatusCode.BadRequest, true)]
+    [InlineData("backup_client_upgrade_required", HttpStatusCode.BadRequest, false)]
     [InlineData("device_identity_required", HttpStatusCode.Forbidden, true)]
     public void ClassifyFailure_UsesHostErrorCodeBeforeStatus(
         string errorCode,
@@ -1666,6 +1666,133 @@ public sealed class RecordingTransferTests
         Assert.Equal(expectsStop, reason.Length > 0);
     }
 
+    [Fact]
+    public void ClientUpgradeRequiredPausesWithoutAbandoningTask()
+    {
+        var exception = new RecordingTransferHostException(
+            "backup_client_upgrade_required",
+            "录制工位版本过低，请更新电脑端后重新连接",
+            (HttpStatusCode)426);
+
+        Assert.Empty(RecordingTransferFailurePolicy.ClassifyFailure(exception));
+        Assert.Equal(
+            RecordingTransferFailureKinds.ClientUpgradeRequired,
+            RecordingTransferFailurePolicy.ClassifyFailureKind(exception));
+    }
+
+    [Fact]
+    public void HostUpgradeRequiredUsesTheHostUpdateState()
+    {
+        var exception = new RecordingTransferHostException(
+            "backup_host_upgrade_required",
+            "备份主机版本过低，请先在主机上更新后继续备份",
+            (HttpStatusCode)426);
+
+        Assert.Empty(RecordingTransferFailurePolicy.ClassifyFailure(exception));
+        Assert.Equal(
+            RecordingTransferFailureKinds.HostUpgradeRequired,
+            RecordingTransferFailurePolicy.ClassifyFailureKind(exception));
+    }
+
+    [Fact]
+    public async Task HostUpgradeProbeDoesNotClearTheDirectionalState()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string videoPath = Path.Combine(directory, "pending.mp4");
+            File.WriteAllBytes(videoPath, new byte[128]);
+            using var database = new VideoDatabase(databasePath);
+            long recordId = database.InsertVideoRecord(
+                "HOST-UPGRADE-PROBE",
+                "发货",
+                "",
+                "",
+                videoPath,
+                DateTime.Now.AddMinutes(-1));
+            database.UpdateVideoRecordOnStop(
+                recordId,
+                DateTime.Now,
+                60,
+                128,
+                "手动");
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, targetNodeId);
+            PackingProofNodeInfo host = CreateHost(targetNodeId);
+            host.BackupCompatibility = new BackupCompatibilityInfo
+            {
+                HostVersion = "0.0.54",
+                Protocol = "mobile-backup-v1",
+                EnrollmentVersion = BackupCompatibilityPolicy.EnrollmentVersion,
+                AuthVersion = BackupCompatibilityPolicy.AuthenticationVersion,
+                MinimumWorkstationVersion = "0.0.55"
+            };
+            var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config,
+                hostResolver: (_, _, _, _) =>
+                    Task.FromResult<PackingProofNodeInfo?>(host));
+            Assert.Equal(1, service.EnqueueCompletedRecordings());
+
+            Assert.False(await service.ProbeHostHealthAsync(
+                TestContext.Current.CancellationToken));
+            Assert.Equal(
+                HostConnectionState.HostUpdateRequired,
+                service.GetHostHealth().State);
+
+            Assert.False(await service.ProbeHostHealthAsync(
+                TestContext.Current.CancellationToken));
+            Assert.Equal(
+                HostConnectionState.HostUpdateRequired,
+                service.GetHostHealth().State);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task ClientUpgradeStateUsesBackoffBeforeTheNextProbe()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            AppConfig config = CreateConfig(
+                directory,
+                Guid.NewGuid().ToString("D"));
+            using var database = new VideoDatabase(databasePath);
+            var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config);
+
+            service.RequireClientUpgrade("当前电脑版本过低");
+            RecordingTransferHostHealth health = service.GetHostHealth();
+
+            Assert.Equal(
+                HostConnectionState.ClientUpdateRequired,
+                health.State);
+            Assert.True(health.NextProbeAt > DateTimeOffset.UtcNow);
+            Assert.Equal(
+                0,
+                await service.ProcessReadyOnceAsync(
+                    TestContext.Current.CancellationToken));
+            Assert.Equal(
+                HostConnectionState.ClientUpdateRequired,
+                service.GetHostHealth().State);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
     [Theory]
     [MemberData(nameof(DeterministicProtocolFailures))]
     public void ClassifyFailure_StopsOnDeterministicProtocolFailures(Exception exception)
@@ -1675,7 +1802,7 @@ public sealed class RecordingTransferTests
 
     public static TheoryData<Exception> DeterministicProtocolFailures => new()
     {
-        new InvalidOperationException("保存主机版本过旧"),
+        new InvalidOperationException("备份主机版本过旧"),
         new InvalidDataException("主机返回的断点位置无效"),
         new JsonException("invalid host response"),
         new UnauthorizedAccessException("access denied")
@@ -1808,7 +1935,7 @@ public sealed class RecordingTransferTests
         Protocol = PackingProofNodeInfo.ExpectedProtocol,
         ProtocolVersion = PackingProofNodeInfo.SupportedProtocolVersion,
         NodeId = nodeId,
-        NodeName = "保存主机",
+        NodeName = "备份主机",
         Preset = DeploymentPresets.RecordingHost,
         Capabilities = [PackingProofCapabilities.Host, PackingProofCapabilities.MobileBackup],
         HttpPort = 5280,

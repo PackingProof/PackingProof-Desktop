@@ -362,18 +362,22 @@ internal sealed class TransferManagementWindowViewModel : INotifyPropertyChanged
             : snapshot.HostState switch
         {
             HostConnectionState.Offline =>
-                AppLanguage.Get("保存主机离线，恢复后自动继续"),
+                AppLanguage.Get("备份主机离线，恢复后自动继续"),
             HostConnectionState.AwaitingApproval =>
                 AppLanguage.Get("等待主机允许连接"),
+            HostConnectionState.ClientUpdateRequired =>
+                AppLanguage.Get("当前电脑版本过低，请更新后再备份"),
+            HostConnectionState.HostUpdateRequired =>
+                AppLanguage.Get("备份主机版本过低，请先在主机上更新后继续备份"),
             HostConnectionState.StorageBlocked =>
-                AppLanguage.Get("保存主机空间不足，上传已暂停"),
+                AppLanguage.Get("备份主机空间不足，上传已暂停"),
             HostConnectionState.WriteBusy =>
                 AppLanguage.Get("主机写入繁忙，稍后自动继续"),
             HostConnectionState.Unknown when snapshot.PendingCount > 0
                                              && snapshot.UpcomingUpload != null =>
                 "",
             HostConnectionState.Unknown when snapshot.PendingCount > 0 =>
-                AppLanguage.Get("正在检查保存主机"),
+                AppLanguage.Get("正在检查备份主机"),
             _ when snapshot.NextRetryAt is DateTimeOffset retryAt &&
                    snapshot.PendingCount > 0 =>
                 AppLanguage.Format(
@@ -455,12 +459,17 @@ internal sealed class TransferManagementWindowViewModel : INotifyPropertyChanged
         else if (snapshot.UpcomingUpload is TransferTaskRow upcoming
                  && (snapshot.HostState == HostConnectionState.Online
                      || snapshot.HostState == HostConnectionState.Unknown
+                     || snapshot.HostState == HostConnectionState.ClientUpdateRequired
+                     || snapshot.HostState == HostConnectionState.HostUpdateRequired
                      || IsUploadPaused))
         {
             uploadSlot = CreateUploadSlotItem(
                 upcoming,
                 IsUploadPaused
                     ? AppLanguage.Get("已暂停")
+                    : snapshot.HostState is HostConnectionState.ClientUpdateRequired
+                        or HostConnectionState.HostUpdateRequired
+                        ? AppLanguage.Get("等待更新")
                     : snapshot.HostState == HostConnectionState.Unknown
                         ? AppLanguage.Get("正在检查主机")
                         : FormatUploadWait(snapshot.NextUploadAt),

@@ -44,7 +44,7 @@ public static class PreRecordBufferPolicy
             if (GlobalMemoryStatusEx(ref status)) return status.TotalPhysical;
         }
 
-        // 非 Windows 宿主（例如 macOS 保存主机）没有等价的物理内存接口，
+        // 非 Windows 宿主（例如 macOS 备份主机）没有等价的物理内存接口，
         // 用运行时报告的可用内存兜底：这些值只用于预录缓冲的推荐值与上限计算。
         long availableBytes = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
         return availableBytes > 0 ? (ulong)availableBytes : 0;

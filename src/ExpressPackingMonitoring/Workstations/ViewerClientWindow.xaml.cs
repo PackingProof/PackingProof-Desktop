@@ -56,13 +56,13 @@ public partial class ViewerClientWindow : Window
             Title = $"{AppLanguage.Translate(Title)} {AppVersion.Current}";
         if (_bindingOnly)
         {
-            Title = AppLanguage.Format("PackingProof 保存主机 {0}", AppVersion.Current);
-            WindowHeadingText.Text = "保存主机";
+            Title = AppLanguage.Format("PackingProof 备份主机 {0}", AppVersion.Current);
+            WindowHeadingText.Text = "备份主机";
             WindowDescriptionText.Text = "选择一台电脑保存录像；暂时不设置也可以先录像";
             SwitchPurposeButton.Visibility = Visibility.Collapsed;
             ViewerActionPanel.Visibility = Visibility.Collapsed;
             UserscriptStatusText.Visibility = Visibility.Collapsed;
-            DiscoveryHeadingText.Text = "选择保存主机";
+            DiscoveryHeadingText.Text = "选择备份主机";
             SearchStatusText.Text = ViewerConnectionStatusText.SearchingBindingHost;
             DeferBindingButton.Visibility = Visibility.Visible;
             ScanPhonePairingButton.Visibility = Visibility.Visible;
@@ -220,7 +220,7 @@ public partial class ViewerClientWindow : Window
         _boundHost = null;
         bool hasSavedHost = HasSavedHost();
         HostNameText.Text = hasSavedHost
-            ? FirstNotEmpty(_config.LastKnownHostNodeName, "已绑定的保存主机")
+            ? FirstNotEmpty(_config.LastKnownHostNodeName, "已绑定的备份主机")
             : "尚未绑定";
         HostAddressText.Text = string.IsNullOrWhiteSpace(_config.LastKnownHostAddress)
             ? "—"
@@ -444,7 +444,7 @@ public partial class ViewerClientWindow : Window
         if (!node.IsValidHost)
         {
             ShowConnectionError(_bindingOnly
-                ? "这台电脑暂时不能作为保存主机"
+                ? "这台电脑暂时不能作为备份主机"
                 : "该地址不是有效的 PackingProof 主机");
             return;
         }
@@ -453,9 +453,24 @@ public partial class ViewerClientWindow : Window
             ShowConnectionError("该主机未启用录像接收能力");
             return;
         }
-        if (_bindingOnly && !BackupCompatibilityPolicy.IsCompatibleHost(node.BackupCompatibility))
+        bool hostProtocolCompatible =
+            BackupCompatibilityPolicy.HasCompatibleHostProtocol(
+                node.BackupCompatibility);
+        if (!hostProtocolCompatible
+            || (!_bindingOnly
+                && !BackupCompatibilityPolicy.IsCompatibleHost(
+                    node.BackupCompatibility)))
         {
-            ShowConnectionError("保存主机版本过旧，请更新保存主机电脑");
+            ShowConnectionError(AppLanguage.Get(
+                "备份主机版本不兼容，请更新后重新连接"));
+            return;
+        }
+        if (_bindingOnly
+            && !BackupCompatibilityPolicy.IsCompatibleWorkstationHost(
+                node.BackupCompatibility,
+                AppVersion.Current))
+        {
+            ShowConnectionError("当前电脑版本过低，请更新后再备份");
             return;
         }
 
@@ -470,7 +485,7 @@ public partial class ViewerClientWindow : Window
                     config.LastRecordingHostApprovalFailureCode = "";
                 }))
             {
-                ShowConnectionError(AppLanguage.Get("无法保存主机连接状态"));
+                ShowConnectionError(AppLanguage.Get("无法保存连接状态"));
                 return;
             }
             ApplyConnectionViewState(
@@ -486,7 +501,7 @@ public partial class ViewerClientWindow : Window
                         : _config.NodeName,
                     "pc");
                 if (!string.Equals(enrollment.ComputerId, node.NodeId, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException("保存主机身份在连接过程中发生变化，请重新搜索");
+                    throw new InvalidOperationException("备份主机身份在连接过程中发生变化，请重新搜索");
                 backupCredential = enrollment.DeviceToken;
             }
             catch (Exception ex)
@@ -558,7 +573,7 @@ public partial class ViewerClientWindow : Window
                     BackupDeviceEnrollmentFailureKind.Failed);
             }
             _isConnecting = false;
-            ShowConnectionError($"连接保存主机失败：{bindingResult.Error}");
+            ShowConnectionError($"连接备份主机失败：{bindingResult.Error}");
             NotifyRecordingHostApprovalChanged();
             return;
         }
@@ -659,7 +674,7 @@ public partial class ViewerClientWindow : Window
         }
         if (probe == WorkstationNetwork.WebAccessProbeResult.Failed)
         {
-            AppDialog.Error(this, "无法连接保存主机网页，请检查网络后重试", "打开录像网页");
+            AppDialog.Error(this, "无法连接备份主机网页，请检查网络后重试", "打开录像网页");
             return;
         }
 
@@ -679,7 +694,7 @@ public partial class ViewerClientWindow : Window
 
         AppDialog.Warning(
             this,
-            "保存主机版本过旧或已开启访问保护，请更新保存主机，或使用“手动连接”粘贴完整链接",
+            "备份主机版本过旧或已开启访问保护，请更新备份主机，或使用“手动连接”粘贴完整链接",
             "打开录像网页");
     }
 
@@ -701,7 +716,7 @@ public partial class ViewerClientWindow : Window
             }
             if (probe == WorkstationNetwork.WebAccessProbeResult.Failed)
             {
-                AppDialog.Error(this, "无法连接保存主机网页，请检查网络后重试", "打开录像网页");
+                AppDialog.Error(this, "无法连接备份主机网页，请检查网络后重试", "打开录像网页");
                 return;
             }
             ClearSavedWebAccessKey();
@@ -719,7 +734,7 @@ public partial class ViewerClientWindow : Window
                         ? Environment.MachineName
                         : _config.NodeName,
                     "viewer",
-                    clientVersion: BackupCompatibilityPolicy.MinimumViewerVersion,
+                    clientVersion: AppVersion.Current,
                     platform: "windows");
             url = enrollment.WebAccessUrl ?? "";
         }
@@ -733,7 +748,7 @@ public partial class ViewerClientWindow : Window
         if (string.IsNullOrWhiteSpace(url))
         {
             SearchStatusText.Text = ViewerConnectionStatusText.AccessNotGranted;
-            AppDialog.Error(this, "保存主机未返回网页访问链接，请更新保存主机后重试", "打开录像网页");
+            AppDialog.Error(this, "备份主机未返回网页访问链接，请更新备份主机后重试", "打开录像网页");
             return;
         }
 
@@ -741,7 +756,7 @@ public partial class ViewerClientWindow : Window
         if (issuedKey.Length == 0)
         {
             SearchStatusText.Text = ViewerConnectionStatusText.AccessNotGranted;
-            AppDialog.Error(this, "保存主机返回的网页访问链接无效，请更新保存主机后重试", "打开录像网页");
+            AppDialog.Error(this, "备份主机返回的网页访问链接无效，请更新备份主机后重试", "打开录像网页");
             return;
         }
 
@@ -750,7 +765,7 @@ public partial class ViewerClientWindow : Window
         if (finalProbe != WorkstationNetwork.WebAccessProbeResult.Authorized)
         {
             SearchStatusText.Text = ViewerConnectionStatusText.AccessNotGranted;
-            AppDialog.Error(this, "网页访问验证失败，请在保存主机上确认后重试", "打开录像网页");
+            AppDialog.Error(this, "网页访问验证失败，请在备份主机上确认后重试", "打开录像网页");
             return;
         }
 
@@ -791,7 +806,7 @@ public partial class ViewerClientWindow : Window
             && !AppDialog.Confirm(
                 this,
                 "更换后，新的录像会发送到新主机。尚未上传完成的录像仍会保留在本机",
-                "更换保存主机",
+                "更换备份主机",
                 AppDialogSeverity.Warning,
                 confirmText: "继续选择",
                 cancelText: "保留当前"))
@@ -984,8 +999,8 @@ public partial class ViewerClientWindow : Window
             && viewModel.PendingRecordingTransferCount > 0
             && !AppDialog.Confirm(
                 this,
-                $"本机还有 {viewModel.PendingRecordingTransferCount} 个录像等待原保存主机。继续后，这些录像将改为上传到“{node.NodeName}”",
-                "更换保存主机",
+                $"本机还有 {viewModel.PendingRecordingTransferCount} 个录像等待原备份主机。继续后，这些录像将改为上传到“{node.NodeName}”",
+                "更换备份主机",
                 AppDialogSeverity.Warning,
                 confirmText: "继续连接",
                 cancelText: "保留原主机"))
@@ -1014,19 +1029,19 @@ public partial class ViewerClientWindow : Window
         ScanPhonePairingButton.IsEnabled = false;
         ApplyConnectionViewState(
             ConnectionViewState.Connecting,
-            "请将保存主机的连接二维码对准电脑摄像头");
+            "请将备份主机的连接二维码对准电脑摄像头");
         try
         {
             string input = await viewModel.ScanHostPairingQrAsync(_qrScanCancellation.Token);
             WorkstationNetwork.ParseHostConnectionInput(input, out string address, out _);
             if (string.IsNullOrWhiteSpace(address))
-                throw new InvalidOperationException("这不是有效的保存主机二维码");
+                throw new InvalidOperationException("这不是有效的备份主机二维码");
 
             PackingProofNodeInfo? node = await WorkstationNetwork.GetNodeInfoAsync(
                 address,
                 _qrScanCancellation.Token);
             if (node == null)
-                throw new InvalidOperationException("无法连接二维码中的保存主机，请检查两台设备是否在同一网络");
+                throw new InvalidOperationException("无法连接二维码中的备份主机，请检查两台设备是否在同一网络");
             await BindHostAsync(node);
         }
         catch (OperationCanceledException)
@@ -1103,7 +1118,7 @@ public partial class ViewerClientWindow : Window
         }
         if (_bindingOnly && accessKey.Length < 16)
         {
-            window.ShowError("录制工位需要粘贴保存主机提供的完整连接链接");
+            window.ShowError("录制工位需要粘贴备份主机提供的完整连接链接");
             return;
         }
 
@@ -1156,7 +1171,9 @@ public partial class ViewerClientWindow : Window
 
     private static bool IsCompatibleRecordingReceiverHost(PackingProofNodeInfo node) =>
         IsRecordingReceiverHost(node)
-        && BackupCompatibilityPolicy.IsCompatibleHost(node.BackupCompatibility);
+        && BackupCompatibilityPolicy.IsCompatibleWorkstationHost(
+            node.BackupCompatibility,
+            AppVersion.Current);
 
     internal static IReadOnlyList<PackingProofNodeInfo> FilterDiscoveredHosts(
         IEnumerable<PackingProofNodeInfo> hosts,
@@ -1238,7 +1255,7 @@ public partial class ViewerClientWindow : Window
         ManualConnectionButton.IsEnabled = !busy;
         BindSelectedButtonText.Text = _isConnecting
             ? "正在连接"
-            : "连接保存主机";
+            : "连接备份主机";
     }
 
     private static string FirstNotEmpty(params string?[] values) =>

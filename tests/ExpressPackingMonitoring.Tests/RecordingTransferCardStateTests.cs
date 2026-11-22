@@ -13,7 +13,7 @@ public sealed class RecordingTransferCardStateTests
     [InlineData(2, 0, 0, 0, 0, true, false, false, "待上传", "2 个录像已保存在本机，联网后自动上传")]
     [InlineData(1, 1, 0, 0, 45, false, false, false, "上传中", "正在上传 45% · 共 2 个待上传")]
     [InlineData(0, 0, 2, 0, 0, false, false, false, "待上传", "2 个录像稍后自动重试，录像仍保存在本机")]
-    [InlineData(0, 0, 2, 0, 0, false, false, true, "需要重新连接", "需要重新连接保存主机，录像仍保存在本机")]
+    [InlineData(0, 0, 2, 0, 0, false, false, true, "需要重新连接", "需要重新连接备份主机，录像仍保存在本机")]
     // 停止重试的录像不占卡片状态，只并进现有明细；全都停止时沿用"上传失败"口径。
     [InlineData(0, 0, 0, 3, 0, false, false, false, "上传失败", "3 个录像已停止上传，请查看失败原因后重试")]
     [InlineData(1, 0, 0, 3, 0, false, false, false, "待上传", "1 个录像等待上传 · 3 个已停止上传")]
@@ -46,8 +46,8 @@ public sealed class RecordingTransferCardStateTests
 
     [Theory]
     [InlineData("设备令牌无效，请重新连接", true)]
-    [InlineData("保存主机连接协议已升级，请重新连接保存主机", true)]
-    [InlineData("保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”", true)]
+    [InlineData("备份主机连接协议已升级，请重新连接备份主机", true)]
+    [InlineData("备份主机未允许本机连接，可重新申请并在备份主机上点“允许连接”", true)]
     [InlineData("主机请求失败：HTTP 500", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
@@ -114,6 +114,71 @@ public sealed class RecordingTransferCardStateTests
                 resolved,
                 requiresReconnect: false,
                 awaitingApproval: false));
+    }
+
+    [Theory]
+    [InlineData(nameof(HostConnectionState.ClientUpdateRequired), "需要更新电脑端")]
+    [InlineData(nameof(HostConnectionState.HostUpdateRequired), "需要更新备份主机")]
+    public void PreparedUpgradeStatesUseDirectionSpecificHostStatus(
+        string stateValue,
+        string expected)
+    {
+        HostConnectionState state = Enum.Parse<HostConnectionState>(stateValue);
+        Assert.False(MainViewModel.ResolveBoundHostOnlineAfterHealth(true, state));
+        Assert.Equal(
+            expected,
+            MainViewModel.ResolveBoundHostOnlineStatusText(
+                false,
+                requiresReconnect: false,
+                awaitingApproval: false,
+                clientUpdateRequired: state == HostConnectionState.ClientUpdateRequired,
+                hostUpdateRequired: state == HostConnectionState.HostUpdateRequired));
+    }
+
+    [Theory]
+    [InlineData(nameof(HostConnectionState.Online), true)]
+    [InlineData(nameof(HostConnectionState.Unknown), true)]
+    [InlineData(nameof(HostConnectionState.PausedByUser), true)]
+    [InlineData(nameof(HostConnectionState.Offline), false)]
+    [InlineData(nameof(HostConnectionState.AwaitingApproval), false)]
+    [InlineData(nameof(HostConnectionState.ClientUpdateRequired), false)]
+    [InlineData(nameof(HostConnectionState.HostUpdateRequired), false)]
+    [InlineData(nameof(HostConnectionState.StorageBlocked), false)]
+    [InlineData(nameof(HostConnectionState.WriteBusy), false)]
+    public void RemoteCacheVerificationRequiresAReachableHost(
+        string stateValue,
+        bool expected)
+    {
+        HostConnectionState state = Enum.Parse<HostConnectionState>(stateValue);
+
+        Assert.Equal(
+            expected,
+            MainViewModel.CanVerifyRemoteCacheForState(state));
+    }
+
+    [Theory]
+    [InlineData(true, false, "需要更新电脑端", "当前电脑版本过低，请更新后再备份")]
+    [InlineData(false, true, "需要更新备份主机", "备份主机版本过低，请先在主机上更新后继续备份")]
+    public void UpgradeStatesReplaceMisleadingQueuedStatus(
+        bool clientUpdateRequired,
+        bool hostUpdateRequired,
+        string expectedShortStatus,
+        string expectedDetail)
+    {
+        RecordingTransferCardState state =
+            MainViewModel.BuildRecordingTransferCardState(
+                pendingCount: 3,
+                uploadingCount: 0,
+                failedCount: 0,
+                abandonedCount: 0,
+                progress: 0,
+                hostOffline: false,
+                recentlyUploaded: false,
+                clientUpdateRequired: clientUpdateRequired,
+                hostUpdateRequired: hostUpdateRequired);
+
+        Assert.Equal(expectedShortStatus, state.ShortStatusText);
+        Assert.Equal(expectedDetail, state.DetailText);
     }
 
     [Fact]

@@ -8,7 +8,7 @@ namespace ExpressPackingMonitoring.Services;
 /// <summary>
 /// Windows 专有的监听调优、权限查询与外壳 COM 调用。
 ///
-/// 集中放在这里，跨平台代码就不必散落平台判断：非 Windows 宿主（例如 macOS 保存主机）
+/// 集中放在这里，跨平台代码就不必散落平台判断：非 Windows 宿主（例如 macOS 备份主机）
 /// 走到这些入口时一律安全返回，不抛 DllNotFound 或 COM 异常。
 /// </summary>
 internal static class WindowsPlatformSupport

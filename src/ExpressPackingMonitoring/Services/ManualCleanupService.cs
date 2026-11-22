@@ -81,7 +81,7 @@ internal sealed class ManualCleanupService
         int repairedCount = 0;
         int skippedCount = 0;
 
-        // 第一阶段：清理已有可信备份的本地副本。录像从机上传到保存主机后，
+        // 第一阶段：清理已有可信备份的本地副本。录像从机上传到备份主机后，
         // 主机校验回执同样是有效备份，不能继续按“未备份到 NAS”提示用户。
         void CleanRecord(VideoRecord record)
         {

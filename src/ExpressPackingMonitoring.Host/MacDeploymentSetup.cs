@@ -4,7 +4,7 @@ namespace ExpressPackingMonitoring.Host;
 
 /// <summary>
 /// Mac 端的用途设置：复用桌面端"选择电脑用途"的文案，只保留 Mac 支持的两种结果——
-/// 负责长期保存录像的保存主机，或只连接主机查看的查看端。
+/// 负责长期保存录像的备份主机，或只连接主机查看的查看端。
 /// </summary>
 internal static class MacDeploymentSetup
 {
@@ -50,7 +50,7 @@ internal static class MacDeploymentSetup
     }
 
     /// <summary>
-    /// 保存主机必须有一个本机可用的录像目录。已有配置就沿用（外接盘暂时不在也不强制重选），
+    /// 备份主机必须有一个本机可用的录像目录。已有配置就沿用（外接盘暂时不在也不强制重选），
     /// 只有默认的 Windows 路径或空配置才让用户重新选一次。
     /// </summary>
     private static bool TryEnsureStorageLocation(AppConfig config, out string error)

@@ -75,7 +75,7 @@ final class AppStateModel: ObservableObject {
     @Published var selectedHostId: String?
     @Published var onlineNodeIds: Set<String> = []
 
-    /// 本机用途：查看端 / 保存主机
+    /// 本机用途：查看端 / 备份主机
     @Published var isViewer = false
     @Published var hostStatusText = ""
     @Published var hostRunning = false

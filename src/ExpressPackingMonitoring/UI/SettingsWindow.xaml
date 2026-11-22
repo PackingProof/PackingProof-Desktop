@@ -2367,7 +2367,7 @@
                                             <TextBlock Text="空间不足时会按存储规则自动清理旧录像，通常无需手动操作"
                                                        Style="{StaticResource FieldHintStyle}"
                                                        Visibility="{Binding Capabilities.CanConfigureStorage, Converter={StaticResource BoolToVisibility}}"/>
-                                            <TextBlock Text="缓存接近上限时自动清理已上传的录像，未上传的录像会保留"
+                                            <TextBlock Text="{loc:Localized 备份确认后会自动清理已上传的录像，未上传的录像会保留}"
                                                        Style="{StaticResource FieldHintStyle}"
                                                        Visibility="{Binding Capabilities.CanConfigureRecordingCache, Converter={StaticResource BoolToVisibility}}"/>
                                         </StackPanel>
@@ -2395,7 +2395,7 @@
                                     Visibility="{Binding Capabilities.CanConfigureRecordingCache, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
                                     <TextBlock Text="本机录像缓存" Style="{StaticResource FieldLabelStyle}"/>
-                                    <TextBlock Text="上传到保存主机前，录像先保存在这里；录像从机固定使用一个本地磁盘"
+                                    <TextBlock Text="上传到备份主机前，录像先保存在这里；录像从机固定使用一个本地磁盘"
                                                Style="{StaticResource FieldHintStyle}"
                                                Margin="0,0,0,12"/>
                                     <Border BorderBrush="{DynamicResource BorderLight}"

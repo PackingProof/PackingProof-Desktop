@@ -617,7 +617,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    RuntimeLog.Warn("保存主机", $"识别连接二维码失败：{ex.Message}");
+                    RuntimeLog.Warn("备份主机", $"识别连接二维码失败：{ex.Message}");
                 }
                 finally
                 {

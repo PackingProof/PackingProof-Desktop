@@ -282,7 +282,7 @@ namespace ExpressPackingMonitoring.Config
 
         /// <summary>
         /// Unix（macOS/Linux）的存储位置：没有盘符、UNC 与 WNet，只看挂载点。
-        /// 现在真的挂着的卷按本地位置处理（Mac 保存主机不做网络归档，网络挂载没有单独一类）；
+        /// 现在真的挂着的卷按本地位置处理（Mac 备份主机不做网络归档，网络挂载没有单独一类）；
         /// 路径落在已断开的外接盘挂载目录下（例如 /Volumes/盘 还没接入）时按 Unknown
         /// fail-closed，绝不在系统盘上建出同名目录继续写。
         /// </summary>

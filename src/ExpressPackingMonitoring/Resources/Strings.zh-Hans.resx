@@ -22,7 +22,7 @@
   <data name="跟随系统" xml:space="preserve"><value>跟随系统</value></data>
   <data name="简体中文" xml:space="preserve"><value>简体中文</value></data>
   <data name="日语" xml:space="preserve"><value>日语</value></data>
-  <data name="使用本机录像摄像头扫描保存主机连接二维码" xml:space="preserve"><value>使用本机录像摄像头扫描保存主机连接二维码</value></data>
+  <data name="使用本机录像摄像头扫描备份主机连接二维码" xml:space="preserve"><value>使用本机录像摄像头扫描备份主机连接二维码</value></data>
   <data name="外观主题" xml:space="preserve"><value>外观主题</value></data>
   <data name="浅色主题" xml:space="preserve"><value>浅色主题</value></data>
   <data name="深色主题" xml:space="preserve"><value>深色主题</value></data>
@@ -814,16 +814,16 @@
   <data name="仍可使用扫码枪或在主页面手动输入面单号" xml:space="preserve"><value>仍可使用扫码枪或在主页面手动输入面单号</value></data>
   <data name="没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪" xml:space="preserve"><value>没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪</value></data>
   <data name="当前用途：录制工位" xml:space="preserve"><value>当前用途：录制工位</value></data>
-  <data name="保存主机：" xml:space="preserve"><value>保存主机：</value></data>
+  <data name="备份主机：" xml:space="preserve"><value>备份主机：</value></data>
   <data name="　待上传：" xml:space="preserve"><value>　待上传：</value></data>
   <data name="重新连接" xml:space="preserve"><value>重新连接</value></data>
   <data name="打开主机录像" xml:space="preserve"><value>打开主机录像</value></data>
   <data name="本机录像缓存" xml:space="preserve"><value>本机录像缓存</value></data>
-  <data name="上传到保存主机前，录像先保存在这里；录像从机固定使用一个本地磁盘" xml:space="preserve"><value>上传到保存主机前，录像先保存在这里；录像从机固定使用一个本地磁盘</value></data>
+  <data name="上传到备份主机前，录像先保存在这里；录像从机固定使用一个本地磁盘" xml:space="preserve"><value>上传到备份主机前，录像先保存在这里；录像从机固定使用一个本地磁盘</value></data>
   <data name="软件支持 NAS 备份，需要切换到主机后配置" xml:space="preserve"><value>软件支持 NAS 备份，需要切换到主机后配置</value></data>
   <data name="录像备份位置需要在主机上配置，是否现在切换用途？" xml:space="preserve"><value>录像备份位置需要在主机上配置，是否现在切换用途？</value></data>
   <data name="更改磁盘" xml:space="preserve"><value>更改磁盘</value></data>
-  <data name="录像会自动上传到保存主机。本机缓存用于断网重试和临时保留，只会清理已经成功上传的录像" xml:space="preserve"><value>录像会自动上传到保存主机。本机缓存用于断网重试和临时保留，只会清理已经成功上传的录像</value></data>
+  <data name="录像会自动上传到备份主机。本机缓存用于断网重试和临时保留，只会清理已经成功上传的录像" xml:space="preserve"><value>录像会自动上传到备份主机。本机缓存用于断网重试和临时保留，只会清理已经成功上传的录像</value></data>
   <data name="缓存策略" xml:space="preserve"><value>缓存策略</value></data>
   <data name="三种策略互斥，上传未确认的录像不会被清理" xml:space="preserve"><value>三种策略互斥，上传未确认的录像不会被清理</value></data>
   <data name="上传成功后立即删除" xml:space="preserve"><value>上传成功后立即删除</value></data>
@@ -835,46 +835,46 @@
   <data name="选择容量限制时生效，超出后从最旧的已上传录像开始清理" xml:space="preserve"><value>选择容量限制时生效，超出后从最旧的已上传录像开始清理</value></data>
   <data name="录制工位请粘贴主机“手机/电脑连接”中的完整链接" xml:space="preserve"><value>录制工位请粘贴主机“手机/电脑连接”中的完整链接</value></data>
   <data name="使用这台电脑录像，保存到其他主机" xml:space="preserve"><value>使用这台电脑录像，保存到其他主机</value></data>
-  <data name="使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的保存主机。本机只临时保留录像，不接收其他设备上传" xml:space="preserve"><value>使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的保存主机。本机只临时保留录像，不接收其他设备上传</value></data>
-  <data name="尚未绑定保存主机" xml:space="preserve"><value>尚未绑定保存主机</value></data>
+  <data name="使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的备份主机。本机只临时保留录像，不接收其他设备上传" xml:space="preserve"><value>使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的备份主机。本机只临时保留录像，不接收其他设备上传</value></data>
+  <data name="尚未绑定备份主机" xml:space="preserve"><value>尚未绑定备份主机</value></data>
   <data name="第 1 步，共 2 步" xml:space="preserve"><value>第 1 步，共 2 步</value></data>
   <data name="第 2 步，共 2 步" xml:space="preserve"><value>第 2 步，共 2 步</value></data>
   <data name="是否使用这台电脑录像？" xml:space="preserve"><value>是否使用这台电脑录像？</value></data>
   <data name="选择是否启用本机摄像头、麦克风、条码识别和扫码枪" xml:space="preserve"><value>选择是否启用本机摄像头、麦克风、条码识别和扫码枪</value></data>
   <data name="启用完整电脑录像能力，包括摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒" xml:space="preserve"><value>启用完整电脑录像能力，包括摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒</value></data>
   <data name="不使用这台电脑录像" xml:space="preserve"><value>不使用这台电脑录像</value></data>
-  <data name="不初始化本机摄像头、麦克风或扫码设备；仍可作为保存主机，或只连接其他主机查看" xml:space="preserve"><value>不初始化本机摄像头、麦克风或扫码设备；仍可作为保存主机，或只连接其他主机查看</value></data>
-  <data name="是否让这台电脑作为保存主机？" xml:space="preserve"><value>是否让这台电脑作为保存主机？</value></data>
-  <data name="保存主机可以接收并长期保存手机或其他电脑上传的录像" xml:space="preserve"><value>保存主机可以接收并长期保存手机或其他电脑上传的录像</value></data>
-  <data name="作为保存主机" xml:space="preserve"><value>作为保存主机</value></data>
+  <data name="不初始化本机摄像头、麦克风或扫码设备；仍可作为备份主机，或只连接其他主机查看" xml:space="preserve"><value>不初始化本机摄像头、麦克风或扫码设备；仍可作为备份主机，或只连接其他主机查看</value></data>
+  <data name="是否让这台电脑作为备份主机？" xml:space="preserve"><value>是否让这台电脑作为备份主机？</value></data>
+  <data name="备份主机可以接收并长期保存手机或其他电脑上传的录像" xml:space="preserve"><value>备份主机可以接收并长期保存手机或其他电脑上传的录像</value></data>
+  <data name="作为备份主机" xml:space="preserve"><value>作为备份主机</value></data>
   <data name="长期保存录像，并接收手机或其他电脑录制工位上传的录像" xml:space="preserve"><value>长期保存录像，并接收手机或其他电脑录制工位上传的录像</value></data>
-  <data name="不作为保存主机" xml:space="preserve"><value>不作为保存主机</value></data>
+  <data name="不作为备份主机" xml:space="preserve"><value>不作为备份主机</value></data>
   <data name="不接收其他设备录像；如本机录像，会自动上传到绑定主机，否则仅用于查看" xml:space="preserve"><value>不接收其他设备录像；如本机录像，会自动上传到绑定主机，否则仅用于查看</value></data>
   <data name="返回上一步" xml:space="preserve"><value>返回上一步</value></data>
   <data name="只连接主机查看录像" xml:space="preserve"><value>只连接主机查看录像</value></data>
   <data name="只接收并保存录像" xml:space="preserve"><value>只接收并保存录像</value></data>
-  <data name="录制工位 · 保存主机：" xml:space="preserve"><value>录制工位 · 保存主机：</value></data>
+  <data name="录制工位 · 备份主机：" xml:space="preserve"><value>录制工位 · 备份主机：</value></data>
   <data name=" · 待上传 " xml:space="preserve"><value> · 待上传 </value></data>
   <data name="可连接" xml:space="preserve"><value>可连接</value></data>
-  <data name="确认后选择另一台保存主机" xml:space="preserve"><value>确认后选择另一台保存主机</value></data>
-  <data name="更换保存主机" xml:space="preserve"><value>更换保存主机</value></data>
-  <data name="解除当前显示并选择另一台保存主机" xml:space="preserve"><value>解除当前显示并选择另一台保存主机</value></data>
-  <data name="选择保存主机" xml:space="preserve"><value>选择保存主机</value></data>
-  <data name="正在搜索同一网络中的保存主机" xml:space="preserve"><value>正在搜索同一网络中的保存主机</value></data>
-  <data name="重新搜索同一网络中的保存主机" xml:space="preserve"><value>重新搜索同一网络中的保存主机</value></data>
-  <data name="连接列表中选中的保存主机" xml:space="preserve"><value>连接列表中选中的保存主机</value></data>
-  <data name="连接保存主机" xml:space="preserve"><value>连接保存主机</value></data>
-  <data name="连接保存主机失败：{0}" xml:space="preserve"><value>连接保存主机失败：{0}</value></data>
-  <data name="确认使用列表中选中的保存主机" xml:space="preserve"><value>确认使用列表中选中的保存主机</value></data>
-  <data name="使用这台保存主机" xml:space="preserve"><value>使用这台保存主机</value></data>
-  <data name="重新搜索局域网中的保存主机" xml:space="preserve"><value>重新搜索局域网中的保存主机</value></data>
+  <data name="确认后选择另一台备份主机" xml:space="preserve"><value>确认后选择另一台备份主机</value></data>
+  <data name="更换备份主机" xml:space="preserve"><value>更换备份主机</value></data>
+  <data name="解除当前显示并选择另一台备份主机" xml:space="preserve"><value>解除当前显示并选择另一台备份主机</value></data>
+  <data name="选择备份主机" xml:space="preserve"><value>选择备份主机</value></data>
+  <data name="正在搜索同一网络中的备份主机" xml:space="preserve"><value>正在搜索同一网络中的备份主机</value></data>
+  <data name="重新搜索同一网络中的备份主机" xml:space="preserve"><value>重新搜索同一网络中的备份主机</value></data>
+  <data name="连接列表中选中的备份主机" xml:space="preserve"><value>连接列表中选中的备份主机</value></data>
+  <data name="连接备份主机" xml:space="preserve"><value>连接备份主机</value></data>
+  <data name="连接备份主机失败：{0}" xml:space="preserve"><value>连接备份主机失败：{0}</value></data>
+  <data name="确认使用列表中选中的备份主机" xml:space="preserve"><value>确认使用列表中选中的备份主机</value></data>
+  <data name="使用这台备份主机" xml:space="preserve"><value>使用这台备份主机</value></data>
+  <data name="重新搜索局域网中的备份主机" xml:space="preserve"><value>重新搜索局域网中的备份主机</value></data>
   <data name="重新搜索" xml:space="preserve"><value>重新搜索</value></data>
   <data name="暂不设置，返回已经运行的电脑录像主界面" xml:space="preserve"><value>暂不设置，返回已经运行的电脑录像主界面</value></data>
   <data name="已有完整连接链接？" xml:space="preserve"><value>已有完整连接链接？</value></data>
   <data name="从保存电脑复制完整连接链接并粘贴到这里" xml:space="preserve"><value>从保存电脑复制完整连接链接并粘贴到这里</value></data>
   <data name="验证并绑定" xml:space="preserve"><value>验证并绑定</value></data>
   <data name="请粘贴包含安全密钥的完整连接链接" xml:space="preserve"><value>请粘贴包含安全密钥的完整连接链接</value></data>
-  <data name="录像会先保存在本机。保存主机确认接收后，系统会根据缓存上限自动清理已上传文件" xml:space="preserve"><value>录像会先保存在本机。保存主机确认接收后，系统会根据缓存上限自动清理已上传文件</value></data>
+  <data name="录像会先保存在本机。备份主机确认接收后，系统会根据缓存上限自动清理已上传文件" xml:space="preserve"><value>录像会先保存在本机。备份主机确认接收后，系统会根据缓存上限自动清理已上传文件</value></data>
   <data name="缓存位置" xml:space="preserve"><value>缓存位置</value></data>
   <data name="录制工位只使用一个本地缓存位置，不会自动移动或删除原有录像" xml:space="preserve"><value>录制工位只使用一个本地缓存位置，不会自动移动或删除原有录像</value></data>
   <data name="更改位置" xml:space="preserve"><value>更改位置</value></data>
@@ -895,7 +895,7 @@
   <data name="连接主机" xml:space="preserve"><value>连接主机</value></data>
   <data name="手动输入主机地址或完整连接链接" xml:space="preserve"><value>手动输入主机地址或完整连接链接</value></data>
   <data name="手动连接" xml:space="preserve"><value>手动连接</value></data>
-  <data name="请在保存主机的“手机/电脑连接”中复制完整链接，再粘贴到这里" xml:space="preserve"><value>请在保存主机的“手机/电脑连接”中复制完整链接，再粘贴到这里</value></data>
+  <data name="请在备份主机的“手机/电脑连接”中复制完整链接，再粘贴到这里" xml:space="preserve"><value>请在备份主机的“手机/电脑连接”中复制完整链接，再粘贴到这里</value></data>
   <data name="选择这台电脑的用途" xml:space="preserve"><value>选择这台电脑的用途</value></data>
   <data name="回答两个简单问题，系统会自动组合出合适的用途" xml:space="preserve"><value>回答两个简单问题，系统会自动组合出合适的用途</value></data>
   <data name="1. 这台电脑要用来录像吗？" xml:space="preserve"><value>1. 这台电脑要用来录像吗？</value></data>
@@ -907,7 +907,7 @@
   <data name="要，作为保存录像的电脑" xml:space="preserve"><value>要，作为保存录像的电脑</value></data>
   <data name="长期保存录像，并可接收和备份手机或其他录制电脑上传的录像" xml:space="preserve"><value>长期保存录像，并可接收和备份手机或其他录制电脑上传的录像</value></data>
   <data name="不要，交给其他电脑保存" xml:space="preserve"><value>不要，交给其他电脑保存</value></data>
-  <data name="本机录像时作为“录像从机”，录像先保存在本机，再上传给保存主机；不录像时作为“查看端”，连接主机查看录像" xml:space="preserve"><value>本机录像时作为“录像从机”，录像先保存在本机，再上传给保存主机；不录像时作为“查看端”，连接主机查看录像</value></data>
+  <data name="本机录像时作为“录像从机”，录像先保存在本机，再上传给备份主机；不录像时作为“查看端”，连接主机查看录像" xml:space="preserve"><value>本机录像时作为“录像从机”，录像先保存在本机，再上传给备份主机；不录像时作为“查看端”，连接主机查看录像</value></data>
   <data name="选择结果" xml:space="preserve"><value>选择结果</value></data>
   <data name="请完成上面两个选择" xml:space="preserve"><value>请完成上面两个选择</value></data>
   <data name="完成后会在这里显示最终用途和支持的能力" xml:space="preserve"><value>完成后会在这里显示最终用途和支持的能力</value></data>
@@ -915,7 +915,7 @@
   <data name="当前用途" xml:space="preserve"><value>当前用途</value></data>
   <data name="将切换到" xml:space="preserve"><value>将切换到</value></data>
   <data name="电脑录像并保存在本机" xml:space="preserve"><value>电脑录像并保存在本机</value></data>
-  <data name="这台电脑既负责录像，也作为保存主机长期保管录像" xml:space="preserve"><value>这台电脑既负责录像，也作为保存主机长期保管录像</value></data>
+  <data name="这台电脑既负责录像，也作为备份主机长期保管录像" xml:space="preserve"><value>这台电脑既负责录像，也作为备份主机长期保管录像</value></data>
   <data name="使用完整电脑录像能力" xml:space="preserve"><value>使用完整电脑录像能力</value></data>
   <data name="录像长期保存在本机" xml:space="preserve"><value>录像长期保存在本机</value></data>
   <data name="可接收并备份手机录像" xml:space="preserve"><value>可接收并备份手机录像</value></data>
@@ -936,7 +936,6 @@
   <data name="连接现有主机查看录像" xml:space="preserve"><value>连接现有主机查看录像</value></data>
   <data name="保留订单联动和测试订单能力" xml:space="preserve"><value>保留订单联动和测试订单能力</value></data>
   <data name="不接收其他设备录像" xml:space="preserve"><value>不接收其他设备录像</value></data>
-  <data name="保存主机" xml:space="preserve"><value>保存主机</value></data>
   <data name="录像上传" xml:space="preserve"><value>录像上传</value></data>
   <data name="待上传" xml:space="preserve"><value>待上传</value></data>
   <data name="电脑昵称" xml:space="preserve"><value>电脑昵称</value></data>
@@ -1104,10 +1103,10 @@
   <data name="平时也在主画面上画出放大区域，方便随时确认" xml:space="preserve"><value>平时也在主画面上画出放大区域，方便随时确认</value></data>
   <data name="调整大小与位置…" xml:space="preserve"><value>调整大小与位置…</value></data>
   <data name="粘贴单号，自动去掉首尾多余字符" xml:space="preserve"><value>粘贴单号，自动去掉首尾多余字符</value></data>
-  <data name="要，作为保存主机（支持 NAS）" xml:space="preserve"><value>要，作为保存主机（支持 NAS）</value></data>
+  <data name="要，作为备份主机（支持 NAS）" xml:space="preserve"><value>要，作为备份主机（支持 NAS）</value></data>
   <data name="主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像" xml:space="preserve"><value>主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像</value></data>
-  <data name="这台电脑既录像也负责长期保存，是保存主机，支持 NAS／网络共享备份" xml:space="preserve"><value>这台电脑既录像也负责长期保存，是保存主机，支持 NAS／网络共享备份</value></data>
-  <data name="这台电脑不录像，作为保存主机接收其他设备录像，支持 NAS／网络共享备份" xml:space="preserve"><value>这台电脑不录像，作为保存主机接收其他设备录像，支持 NAS／网络共享备份</value></data>
+  <data name="这台电脑既录像也负责长期保存，是备份主机，支持 NAS／网络共享备份" xml:space="preserve"><value>这台电脑既录像也负责长期保存，是备份主机，支持 NAS／网络共享备份</value></data>
+  <data name="这台电脑不录像，作为备份主机接收其他设备录像，支持 NAS／网络共享备份" xml:space="preserve"><value>这台电脑不录像，作为备份主机接收其他设备录像，支持 NAS／网络共享备份</value></data>
   <data name="支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>支持备份到 NAS／网络共享文件夹</value></data>
   <data name="软件支持 NAS 备份。主机就是负责长期保存录像的电脑；点击“添加网络位置”，在用途选择第 2 问选“要”即可配置" xml:space="preserve"><value>软件支持 NAS 备份。主机就是负责长期保存录像的电脑；点击“添加网络位置”，在用途选择第 2 问选“要”即可配置</value></data>
   <data name="主机就是负责长期保存录像的电脑，支持 NAS／网络共享备份。要在这台电脑配置，请在用途选择第 2 问选“要”。是否现在打开用途选择？" xml:space="preserve"><value>主机就是负责长期保存录像的电脑，支持 NAS／网络共享备份。要在这台电脑配置，请在用途选择第 2 问选“要”。是否现在打开用途选择？</value></data>
@@ -1117,13 +1116,13 @@
   <data name="录像查看端" xml:space="preserve"><value>录像查看端</value></data>
   <data name="本机录像并长期保存，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>本机录像并长期保存，支持备份到 NAS／网络共享文件夹</value></data>
   <data name="接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹</value></data>
-  <data name="本机录像，自动上传到保存主机" xml:space="preserve"><value>本机录像，自动上传到保存主机</value></data>
-  <data name="连接保存主机，查看和回放录像" xml:space="preserve"><value>连接保存主机，查看和回放录像</value></data>
+  <data name="本机录像，自动上传到备份主机" xml:space="preserve"><value>本机录像，自动上传到备份主机</value></data>
+  <data name="连接备份主机，查看和回放录像" xml:space="preserve"><value>连接备份主机，查看和回放录像</value></data>
   <data name="PackingProof 备份主机" xml:space="preserve"><value>PackingProof 备份主机</value></data>
   <data name="备份主机 · 接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>备份主机 · 接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹</value></data>
   <data name="空间清理" xml:space="preserve"><value>空间清理</value></data>
   <data name="空间不足时会按存储规则自动清理旧录像，通常无需手动操作" xml:space="preserve"><value>空间不足时会按存储规则自动清理旧录像，通常无需手动操作</value></data>
-  <data name="缓存接近上限时自动清理已上传的录像，未上传的录像会保留" xml:space="preserve"><value>缓存接近上限时自动清理已上传的录像，未上传的录像会保留</value></data>
+  <data name="备份确认后会自动清理已上传的录像，未上传的录像会保留" xml:space="preserve"><value>备份确认后会自动清理已上传的录像，未上传的录像会保留</value></data>
   <data name="手动提前清理本机录像，不影响已备份的远端文件" xml:space="preserve"><value>手动提前清理本机录像，不影响已备份的远端文件</value></data>
   <data name="手动提前释放本机空间，不影响已备份的远端文件" xml:space="preserve"><value>手动提前释放本机空间，不影响已备份的远端文件</value></data>
   <data name="回到主界面" xml:space="preserve"><value>回到主界面</value></data>
@@ -1187,7 +1186,7 @@
   <data name="预留空间是留给整块磁盘的安全空间，整个磁盘共享，其他软件占用也算在内，不是本软件最多占用多少；留得太小磁盘容易写满，调整后立即生效" xml:space="preserve"><value>预留空间是留给整块磁盘的安全空间，整个磁盘共享，其他软件占用也算在内，不是本软件最多占用多少；留得太小磁盘容易写满，调整后立即生效</value></data>
   <data name="请输入大于 0 的数字（单位 GB）" xml:space="preserve"><value>请输入大于 0 的数字（单位 GB）</value></data>
   <data name="启动" xml:space="preserve"><value>启动</value></data>
-  <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>本机录像按列表顺序保存；保存主机接收手机或电脑上传时，会按物理磁盘负载和剩余空间自动分配。同一块物理磁盘的多个盘符共用同一写入能力。系统会为每块磁盘保留安全空间，需要调整时右键磁盘</value></data>
+  <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>本机录像按列表顺序保存；备份主机接收手机或电脑上传时，会按物理磁盘负载和剩余空间自动分配。同一块物理磁盘的多个盘符共用同一写入能力。系统会为每块磁盘保留安全空间，需要调整时右键磁盘</value></data>
   <data name="备份按顺序切换可用位置，当前位置空间不足时自动跳到下一个。系统会为每个备份位置保留安全空间，按整个位置计算；需要调整时右键该位置；校验通过后才会清理旧本地副本；程序不会删除 NAS 上的文件" xml:space="preserve"><value>备份按顺序切换可用位置，当前位置空间不足时自动跳到下一个。系统会为每个备份位置保留安全空间，按整个位置计算；需要调整时右键该位置；校验通过后才会清理旧本地副本；程序不会删除 NAS 上的文件</value></data>
   <data name="扩展 API 授权" xml:space="preserve"><value>扩展 API 授权</value></data>
   <data name="管理 ERP、称重设备等 API 客户端的访问权限；导入的订单脚本在上方单独管理" xml:space="preserve"><value>管理 ERP、称重设备等 API 客户端的访问权限；导入的订单脚本在上方单独管理</value></data>
@@ -1219,16 +1218,23 @@
   <data name="状态" xml:space="preserve"><value>状态</value></data>
   <data name="文件位置" xml:space="preserve"><value>文件位置</value></data>
   <data name="已清理" xml:space="preserve"><value>已清理</value></data>
-  <data name="已保存到主机" xml:space="preserve"><value>已保存到主机</value></data>
+  <data name="已备份到主机" xml:space="preserve"><value>已备份到主机</value></data>
+  <data name="需要更新电脑端" xml:space="preserve"><value>需要更新电脑端</value></data>
+  <data name="需要更新备份主机" xml:space="preserve"><value>需要更新备份主机</value></data>
+  <data name="等待更新" xml:space="preserve"><value>等待更新</value></data>
+  <data name="当前电脑版本过低，请更新后再备份" xml:space="preserve"><value>当前电脑版本过低，请更新后再备份</value></data>
+  <data name="备份主机版本过低，请先在主机上更新后继续备份" xml:space="preserve"><value>备份主机版本过低，请先在主机上更新后继续备份</value></data>
+  <data name="备份主机要求更新当前电脑，更新后会自动继续备份" xml:space="preserve"><value>备份主机要求更新当前电脑，更新后会自动继续备份</value></data>
+  <data name="当前电脑与备份主机版本不兼容，请更新后重试" xml:space="preserve"><value>当前电脑与备份主机版本不兼容，请更新后重试</value></data>
   <data name="文件已丢失，未在记录的位置找到录像" xml:space="preserve"><value>文件已丢失，未在记录的位置找到录像</value></data>
-  <data name="正在查找同一局域网中可用的保存主机" xml:space="preserve"><value>正在查找同一局域网中可用的保存主机</value></data>
+  <data name="正在查找同一局域网中可用的备份主机" xml:space="preserve"><value>正在查找同一局域网中可用的备份主机</value></data>
   <data name="没有找到主机，请检查两台电脑是否连接同一网络" xml:space="preserve"><value>没有找到主机，请检查两台电脑是否连接同一网络</value></data>
-  <data name="找到了主机，但没有可接收录像的保存主机" xml:space="preserve"><value>找到了主机，但没有可接收录像的保存主机</value></data>
-  <data name="找到了保存主机，但版本过旧，请更新保存主机电脑" xml:space="preserve"><value>找到了保存主机，但版本过旧，请更新保存主机电脑</value></data>
+  <data name="找到了主机，但没有可接收录像的备份主机" xml:space="preserve"><value>找到了主机，但没有可接收录像的备份主机</value></data>
+  <data name="找到了备份主机，但版本过旧，请更新备份主机电脑" xml:space="preserve"><value>找到了备份主机，但版本过旧，请更新备份主机电脑</value></data>
   <data name="找到 1 台主机，确认后即可连接" xml:space="preserve"><value>找到 1 台主机，确认后即可连接</value></data>
   <data name="搜索已取消" xml:space="preserve"><value>搜索已取消</value></data>
   <data name="正在查找其他可用主机" xml:space="preserve"><value>正在查找其他可用主机</value></data>
-  <data name="正在请求保存主机允许连接" xml:space="preserve"><value>正在请求保存主机允许连接</value></data>
+  <data name="正在请求备份主机允许连接" xml:space="preserve"><value>正在请求备份主机允许连接</value></data>
   <data name="需要主机允许连接" xml:space="preserve"><value>需要主机允许连接</value></data>
   <data name="已允许访问" xml:space="preserve"><value>已允许访问</value></data>
   <data name="未取得网页访问权限" xml:space="preserve"><value>未取得网页访问权限</value></data>
@@ -1237,7 +1243,7 @@
   <data name="暂时离线，稍后会自动重试" xml:space="preserve"><value>暂时离线，稍后会自动重试</value></data>
   <data name="找到 {0} 台主机，请选择要连接的主机" xml:space="preserve"><value>找到 {0} 台主机，请选择要连接的主机</value></data>
   <data name="搜索主机失败：{0}" xml:space="preserve"><value>搜索主机失败：{0}</value></data>
-  <data name="已找到“{0}”，等待保存主机允许连接" xml:space="preserve"><value>已找到“{0}”，等待保存主机允许连接</value></data>
+  <data name="已找到“{0}”，等待备份主机允许连接" xml:space="preserve"><value>已找到“{0}”，等待备份主机允许连接</value></data>
   <data name="正在连接“{0}”" xml:space="preserve"><value>正在连接“{0}”</value></data>
   <data name="已连接 {0}" xml:space="preserve"><value>已连接 {0}</value></data>
   <data name="存储错误" xml:space="preserve"><value>存储错误</value></data>
@@ -1283,7 +1289,7 @@
   <data name="[0] 未检测到摄像头" xml:space="preserve"><value>[0] 未检测到摄像头</value></data>
   <data name="{configuredPath}：磁盘未接入或无法确认存储位置类型" xml:space="preserve"><value>{configuredPath}：磁盘未接入或无法确认存储位置类型</value></data>
   <data name="{displaySeconds} 秒内未处理，本次申请将自动取消" xml:space="preserve"><value>{displaySeconds} 秒内未处理，本次申请将自动取消</value></data>
-  <data name="{name}（{location}）申请连接这台保存主机。{permission}" xml:space="preserve"><value>{name}（{location}）申请连接这台保存主机。{permission}</value></data>
+  <data name="{name}（{location}）申请连接这台备份主机。{permission}" xml:space="preserve"><value>{name}（{location}）申请连接这台备份主机。{permission}</value></data>
   <data name="{running.ProcessName}（PID {running.ProcessId}）身份已变化" xml:space="preserve"><value>{running.ProcessName}（PID {running.ProcessId}）身份已变化</value></data>
   <data name="{running.ProcessName}（PID {running.ProcessId}）未在限定时间内退出" xml:space="preserve"><value>{running.ProcessName}（PID {running.ProcessId}）未在限定时间内退出</value></data>
   <data name="30 天以前" xml:space="preserve"><value>30 天以前</value></data>
@@ -1293,8 +1299,8 @@
   <data name="安装失败" xml:space="preserve"><value>安装失败</value></data>
   <data name="按空间释放本地录像" xml:space="preserve"><value>按空间释放本地录像</value></data>
   <data name="按时间清理本地录像" xml:space="preserve"><value>按时间清理本地录像</value></data>
-  <data name="保存主机返回的网页访问链接无效，请更新保存主机后重试" xml:space="preserve"><value>保存主机返回的网页访问链接无效，请更新保存主机后重试</value></data>
-  <data name="保存主机未返回网页访问链接，请更新保存主机后重试" xml:space="preserve"><value>保存主机未返回网页访问链接，请更新保存主机后重试</value></data>
+  <data name="备份主机返回的网页访问链接无效，请更新备份主机后重试" xml:space="preserve"><value>备份主机返回的网页访问链接无效，请更新备份主机后重试</value></data>
+  <data name="备份主机未返回网页访问链接，请更新备份主机后重试" xml:space="preserve"><value>备份主机未返回网页访问链接，请更新备份主机后重试</value></data>
   <data name="本地缓存不可用：{error}" xml:space="preserve"><value>本地缓存不可用：{error}</value></data>
   <data name="本地缓存会在接近上限时自动清理" xml:space="preserve"><value>本地缓存会在接近上限时自动清理</value></data>
   <data name="本地缓存位置不可用" xml:space="preserve"><value>本地缓存位置不可用</value></data>
@@ -1472,7 +1478,7 @@
   <data name="地址缺少主机名或 IP" xml:space="preserve"><value>地址缺少主机名或 IP</value></data>
   <data name="网络摄像头连接异常，尝试重连..." xml:space="preserve"><value>网络摄像头连接异常，尝试重连...</value></data>
   <data name="网络摄像头连上了但一直没有画面，正在自动重试；请检查流地址路径、H.264 编码和其他软件占用" xml:space="preserve"><value>网络摄像头连上了但一直没有画面，正在自动重试；请检查流地址路径、H.264 编码和其他软件占用</value></data>
-  <data name="网页访问验证失败，请在保存主机上确认后重试" xml:space="preserve"><value>网页访问验证失败，请在保存主机上确认后重试</value></data>
+  <data name="网页访问验证失败，请在备份主机上确认后重试" xml:space="preserve"><value>网页访问验证失败，请在备份主机上确认后重试</value></data>
   <data name="未安装" xml:space="preserve"><value>未安装</value></data>
   <data name="未检测到可用麦克风" xml:space="preserve"><value>未检测到可用麦克风</value></data>
   <data name="未检测到可用摄像头" xml:space="preserve"><value>未检测到可用摄像头</value></data>
@@ -1487,7 +1493,7 @@
   <data name="无法创建日期目录: {ex.Message}" xml:space="preserve"><value>无法创建日期目录: {ex.Message}</value></data>
   <data name="无法打开目录" xml:space="preserve"><value>无法打开目录</value></data>
   <data name="无法开始录制" xml:space="preserve"><value>无法开始录制</value></data>
-  <data name="无法连接保存主机网页，请检查网络后重试" xml:space="preserve"><value>无法连接保存主机网页，请检查网络后重试</value></data>
+  <data name="无法连接备份主机网页，请检查网络后重试" xml:space="preserve"><value>无法连接备份主机网页，请检查网络后重试</value></data>
   <data name="无法删除扩展" xml:space="preserve"><value>无法删除扩展</value></data>
   <data name="性能建议未完成" xml:space="preserve"><value>性能建议未完成</value></data>
   <data name="选择一台电脑保存录像；暂时不设置也可以先录像" xml:space="preserve"><value>选择一台电脑保存录像；暂时不设置也可以先录像</value></data>
@@ -1614,7 +1620,7 @@
   <data name="按最旧录像优先清理，直到释放所选空间；NAS 中已备份的文件不受影响" xml:space="preserve"><value>按最旧录像优先清理，直到释放所选空间；NAS 中已备份的文件不受影响</value></data>
   <data name="请选择健康、可写的本机固定磁盘" xml:space="preserve"><value>请选择健康、可写的本机固定磁盘</value></data>
   <data name="立即重启升级" xml:space="preserve"><value>立即重启升级</value></data>
-  <data name="管理保存主机" xml:space="preserve"><value>管理保存主机</value></data>
+  <data name="管理备份主机" xml:space="preserve"><value>管理备份主机</value></data>
   <data name="连接、绑定或管理保存电脑" xml:space="preserve"><value>连接、绑定或管理保存电脑</value></data>
   <data name="订单联动接收：等待启动" xml:space="preserve"><value>订单联动接收：等待启动</value></data>
   <data name="订单联动接收：启动失败" xml:space="preserve"><value>订单联动接收：启动失败</value></data>
@@ -1623,7 +1629,7 @@
   <data name="访问保护已开启。请点击手机/电脑连接查看二维码或复制完整访问链接，再发送到需要查看录像的设备" xml:space="preserve"><value>访问保护已开启。请点击手机/电脑连接查看二维码或复制完整访问链接，再发送到需要查看录像的设备</value></data>
   <data name="其他电脑在浏览器输入 http://{monitorAccessAddress}，即可搜索、下载和播放视频。若打不开，请确认两台电脑在同一局域网，并检查防火墙" xml:space="preserve"><value>其他电脑在浏览器输入 http://{monitorAccessAddress}，即可搜索、下载和播放视频。若打不开，请确认两台电脑在同一局域网，并检查防火墙</value></data>
   <data name="局域网服务尚未准备完成，请稍后重试" xml:space="preserve"><value>局域网服务尚未准备完成，请稍后重试</value></data>
-  <data name="输入保存主机地址，或粘贴连接链接；设备令牌会自动领取" xml:space="preserve"><value>输入保存主机地址，或粘贴连接链接；设备令牌会自动领取</value></data>
+  <data name="输入备份主机地址，或粘贴连接链接；设备令牌会自动领取" xml:space="preserve"><value>输入备份主机地址，或粘贴连接链接；设备令牌会自动领取</value></data>
   <data name="旋转摄像头画面 180 度" xml:space="preserve"><value>旋转摄像头画面 180 度</value></data>
   <data name="手机 App 更新提示" xml:space="preserve"><value>手机 App 更新提示</value></data>
   <data name="修复局域网连接" xml:space="preserve"><value>修复局域网连接</value></data>
@@ -1631,16 +1637,16 @@
   <data name="导入发货视频" xml:space="preserve"><value>导入发货视频</value></data>
   <data name="导入退货视频" xml:space="preserve"><value>导入退货视频</value></data>
   <data name="取消导入录像" xml:space="preserve"><value>取消导入录像</value></data>
-  <data name="重新搜索保存主机" xml:space="preserve"><value>重新搜索保存主机</value></data>
+  <data name="重新搜索备份主机" xml:space="preserve"><value>重新搜索备份主机</value></data>
   <data name="正在搜索主机" xml:space="preserve"><value>正在搜索主机</value></data>
   <data name="可连接的主机" xml:space="preserve"><value>可连接的主机</value></data>
-  <data name="扫描保存主机二维码" xml:space="preserve"><value>扫描保存主机二维码</value></data>
-  <data name="稍后设置保存主机" xml:space="preserve"><value>稍后设置保存主机</value></data>
-  <data name="连接选中的保存主机" xml:space="preserve"><value>连接选中的保存主机</value></data>
+  <data name="扫描备份主机二维码" xml:space="preserve"><value>扫描备份主机二维码</value></data>
+  <data name="稍后设置备份主机" xml:space="preserve"><value>稍后设置备份主机</value></data>
+  <data name="连接选中的备份主机" xml:space="preserve"><value>连接选中的备份主机</value></data>
   <data name="清除输入" xml:space="preserve"><value>清除输入</value></data>
   <data name="粘贴单号" xml:space="preserve"><value>粘贴单号</value></data>
   <data name="设置 {0} ({1})" xml:space="preserve"><value>设置 {0} ({1})</value></data>
-  <data name="PackingProof 保存主机 {0}" xml:space="preserve"><value>PackingProof 保存主机 {0}</value></data>
+  <data name="PackingProof 备份主机 {0}" xml:space="preserve"><value>PackingProof 备份主机 {0}</value></data>
   <data name="选择要导入的{0}视频文件夹" xml:space="preserve"><value>选择要导入的{0}视频文件夹</value></data>
   <data name="编译日期 {0}" xml:space="preserve"><value>编译日期 {0}</value></data>
   <data name="编译日期未知" xml:space="preserve"><value>编译日期未知</value></data>
@@ -1761,7 +1767,7 @@
   <data name="当前使用系统盘，系统会保留至少 {0}，不会占满磁盘" xml:space="preserve"><value>当前使用系统盘，系统会保留至少 {0}，不会占满磁盘</value></data>
   <data name="系统会为此磁盘保留至少 {0}" xml:space="preserve"><value>系统会为此磁盘保留至少 {0}</value></data>
   <data name="可以选择本地磁盘中的任意文件夹，也可以输入网络共享路径，例如：\\192.168.1.100\共享目录\PackingProofVideos" xml:space="preserve"><value>可以选择本地磁盘中的任意文件夹，也可以输入网络共享路径，例如：\\192.168.1.100\共享目录\PackingProofVideos</value></data>
-  <data name="已绑定的保存主机" xml:space="preserve"><value>已绑定的保存主机</value></data>
+  <data name="已绑定的备份主机" xml:space="preserve"><value>已绑定的备份主机</value></data>
   <data name="该视频已被覆盖删除，无法播放" xml:space="preserve"><value>该视频已被覆盖删除，无法播放</value></data>
   <data name="单号: {0}" xml:space="preserve"><value>单号: {0}</value></data>
   <data name="删除原因: {0}" xml:space="preserve"><value>删除原因: {0}</value></data>
@@ -1795,9 +1801,9 @@
   <data name="NAS 副本已循环清理" xml:space="preserve"><value>NAS 副本已循环清理</value></data>
   <data name="检测到 exe 版数据。商店版与 exe 版使用独立数据目录，更新和卸载互不覆盖；exe 版的设置和录像不会自动迁移" xml:space="preserve"><value>检测到 exe 版数据。商店版与 exe 版使用独立数据目录，更新和卸载互不覆盖；exe 版的设置和录像不会自动迁移</value></data>
   <data name="检测到 Microsoft Store 版数据。Setup 版与商店版使用独立数据目录，更新和卸载互不覆盖；商店版请从 Microsoft Store 更新" xml:space="preserve"><value>检测到 Microsoft Store 版数据。Setup 版与商店版使用独立数据目录，更新和卸载互不覆盖；商店版请从 Microsoft Store 更新</value></data>
-  <data name="另一个 PackingProof 实例已经把当前电脑作为保存主机。两个版本可以同时运行，但同一时间只能有一个保存主机；请关闭其中一个，或把当前版本改为查看端/录像从机" xml:space="preserve"><value>另一个 PackingProof 实例已经把当前电脑作为保存主机。两个版本可以同时运行，但同一时间只能有一个保存主机；请关闭其中一个，或把当前版本改为查看端/录像从机</value></data>
-  <data name="不能同时作为保存主机" xml:space="preserve"><value>不能同时作为保存主机</value></data>
-  <data name="另一个版本正在作为保存主机。这台电脑只能选择查看端或录像从机，不能再次作为保存主机" xml:space="preserve"><value>另一个版本正在作为保存主机。这台电脑只能选择查看端或录像从机，不能再次作为保存主机</value></data>
+  <data name="另一个 PackingProof 实例已经把当前电脑作为备份主机。两个版本可以同时运行，但同一时间只能有一个备份主机；请关闭其中一个，或把当前版本改为查看端/录像从机" xml:space="preserve"><value>另一个 PackingProof 实例已经把当前电脑作为备份主机。两个版本可以同时运行，但同一时间只能有一个备份主机；请关闭其中一个，或把当前版本改为查看端/录像从机</value></data>
+  <data name="不能同时作为备份主机" xml:space="preserve"><value>不能同时作为备份主机</value></data>
+  <data name="另一个版本正在作为备份主机。这台电脑只能选择查看端或录像从机，不能再次作为备份主机" xml:space="preserve"><value>另一个版本正在作为备份主机。这台电脑只能选择查看端或录像从机，不能再次作为备份主机</value></data>
   <data name="商店版更新由 Microsoft Store 统一管理，请打开 Microsoft Store 的“库”页面检查更新" xml:space="preserve"><value>商店版更新由 Microsoft Store 统一管理，请打开 Microsoft Store 的“库”页面检查更新</value></data>
   <data name="请先关闭旧版本" xml:space="preserve"><value>请先关闭旧版本</value></data>
   <data name="检测到旧版本仍在运行。请先关闭旧版本，再打开新版本，避免两个进程同时写入同一份配置和录像数据库" xml:space="preserve"><value>检测到旧版本仍在运行。请先关闭旧版本，再打开新版本，避免两个进程同时写入同一份配置和录像数据库</value></data>
@@ -1881,10 +1887,10 @@
   <data name="今日数量单位" xml:space="preserve"><value>个</value></data>
   <data name="{0} 台需要处理" xml:space="preserve"><value>{0} 台异常</value></data>
   <data name="{0} 个异常" xml:space="preserve"><value>{0} 个异常</value></data>
-  <data name="保存主机离线，恢复后自动继续" xml:space="preserve"><value>保存主机离线，恢复后自动继续</value></data>
-  <data name="保存主机空间不足，上传已暂停" xml:space="preserve"><value>保存主机空间不足，上传已暂停</value></data>
+  <data name="备份主机离线，恢复后自动继续" xml:space="preserve"><value>备份主机离线，恢复后自动继续</value></data>
+  <data name="备份主机空间不足，上传已暂停" xml:space="preserve"><value>备份主机空间不足，上传已暂停</value></data>
   <data name="主机写入繁忙，稍后自动继续" xml:space="preserve"><value>主机写入繁忙，稍后自动继续</value></data>
-  <data name="正在检查保存主机" xml:space="preserve"><value>正在检查保存主机</value></data>
+  <data name="正在检查备份主机" xml:space="preserve"><value>正在检查备份主机</value></data>
   <data name="正在检查主机" xml:space="preserve"><value>正在检查主机</value></data>
   <data name="{0} 自动重试" xml:space="preserve"><value>{0} 自动重试</value></data>
   <data name="设备" xml:space="preserve"><value>设备</value></data>
@@ -1913,7 +1919,7 @@
   <data name="手机/电脑备份服务尚未准备完成" xml:space="preserve"><value>手机/电脑备份服务尚未准备完成</value></data>
   <data name="设备备份服务尚未准备完成" xml:space="preserve"><value>设备备份服务尚未准备完成</value></data>
   <data name="设备与传输" xml:space="preserve"><value>设备与传输</value></data>
-  <data name="保存主机连接中断，稍后自动继续" xml:space="preserve"><value>保存主机连接中断，稍后自动继续</value></data>
+  <data name="备份主机连接中断，稍后自动继续" xml:space="preserve"><value>备份主机连接中断，稍后自动继续</value></data>
   <data name="收起" xml:space="preserve"><value>收起</value></data>
   <data name="展开" xml:space="preserve"><value>展开</value></data>
   <data name="移除" xml:space="preserve"><value>移除</value></data>
@@ -1924,7 +1930,7 @@
   <data name="设备不存在或已经解绑" xml:space="preserve"><value>设备不存在或已经解绑</value></data>
   <data name="只会移除设备登记和昵称，不会删除录像文件。确定移除“{0}”吗？" xml:space="preserve"><value>将解除这台从机的配对并撤销上传权限，历史录像和视频标签都会保留。确定解绑“{0}”吗？</value></data>
   <data name="设备移除失败，请稍后重试" xml:space="preserve"><value>设备移除失败，请稍后重试</value></data>
-  <data name="保存主机已解除本机配对，请重新连接" xml:space="preserve"><value>保存主机已解除本机配对，请重新连接</value></data>
+  <data name="备份主机已解除本机配对，请重新连接" xml:space="preserve"><value>备份主机已解除本机配对，请重新连接</value></data>
   <data name="等待主机允许连接" xml:space="preserve"><value>等待主机允许连接</value></data>
   <data name="等待授权" xml:space="preserve"><value>等待授权</value></data>
   <data name="等待主机允许连接，录像仍保存在本机" xml:space="preserve"><value>等待主机允许连接，录像仍保存在本机</value></data>
@@ -1934,20 +1940,20 @@
   <data name="已暂停，{0} 个录像保存在本机" xml:space="preserve"><value>已暂停，{0} 个录像保存在本机</value></data>
   <data name="已暂停，暂无待上传录像" xml:space="preserve"><value>已暂停，暂无待上传录像</value></data>
   <data name="保存上传状态失败：{0}" xml:space="preserve"><value>保存上传状态失败：{0}</value></data>
-  <data name="保存主机拒绝了本机连接申请，可重新申请或更换保存主机" xml:space="preserve"><value>保存主机拒绝了本机连接申请，可重新申请或更换保存主机</value></data>
-  <data name="保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”" xml:space="preserve"><value>保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”</value></data>
-  <data name="等待保存主机允许连接超时，请确认保存主机界面已打开后重新申请" xml:space="preserve"><value>等待保存主机允许连接超时，请确认保存主机界面已打开后重新申请</value></data>
-  <data name="保存主机暂时无法显示连接确认窗口，请打开保存主机界面后重试" xml:space="preserve"><value>保存主机暂时无法显示连接确认窗口，请打开保存主机界面后重试</value></data>
-  <data name="保存主机正在确认其他设备，请稍后重新申请" xml:space="preserve"><value>保存主机正在确认其他设备，请稍后重新申请</value></data>
-  <data name="无法连接保存主机，请检查网络后重试" xml:space="preserve"><value>无法连接保存主机，请检查网络后重试</value></data>
-  <data name="保存主机版本不兼容，请更新后重新连接" xml:space="preserve"><value>保存主机版本不兼容，请更新后重新连接</value></data>
-  <data name="保存主机返回的连接信息无效，请更新保存主机后重试" xml:space="preserve"><value>保存主机返回的连接信息无效，请更新保存主机后重试</value></data>
-  <data name="保存主机暂时无法处理连接申请，请稍后重试" xml:space="preserve"><value>保存主机暂时无法处理连接申请，请稍后重试</value></data>
-  <data name="需要重新连接保存主机" xml:space="preserve"><value>需要重新连接保存主机</value></data>
-  <data name="需要重新连接保存主机：{0}" xml:space="preserve"><value>需要重新连接保存主机：{0}</value></data>
+  <data name="备份主机拒绝了本机连接申请，可重新申请或更换备份主机" xml:space="preserve"><value>备份主机拒绝了本机连接申请，可重新申请或更换备份主机</value></data>
+  <data name="备份主机未允许本机连接，可重新申请并在备份主机上点“允许连接”" xml:space="preserve"><value>备份主机未允许本机连接，可重新申请并在备份主机上点“允许连接”</value></data>
+  <data name="等待备份主机允许连接超时，请确认备份主机界面已打开后重新申请" xml:space="preserve"><value>等待备份主机允许连接超时，请确认备份主机界面已打开后重新申请</value></data>
+  <data name="备份主机暂时无法显示连接确认窗口，请打开备份主机界面后重试" xml:space="preserve"><value>备份主机暂时无法显示连接确认窗口，请打开备份主机界面后重试</value></data>
+  <data name="备份主机正在确认其他设备，请稍后重新申请" xml:space="preserve"><value>备份主机正在确认其他设备，请稍后重新申请</value></data>
+  <data name="无法连接备份主机，请检查网络后重试" xml:space="preserve"><value>无法连接备份主机，请检查网络后重试</value></data>
+  <data name="备份主机版本不兼容，请更新后重新连接" xml:space="preserve"><value>备份主机版本不兼容，请更新后重新连接</value></data>
+  <data name="备份主机返回的连接信息无效，请更新备份主机后重试" xml:space="preserve"><value>备份主机返回的连接信息无效，请更新备份主机后重试</value></data>
+  <data name="备份主机暂时无法处理连接申请，请稍后重试" xml:space="preserve"><value>备份主机暂时无法处理连接申请，请稍后重试</value></data>
+  <data name="需要重新连接备份主机" xml:space="preserve"><value>需要重新连接备份主机</value></data>
+  <data name="需要重新连接备份主机：{0}" xml:space="preserve"><value>需要重新连接备份主机：{0}</value></data>
   <data name="需要重新连接" xml:space="preserve"><value>需要重新连接</value></data>
   <data name="正在重新连接" xml:space="preserve"><value>正在重新连接</value></data>
-  <data name="无法保存主机连接状态" xml:space="preserve"><value>无法保存主机连接状态</value></data>
+  <data name="无法保存连接状态" xml:space="preserve"><value>无法保存连接状态</value></data>
   <data name="NetworkCameraStreamCopy" xml:space="preserve"><value>源码流直存（实验）</value></data>
   <data name="NetworkCameraStreamCopyHint" xml:space="preserve"><value>不重新编码，对低配机友好</value></data>
   <data name="以下功能将失效" xml:space="preserve"><value>以下功能将失效</value></data>

@@ -75,7 +75,7 @@ public sealed class MobileConnectionTests
     [Fact]
     public void NonWindowsSvgQrDecodesToExactAccessUrl()
     {
-        // 非 Windows 宿主（macOS 保存主机）用内置 SVG 输出二维码，这里把它还原成像素再解码验证
+        // 非 Windows 宿主（macOS 备份主机）用内置 SVG 输出二维码，这里把它还原成像素再解码验证
         const string expected = "http://192.168.1.20:5280/?key=0123456789abcdef";
         const string prefix = "data:image/svg+xml;base64,";
         string dataUri = QrCodeRenderer.CreateSvgDataUri(expected, 320);

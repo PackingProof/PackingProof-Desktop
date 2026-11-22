@@ -18,7 +18,7 @@ enum AppTheme {
         static let play = "safari.fill"
         static let noHost = "wifi.slash"
 
-        // 保存主机这一侧沿用同一套图标习惯
+        // 备份主机这一侧沿用同一套图标习惯
         static let storage = "externaldrive"
         static let addStorage = "externaldrive.badge.plus"
         static let capacity = "chart.pie"

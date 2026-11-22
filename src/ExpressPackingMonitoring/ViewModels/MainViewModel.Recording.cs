@@ -718,7 +718,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 "本地缓存暂时没有足够空间开始下一段录像。系统已先清理可安全删除的已上传录像，其他录像仍完整保留",
                 "本地缓存空间不足",
                 AppDialogSeverity.Warning,
-                confirmText: "管理保存主机",
+                confirmText: "管理备份主机",
                 cancelText: "更改缓存位置");
             if (manageHost)
                 ChangeBoundHost(Application.Current?.MainWindow);

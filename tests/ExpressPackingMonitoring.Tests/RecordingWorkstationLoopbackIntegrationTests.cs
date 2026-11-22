@@ -84,6 +84,76 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
     }
 
     [Fact]
+    public async Task OlderReportedWorkstationVersionRemainsCompatibleDuringTransition()
+    {
+        string root = CreateTempDirectory();
+        string stateDirectory = Path.Combine(root, "host-state");
+        Directory.CreateDirectory(stateDirectory);
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(root, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupComputerName: "测试主机",
+                mobileBackupStateDirectory: stateDirectory,
+                mobileBackupRecordingRootResolver: () => Path.Combine(root, "recordings"),
+                nodeId: Guid.NewGuid().ToString("D"),
+                nodeName: "测试主机",
+                deploymentPreset: DeploymentPresets.MobileBackupHost,
+                backupDeviceEnrollmentApprover: _ =>
+                    BackupDeviceEnrollmentApprovalDecision.Approved);
+            server.Start(allowAccessSetup: false);
+
+            string deviceId = Guid.NewGuid().ToString("D");
+            BackupDeviceEnrollmentResult enrollment =
+                await WorkstationNetwork.EnrollBackupDeviceAsync(
+                    $"127.0.0.1:{port}",
+                    deviceId,
+                    "电脑1",
+                    "pc",
+                    TestContext.Current.CancellationToken,
+                    platform: "windows");
+
+            RecordingWorkstationHeartbeatResult outdated =
+                await WorkstationNetwork.SendRecordingWorkstationHeartbeatAsync(
+                    $"127.0.0.1:{port}",
+                    deviceId,
+                    "电脑1",
+                    5280,
+                    accessKey: enrollment.DeviceToken,
+                    authVersion: enrollment.AuthVersion,
+                    token: TestContext.Current.CancellationToken,
+                    clientVersion: "0.0.54");
+
+            Assert.True(outdated.Online);
+            Assert.False(outdated.NeedsUpgrade);
+            Assert.False(outdated.NeedsRepair);
+
+            RecordingWorkstationHeartbeatResult current =
+                await WorkstationNetwork.SendRecordingWorkstationHeartbeatAsync(
+                    $"127.0.0.1:{port}",
+                    deviceId,
+                    "电脑1",
+                    5280,
+                    accessKey: enrollment.DeviceToken,
+                    authVersion: enrollment.AuthVersion,
+                    token: TestContext.Current.CancellationToken);
+
+            Assert.True(current.Online);
+            Assert.False(current.NeedsUpgrade);
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(root);
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
     public async Task DeniedRecordingHostEnrollmentReturnsActionableFailure()
     {
         string root = CreateTempDirectory();
@@ -432,7 +502,7 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
             DeploymentPreset = DeploymentPresets.RecordingHost,
             DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion,
             NodeId = nodeId,
-            NodeName = "回环保存主机",
+            NodeName = "回环备份主机",
             WebServerPort = port,
             RequireWebAccessKey = false,
             WebAccessKey = accessKey,

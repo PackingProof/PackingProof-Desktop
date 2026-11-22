@@ -17,6 +17,8 @@ internal enum HostConnectionState
     Offline,
     AwaitingApproval,
     PausedByUser,
+    ClientUpdateRequired,
+    HostUpdateRequired,
     StorageBlocked,
     WriteBusy
 }
@@ -177,6 +179,10 @@ internal sealed class TransferManagementSnapshotService
                     HostConnectionState.WriteBusy,
                 RecordingTransferFailureKinds.HostApprovalRequired =>
                     HostConnectionState.AwaitingApproval,
+                RecordingTransferFailureKinds.ClientUpgradeRequired =>
+                    HostConnectionState.ClientUpdateRequired,
+                RecordingTransferFailureKinds.HostUpgradeRequired =>
+                    HostConnectionState.HostUpdateRequired,
                 RecordingTransferFailureKinds.PausedByUser =>
                     HostConnectionState.PausedByUser,
                 _ => HostConnectionState.Unknown

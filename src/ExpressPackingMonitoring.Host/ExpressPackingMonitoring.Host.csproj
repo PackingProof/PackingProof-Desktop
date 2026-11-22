@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    macOS/Linux 可用的保存主机：复用主工程的录像、数据库、Web 与备份代码，
+    macOS/Linux 可用的备份主机：复用主工程的录像、数据库、Web 与备份代码，
     只排除 Windows 专有与摄像头采集相关的实现。
     目标框架是 net8.0（不带 -windows），因此这里引用到的文件都必须是跨平台代码。
   -->

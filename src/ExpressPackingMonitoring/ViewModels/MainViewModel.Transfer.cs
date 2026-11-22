@@ -56,6 +56,8 @@ public partial class MainViewModel
     private bool _recordingHostRepairPromptShown;
     private bool _recordingHostAwaitingApproval;
     private bool _recordingHostPausedByUser;
+    private bool _recordingHostClientUpdateRequired;
+    private bool _recordingHostUpdateRequired;
     private int _recordingCacheCleanupQueued;
     private int _recordingCacheCleanupPending;
     private readonly object _recordingCacheMaintenanceLock = new();
@@ -112,7 +114,7 @@ public partial class MainViewModel
             if (name.Length > 0)
                 return name;
             return string.IsNullOrWhiteSpace(BoundHostAddress)
-                ? "尚未绑定保存主机"
+                ? "尚未绑定备份主机"
                 : "已绑定主机";
         }
     }
@@ -175,7 +177,7 @@ public partial class MainViewModel
     {
         if (!IsRecordingWorkstation || string.IsNullOrWhiteSpace(Config.LastKnownHostAddress))
         {
-            ShowToast("尚未绑定保存主机", ToastSeverity.Warning);
+            ShowToast("尚未绑定备份主机", ToastSeverity.Warning);
             return;
         }
         string url = MobileConnectionService.BuildAccessUrl(
@@ -333,6 +335,11 @@ public partial class MainViewModel
                 _recordingWorkstationDiscoveryFailureCount = 0;
                 _nextRecordingWorkstationDiscoveryAt = DateTime.MinValue;
             }
+            else if (heartbeat.NeedsUpgrade)
+            {
+                string reason = AppLanguage.Get("备份主机要求更新当前电脑，更新后会自动继续备份");
+                _recordingTransferService?.RequireClientUpgrade(reason);
+            }
             else if (DateTime.UtcNow >= _nextRecordingWorkstationDiscoveryAt)
             {
                 PackingProofNodeInfo? resolvedHost = await WorkstationNetwork.FindHostByNodeIdAsync(
@@ -381,6 +388,8 @@ public partial class MainViewModel
                 bool transportPaused = _recordingTransferService?.GetHostHealth().State
                     is HostConnectionState.Offline
                         or HostConnectionState.AwaitingApproval
+                        or HostConnectionState.ClientUpdateRequired
+                        or HostConnectionState.HostUpdateRequired
                         or HostConnectionState.StorageBlocked
                         or HostConnectionState.WriteBusy;
                 if (heartbeat.NeedsRepair)
@@ -392,9 +401,14 @@ public partial class MainViewModel
                     {
                         _recordingHostRepairPromptShown = true;
                         ShowToast(
-                            "保存主机已解除本机配对，请重新连接",
+                            "备份主机已解除本机配对，请重新连接",
                             ToastSeverity.Warning);
                     }
+                }
+                else if (heartbeat.NeedsUpgrade)
+                {
+                    _boundHostOnline = false;
+                    BoundHostOnlineStatusText = AppLanguage.Get("需要更新电脑端");
                 }
                 else if (!transportPaused)
                 {
@@ -539,9 +553,9 @@ public partial class MainViewModel
     internal static string GetMainConnectionButtonText(AppConfig? config) =>
         DeploymentPresets.Normalize(config?.DeploymentPreset) switch
         {
-            DeploymentPresets.RecordingWorkstation => "管理保存主机",
+            DeploymentPresets.RecordingWorkstation => "管理备份主机",
             DeploymentPresets.RecordingHost or DeploymentPresets.MobileBackupHost => "连接手机/电脑",
-            _ => "连接保存主机"
+            _ => "连接备份主机"
         };
 
     public void ShowMainConnection(Window? owner = null)
@@ -652,10 +666,16 @@ public partial class MainViewModel
                 health.State == HostConnectionState.AwaitingApproval;
             _recordingHostPausedByUser =
                 health.State == HostConnectionState.PausedByUser;
+            _recordingHostClientUpdateRequired =
+                health.State == HostConnectionState.ClientUpdateRequired;
+            _recordingHostUpdateRequired =
+                health.State == HostConnectionState.HostUpdateRequired;
             BoundHostOnlineStatusText = ResolveBoundHostOnlineStatusText(
                 _boundHostOnline,
                 IsReconnectRequiredError(health.Reason),
-                health.State == HostConnectionState.AwaitingApproval);
+                health.State == HostConnectionState.AwaitingApproval,
+                health.State == HostConnectionState.ClientUpdateRequired,
+                health.State == HostConnectionState.HostUpdateRequired);
             LastRecordingTransferError = health.Reason;
             RefreshRecordingTransferSummary();
         });
@@ -827,7 +847,9 @@ public partial class MainViewModel
             recentlyUploaded,
             requiresReconnect,
             hostAwaitingApproval: _recordingHostAwaitingApproval,
-            pausedByUser: _recordingHostPausedByUser);
+            pausedByUser: _recordingHostPausedByUser,
+            clientUpdateRequired: _recordingHostClientUpdateRequired,
+            hostUpdateRequired: _recordingHostUpdateRequired);
         RecordingTransferShortStatusText = cardState.ShortStatusText;
         RecordingTransferStatusText = cardState.DetailText;
     }
@@ -888,7 +910,7 @@ public partial class MainViewModel
     internal static bool IsReconnectRequiredError(string? error) =>
         !string.IsNullOrWhiteSpace(error)
         && (error.Contains("设备令牌无效", StringComparison.Ordinal)
-            || error.Contains("重新连接保存主机", StringComparison.Ordinal)
+            || error.Contains("重新连接备份主机", StringComparison.Ordinal)
             || error.Contains("未允许本机连接", StringComparison.Ordinal));
 
     internal static bool? ResolveBoundHostOnlineAfterHealth(
@@ -899,6 +921,8 @@ public partial class MainViewModel
             HostConnectionState.Online => true,
             HostConnectionState.Offline
                 or HostConnectionState.AwaitingApproval
+                or HostConnectionState.ClientUpdateRequired
+                or HostConnectionState.HostUpdateRequired
                 or HostConnectionState.StorageBlocked
                 or HostConnectionState.WriteBusy => false,
             HostConnectionState.PausedByUser => currentOnline,
@@ -908,9 +932,15 @@ public partial class MainViewModel
     internal static string ResolveBoundHostOnlineStatusText(
         bool? online,
         bool requiresReconnect,
-        bool awaitingApproval) =>
+        bool awaitingApproval,
+        bool clientUpdateRequired = false,
+        bool hostUpdateRequired = false) =>
         requiresReconnect
             ? AppLanguage.Get("需要重新连接")
+            : clientUpdateRequired
+                ? AppLanguage.Get("需要更新电脑端")
+            : hostUpdateRequired
+                ? AppLanguage.Get("需要更新备份主机")
             : awaitingApproval
                 ? AppLanguage.Get("等待授权")
                 : online switch
@@ -930,7 +960,9 @@ public partial class MainViewModel
         bool recentlyUploaded,
         bool requiresReconnect = false,
         bool hostAwaitingApproval = false,
-        bool pausedByUser = false)
+        bool pausedByUser = false,
+        bool clientUpdateRequired = false,
+        bool hostUpdateRequired = false)
     {
         int totalCount = Math.Max(0, pendingCount)
             + Math.Max(0, uploadingCount)
@@ -958,7 +990,21 @@ public partial class MainViewModel
         {
             return new RecordingTransferCardState(
                 "需要重新连接",
-                "需要重新连接保存主机，录像仍保存在本机");
+                "需要重新连接备份主机，录像仍保存在本机");
+        }
+
+        if (clientUpdateRequired)
+        {
+            return new RecordingTransferCardState(
+                AppLanguage.Get("需要更新电脑端"),
+                AppLanguage.Get("当前电脑版本过低，请更新后再备份"));
+        }
+
+        if (hostUpdateRequired)
+        {
+            return new RecordingTransferCardState(
+                AppLanguage.Get("需要更新备份主机"),
+                AppLanguage.Get("备份主机版本过低，请先在主机上更新后继续备份"));
         }
 
         if (hostAwaitingApproval && totalCount > 0)
@@ -1502,6 +1548,34 @@ public partial class MainViewModel
         try { root = Path.GetFullPath(rootPath).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar; }
         catch { return false; }
         return filePath.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool CanVerifyRemoteCacheForState(
+        HostConnectionState state) =>
+        state is HostConnectionState.Online
+            or HostConnectionState.Unknown
+            or HostConnectionState.PausedByUser;
+
+    internal static IReadOnlyList<string> GetRecordingCacheCleanupRoots(
+        string currentRoot,
+        string? legacyRoot)
+    {
+        string? normalizedCurrent = string.IsNullOrWhiteSpace(currentRoot)
+            ? null
+            : Path.GetFullPath(currentRoot);
+        string? normalizedLegacy = string.IsNullOrWhiteSpace(legacyRoot)
+            ? null
+            : Path.GetFullPath(legacyRoot);
+        if (normalizedCurrent == null)
+            return normalizedLegacy == null ? [] : [normalizedLegacy];
+        if (normalizedLegacy == null)
+            return [normalizedCurrent];
+        return string.Equals(
+            normalizedLegacy,
+            normalizedCurrent,
+            StringComparison.OrdinalIgnoreCase)
+                ? [normalizedCurrent]
+                : [normalizedCurrent, normalizedLegacy];
     }
 
     private void DisposeRecordingTransfers()

@@ -26,12 +26,12 @@ public partial class BackupDeviceEnrollmentApprovalWindow : Window
         string permission = isWorkstation
             ? "允许后，这台录制电脑可以上传、查看和确认自己录制的录像"
             : isViewer
-                ? "允许后，这台查看端可以查看、播放、下载和剪辑保存主机中的录像；不能删除主机录像或修改设置"
-                : "允许后，这台手机可以上传自己的录像，并查看、播放、下载和剪辑保存主机中的录像；不能删除主机录像或修改设置";
+                ? "允许后，这台查看端可以查看、播放、下载和剪辑备份主机中的录像；不能删除主机录像或修改设置"
+                : "允许后，这台手机可以上传自己的录像，并查看、播放、下载和剪辑备份主机中的录像；不能删除主机录像或修改设置";
         string location = string.IsNullOrWhiteSpace(request.Platform)
             ? request.RemoteAddress
             : $"{request.Platform} · {request.RemoteAddress}";
-        MessageText.Text = $"{name}（{location}）申请连接这台保存主机。{permission}";
+        MessageText.Text = $"{name}（{location}）申请连接这台备份主机。{permission}";
 
         _countdownDeadlineUtc = DateTime.UtcNow.Add(ApprovalCountdownDuration);
         _countdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };

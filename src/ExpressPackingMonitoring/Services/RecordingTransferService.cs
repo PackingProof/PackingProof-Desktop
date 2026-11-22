@@ -372,6 +372,15 @@ internal sealed class RecordingTransferService : IDisposable
         Signal();
     }
 
+    internal void RequireClientUpgrade(string reason)
+    {
+        ScheduleHostProbeFailure(
+            HostConnectionState.ClientUpdateRequired,
+            reason,
+            retryAfterSeconds: 30);
+        RuntimeLog.Warn("RecordingTransfer", $"Client upgrade required reason={reason}");
+    }
+
     internal RecordingTransferHostHealth GetHostHealth()
     {
         lock (_hostHealthLock)
@@ -401,7 +410,7 @@ internal sealed class RecordingTransferService : IDisposable
 
     /// <summary>
     /// 上传会话标识：优先用录像自己的 GUID（VideoRecords.SourceSessionId 在插入时就生成），
-    /// 这样本地库重建、自增 ID 重新从 1 开始时，不会和保存主机上上一代库的旧绑定撞车，
+    /// 这样本地库重建、自增 ID 重新从 1 开始时，不会和备份主机上上一代库的旧绑定撞车，
     /// 而同一条录像的多次重试仍然稳定。老数据缺 GUID 时才退回"节点:本地ID"。
     /// </summary>
     internal static string ResolveSessionId(AppConfig config, VideoRecord record)
@@ -445,7 +454,7 @@ internal sealed class RecordingTransferService : IDisposable
                 {
                     ScheduleHostProbeFailure(
                         HostConnectionState.Offline,
-                        "尚未选择保存主机");
+                        "尚未选择备份主机");
                     return 0;
                 }
                 if (!HasUsableHostCredential(config))
@@ -581,13 +590,31 @@ internal sealed class RecordingTransferService : IDisposable
             PackingProofNodeInfo? node = await ResolveTaskHostAsync(task, config, cancellationToken)
                 .ConfigureAwait(false);
             if (node == null)
-                throw new HttpRequestException("保存主机离线");
+                throw new HttpRequestException("备份主机离线");
             if (!string.Equals(node.NodeId, task.TargetNodeId, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("保存主机身份已变化");
+                throw new InvalidOperationException("备份主机身份已变化");
             if (!node.Capabilities.Contains(PackingProofCapabilities.MobileBackup, StringComparer.OrdinalIgnoreCase))
                 throw new InvalidOperationException("目标主机不支持录像接收");
-            if (!BackupCompatibilityPolicy.IsCompatibleHost(node.BackupCompatibility))
-                throw new InvalidOperationException("保存主机版本过旧，请更新保存主机电脑");
+            if (!BackupCompatibilityPolicy.HasCompatibleHostProtocol(
+                    node.BackupCompatibility)
+                || (BackupCompatibilityPolicy.EnforceWorkstationMinimumVersion
+                    && !BackupCompatibilityPolicy.IsCompatibleHost(
+                        node.BackupCompatibility)))
+            {
+                throw new RecordingTransferHostException(
+                    "backup_host_upgrade_required",
+                    "备份主机版本过低，请先在主机上更新后继续备份",
+                    (System.Net.HttpStatusCode)426);
+            }
+            if (!BackupCompatibilityPolicy.IsCompatibleWorkstationHost(
+                    node.BackupCompatibility,
+                    AppVersion.Current))
+            {
+                throw new RecordingTransferHostException(
+                    "backup_client_upgrade_required",
+                    "当前电脑版本过低，请更新后再备份",
+                    (System.Net.HttpStatusCode)426);
+            }
             if (IsRecordingUploadPaused(config))
                 return;
             MarkHostOnline();
@@ -862,7 +889,8 @@ internal sealed class RecordingTransferService : IDisposable
             {
                 FileSha256 = sha256,
                 TotalBytes = totalBytes,
-                MimeType = "video/mp4"
+                MimeType = "video/mp4",
+                AppVersion = AppVersion.Current
             },
             config);
         return await SendAsync<MobileBackupCreateResponse>(request, cancellationToken).ConfigureAwait(false);
@@ -1018,9 +1046,12 @@ internal sealed class RecordingTransferService : IDisposable
         ReadOnlySpan<byte> content)
     {
         if (string.IsNullOrWhiteSpace(config.LastKnownHostAccessKey))
-            throw new InvalidOperationException("保存主机尚未完成安全配对");
+            throw new InvalidOperationException("备份主机尚未完成安全配对");
         request.Headers.TryAddWithoutValidation("X-EPM-Device-Id", config.NodeId);
         request.Headers.TryAddWithoutValidation("X-EPM-Device-Kind", "pc");
+        request.Headers.TryAddWithoutValidation(
+            BackupCompatibilityPolicy.ClientVersionHeader,
+            AppVersion.Current);
         request.Headers.TryAddWithoutValidation(
             "X-EPM-Device-Name",
             Uri.EscapeDataString(string.IsNullOrWhiteSpace(config.NodeName)
@@ -1028,7 +1059,7 @@ internal sealed class RecordingTransferService : IDisposable
                 : config.NodeName));
 
         if (config.LastKnownHostBackupAuthVersion < BackupRequestAuthentication.CurrentVersion)
-            throw new InvalidOperationException("保存主机连接协议已升级，请重新连接保存主机");
+            throw new InvalidOperationException("备份主机连接协议已升级，请重新连接备份主机");
 
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         string nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
@@ -1075,7 +1106,7 @@ internal sealed class RecordingTransferService : IDisposable
                 completed.VerifiedAtUnixSeconds,
                 DateTimeOffset.UtcNow))
         {
-            throw new InvalidDataException("保存主机返回的完整性确认信息不一致");
+            throw new InvalidDataException("备份主机返回的完整性确认信息不一致");
         }
         string expected = BackupRequestAuthentication.CreateReceiptSignature(
             config.LastKnownHostAccessKey,
@@ -1087,7 +1118,7 @@ internal sealed class RecordingTransferService : IDisposable
             completed.RecordId,
             completed.VerifiedAtUnixSeconds);
         if (!BackupRequestAuthentication.FixedTimeEquals(expected, completed.ReceiptSignature))
-            throw new InvalidDataException("保存主机的完整性确认签名无效");
+            throw new InvalidDataException("备份主机的完整性确认签名无效");
         return BackupRequestAuthentication.CurrentVersion;
     }
 
@@ -1136,7 +1167,7 @@ internal sealed class RecordingTransferService : IDisposable
         if (!IsRecordingWorkstation(config))
             throw new InvalidOperationException("当前用途不是录制工位");
         if (!string.Equals(task.TargetNodeId, config.LastKnownHostNodeId, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("上传任务绑定的保存主机与当前配置不一致");
+            throw new InvalidOperationException("上传任务绑定的备份主机与当前配置不一致");
     }
 
     private async Task<PackingProofNodeInfo?> ResolveUsingConfiguredProbeAsync(
@@ -1166,7 +1197,7 @@ internal sealed class RecordingTransferService : IDisposable
         if (node != null
             && !string.Equals(node.NodeId, task.TargetNodeId, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("保存主机身份已变化");
+            throw new InvalidOperationException("备份主机身份已变化");
         }
         if (node == null
             || string.Equals(
@@ -1198,7 +1229,7 @@ internal sealed class RecordingTransferService : IDisposable
         return await ProbeHostHealthAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<bool> ProbeHostHealthAsync(CancellationToken cancellationToken)
+    internal async Task<bool> ProbeHostHealthAsync(CancellationToken cancellationToken)
     {
         RecordingTransferTask? task = _store.GetFirstUnfinishedTarget();
         if (task == null)
@@ -1225,7 +1256,18 @@ internal sealed class RecordingTransferService : IDisposable
                     previous.State == HostConnectionState.Unknown
                         ? HostConnectionState.Offline
                         : previous.State,
-                    "保存主机离线");
+                    "备份主机离线");
+                return false;
+            }
+            if (!BackupCompatibilityPolicy.HasCompatibleHostProtocol(
+                    node.BackupCompatibility)
+                || (BackupCompatibilityPolicy.EnforceWorkstationMinimumVersion
+                    && !BackupCompatibilityPolicy.IsCompatibleHost(
+                        node.BackupCompatibility)))
+            {
+                ScheduleHostProbeFailure(
+                    HostConnectionState.HostUpdateRequired,
+                    "备份主机版本过低，请先在主机上更新后继续备份");
                 return false;
             }
 
@@ -1278,12 +1320,16 @@ internal sealed class RecordingTransferService : IDisposable
         state is HostConnectionState.Offline
             or HostConnectionState.AwaitingApproval
             or HostConnectionState.PausedByUser
+            or HostConnectionState.ClientUpdateRequired
+            or HostConnectionState.HostUpdateRequired
             or HostConnectionState.StorageBlocked
             or HostConnectionState.WriteBusy;
 
     private static bool IsHostPauseFailure(string failureKind) =>
         failureKind is RecordingTransferFailureKinds.HostOffline
             or RecordingTransferFailureKinds.HostApprovalRequired
+            or RecordingTransferFailureKinds.ClientUpgradeRequired
+            or RecordingTransferFailureKinds.HostUpgradeRequired
             or RecordingTransferFailureKinds.HostStorageUnavailable;
 
     private void PauseHost(
@@ -1300,6 +1346,10 @@ internal sealed class RecordingTransferService : IDisposable
                 HostConnectionState.WriteBusy,
             RecordingTransferFailureKinds.HostApprovalRequired =>
                 HostConnectionState.AwaitingApproval,
+            RecordingTransferFailureKinds.ClientUpgradeRequired =>
+                HostConnectionState.ClientUpdateRequired,
+            RecordingTransferFailureKinds.HostUpgradeRequired =>
+                HostConnectionState.HostUpdateRequired,
             _ => HostConnectionState.Offline
         };
         int delaySeconds;

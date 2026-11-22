@@ -454,7 +454,7 @@ public sealed class StoragePlanTests : IDisposable
                 config,
                 allowDefaultFallback: false));
 
-            // 保存主机启动：位置在、写得了就照常起服务，空间不足由接收侧说明原因
+            // 备份主机启动：位置在、写得了就照常起服务，空间不足由接收侧说明原因
             RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
                 config,
                 allowDefaultFallback: false,

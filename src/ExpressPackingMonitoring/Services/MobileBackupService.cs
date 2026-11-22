@@ -335,7 +335,7 @@ internal sealed class MobileBackupService
                 {
                     throw new MobileBackupValidationException(
                         "host_file_missing",
-                        "保存主机上的录像文件不存在，请重新上传或联系管理员");
+                        "备份主机上的录像文件不存在，请重新上传或联系管理员");
                 }
                 if ((completed.FileSizeBytes > 0
                      && new FileInfo(completed.FilePath).Length != completed.FileSizeBytes)
@@ -343,7 +343,7 @@ internal sealed class MobileBackupService
                 {
                     throw new MobileBackupValidationException(
                         "host_file_corrupt",
-                        "保存主机上的录像文件校验失败，请重新上传或联系管理员");
+                        "备份主机上的录像文件校验失败，请重新上传或联系管理员");
                 }
                 MarkUploadCompleted(uploadId);
                 return new MobileBackupCompleteResult("verified", fileSha256, completed.Id, true);
@@ -361,14 +361,14 @@ internal sealed class MobileBackupService
             {
                 throw new MobileBackupValidationException(
                     "host_file_missing",
-                    "保存主机上的录像文件不存在，请重新上传或联系管理员");
+                    "备份主机上的录像文件不存在，请重新上传或联系管理员");
             }
             if (state == null
                 && !FileMatchesSha256(existingFile!.FilePath, fileSha256))
             {
                 throw new MobileBackupValidationException(
                     "host_file_corrupt",
-                    "保存主机上的录像文件校验失败，请重新上传或联系管理员");
+                    "备份主机上的录像文件校验失败，请重新上传或联系管理员");
             }
             string uploadRoot = state == null
                 ? ""
@@ -878,6 +878,7 @@ internal sealed class MobileBackupCreateRequest
     public string FileSha256 { get; set; } = "";
     public long TotalBytes { get; set; }
     public string MimeType { get; set; } = "";
+    public string AppVersion { get; set; } = "";
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -959,7 +960,7 @@ internal sealed class MobileBackupValidationException(string errorCode, string m
 }
 
 /// <summary>
-/// 保存主机的存储位置当前不可用：磁盘未接入、未就绪、不可写或空间不足。
+/// 备份主机的存储位置当前不可用：磁盘未接入、未就绪、不可写或空间不足。
 /// 服务端按 storage_unavailable 拒收，客户端保留本地录像与上传队列并自动重试。
 /// </summary>
 internal sealed class MobileBackupStorageUnavailableException(string message) : Exception(message);

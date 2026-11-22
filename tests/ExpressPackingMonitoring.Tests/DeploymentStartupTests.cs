@@ -576,7 +576,7 @@ public sealed class DeploymentStartupTests
             "Workstations",
             "ViewerClientWindow.xaml.cs");
         Assert.Contains("x:Name=\"ScanPhonePairingButton\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("AutomationProperties.Name=\"扫描保存主机二维码\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.Name=\"扫描备份主机二维码\"", xaml, StringComparison.Ordinal);
         Assert.Contains("StaticResource FluentCameraIcon", xaml, StringComparison.Ordinal);
         Assert.Contains("Owner?.DataContext is not MainViewModel", source, StringComparison.Ordinal);
         Assert.Contains("viewModel.ScanHostPairingQrAsync", source, StringComparison.Ordinal);
@@ -606,7 +606,7 @@ public sealed class DeploymentStartupTests
             NodeId = Guid.NewGuid().ToString("D"),
             NodeName = "电脑2",
             LastKnownHostNodeId = nodeId,
-            LastKnownHostNodeName = "原保存主机",
+            LastKnownHostNodeName = "原备份主机",
             LastKnownHostAddress = "http://192.168.1.20:5280",
             LastKnownHostAccessKey = "legacy-web-derived-key",
             LastKnownHostBackupAuthVersion = 2,
@@ -617,7 +617,7 @@ public sealed class DeploymentStartupTests
 
         Assert.True(AppConfig.NormalizeAfterLoad(config));
         Assert.Equal(nodeId, config.LastKnownHostNodeId);
-        Assert.Equal("原保存主机", config.LastKnownHostNodeName);
+        Assert.Equal("原备份主机", config.LastKnownHostNodeName);
         Assert.Empty(config.LastKnownHostAddress);
         Assert.Empty(config.LastKnownHostAccessKey);
         Assert.Equal(0, config.LastKnownHostBackupAuthVersion);
@@ -951,8 +951,8 @@ public sealed class DeploymentStartupTests
 
     [Theory]
     [InlineData(DeploymentPresets.RecordingHost, true, false, "连接手机/电脑")]
-    [InlineData(DeploymentPresets.RecordingWorkstation, true, true, "管理保存主机")]
-    [InlineData(DeploymentPresets.ViewerClient, false, false, "连接保存主机")]
+    [InlineData(DeploymentPresets.RecordingWorkstation, true, true, "管理备份主机")]
+    [InlineData(DeploymentPresets.ViewerClient, false, false, "连接备份主机")]
     [InlineData(DeploymentPresets.MobileBackupHost, false, false, "连接手机/电脑")]
     public void MainConnectionEntryIsIsolatedByDeploymentPreset(
         string preset,
@@ -1137,7 +1137,7 @@ public sealed class DeploymentStartupTests
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "? \"尚未绑定保存主机\"",
+            "? \"尚未绑定备份主机\"",
             transferSource,
             StringComparison.Ordinal);
         Assert.DoesNotContain("当前用途：录制工位", mainWindow, StringComparison.Ordinal);
@@ -1316,8 +1316,8 @@ public sealed class DeploymentStartupTests
         Assert.Contains("x:Name=\"SearchHostsButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"BindSelectedButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ManualConnectionButton\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"选择保存主机\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"连接保存主机\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"选择备份主机\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"连接备份主机\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"手动连接\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"在线\"", xaml, StringComparison.Ordinal);
         Assert.Contains(
@@ -1328,7 +1328,7 @@ public sealed class DeploymentStartupTests
             "Text=\"{Binding Address, Mode=OneWay}\"",
             xaml,
             StringComparison.Ordinal);
-        Assert.Contains("Text=\"更换保存主机\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"更换备份主机\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"稍后设置\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"ViewerManualAddressTextBox\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"BindingManualAddressTextBox\"", xaml, StringComparison.Ordinal);
@@ -1336,7 +1336,7 @@ public sealed class DeploymentStartupTests
         Assert.DoesNotContain("选择并连接主机", xaml, StringComparison.Ordinal);
         Assert.Equal(
             2,
-            xaml.Split("Text=\"更换保存主机\"", StringSplitOptions.None).Length - 1);
+            xaml.Split("Text=\"更换备份主机\"", StringSplitOptions.None).Length - 1);
         Assert.Equal(
             1,
             xaml.Split("Click=\"SearchHosts_Click\"", StringSplitOptions.None).Length - 1);
@@ -1361,7 +1361,7 @@ public sealed class DeploymentStartupTests
             bindingActions.Parent!.Elements(),
             element => (string?)element.Attribute(xamlNamespace + "Name") == "HostSummaryBorder");
 
-        Assert.Contains("WindowHeadingText.Text = \"保存主机\";", source, StringComparison.Ordinal);
+        Assert.Contains("WindowHeadingText.Text = \"备份主机\";", source, StringComparison.Ordinal);
         Assert.Contains(
             "WindowDescriptionText.Text = \"选择一台电脑保存录像；暂时不设置也可以先录像\";",
             source,

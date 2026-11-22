@@ -3,7 +3,7 @@
 //
 // 查看端部分的视图代码照搬 MacViewer（header / hostList / footer / HostCard /
 // ManualConnectionView 原样保留），只把数据来源换成 AppStateModel。
-// 保存主机那一侧没有现成界面可搬：列表按电脑端口径显示接入的录像设备，
+// 备份主机那一侧没有现成界面可搬：列表按电脑端口径显示接入的录像设备，
 // 保存位置、开机自启、日志这些配置收进"设置"。
 
 import AppKit
@@ -75,7 +75,7 @@ struct MainWindowView: View {
                 .frame(width: 38, height: 38)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
-                Text(model.isViewer ? "PackingProof 查看端" : "PackingProof 保存主机")
+                Text(model.isViewer ? "PackingProof 查看端" : "PackingProof 备份主机")
                     .font(.title3.weight(.semibold))
                 Text(model.isViewer ? "只连接主机查看" : "接收手机与其他电脑的录像")
                     .font(.subheadline)
@@ -264,7 +264,7 @@ struct MainWindowView: View {
         .padding(.vertical, 10)
     }
 
-    // MARK: - 保存主机：列表显示接入的录像设备（与电脑端同一口径）
+    // MARK: - 备份主机：列表显示接入的录像设备（与电脑端同一口径）
 
     private var deviceList: some View {
         Group {
@@ -463,7 +463,7 @@ private struct SettingsView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
-                // 保存主机要有一个能写的保存位置才起得来：这里直接把该做什么说出来
+                // 备份主机要有一个能写的保存位置才起得来：这里直接把该做什么说出来
                 if model.storages.allSatisfy({ !$0.available }) {
                     Text("现有保存位置都没有接入：接回磁盘，或在上面的“添加磁盘”里换成别的磁盘")
                         .font(.caption)
@@ -516,7 +516,7 @@ private struct SettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("关于").font(.headline)
             VStack(alignment: .leading, spacing: 4) {
-                Text(model.isViewer ? "PackingProof 查看端" : "PackingProof 保存主机")
+                Text(model.isViewer ? "PackingProof 查看端" : "PackingProof 备份主机")
                     .font(.subheadline.weight(.semibold))
                 Text(model.appVersion.isEmpty ? "版本未知" : "版本 \(model.appVersion)")
                     .font(.caption)

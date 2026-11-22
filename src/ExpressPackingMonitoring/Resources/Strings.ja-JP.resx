@@ -22,7 +22,7 @@
   <data name="跟随系统" xml:space="preserve"><value>システムに従う</value></data>
   <data name="简体中文" xml:space="preserve"><value>簡体字中国語</value></data>
   <data name="日语" xml:space="preserve"><value>日本語</value></data>
-  <data name="使用本机录像摄像头扫描保存主机连接二维码" xml:space="preserve"><value>この録画カメラで保存ホストの接続 QR コードを読み取る</value></data>
+  <data name="使用本机录像摄像头扫描备份主机连接二维码" xml:space="preserve"><value>この録画カメラでバックアップホストの接続 QR コードを読み取る</value></data>
   <data name="外观主题" xml:space="preserve"><value>外観テーマ</value></data>
   <data name="浅色主题" xml:space="preserve"><value>ライト</value></data>
   <data name="深色主题" xml:space="preserve"><value>ダーク</value></data>
@@ -229,7 +229,7 @@
   <data name="开始检测" xml:space="preserve"><value>測定を開始</value></data>
   <data name="正在检测，请稍候" xml:space="preserve"><value>測定中です。しばらくお待ちください</value></data>
   <data name="录像编码异常时，用它重新检测电脑能力" xml:space="preserve"><value>録画のエンコードがおかしいときに、パソコンの性能を再測定します</value></data>
-  <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>本機録画は一覧順に保存します。保存ホストはアップロードを物理ディスクの負荷と空き容量で自動配分し、同じ物理ディスク上の複数ドライブは書き込み能力を共有します。各ディスクには安全領域を確保します</value></data>
+  <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>本機録画は一覧順に保存します。バックアップホストはアップロードを物理ディスクの負荷と空き容量で自動配分し、同じ物理ディスク上の複数ドライブは書き込み能力を共有します。各ディスクには安全領域を確保します</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>録画ページのアクセスキー</value></data>
   <data name="放大取景框内的画面，停留一会儿后恢复全景" xml:space="preserve"><value>拡大枠の中を拡大し、しばらくしてから全体表示に戻します</value></data>
   <data name="智能跟随面单" xml:space="preserve"><value>認識した送り状を追従</value></data>
@@ -820,16 +820,16 @@
   <data name="仍可使用扫码枪或在主页面手动输入面单号" xml:space="preserve"><value>バーコードスキャナーやメイン画面での手入力は引き続き使用できます</value></data>
   <data name="没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪" xml:space="preserve"><value>バーコードスキャナーがなくても次へ進めます。使用する場合はここでテストできます</value></data>
   <data name="当前用途：录制工位" xml:space="preserve"><value>現在の用途: 録画ワークステーション</value></data>
-  <data name="保存主机：" xml:space="preserve"><value>保存ホスト: </value></data>
+  <data name="备份主机：" xml:space="preserve"><value>バックアップホスト: </value></data>
   <data name="　待上传：" xml:space="preserve"><value>　アップロード待ち: </value></data>
   <data name="重新连接" xml:space="preserve"><value>再接続</value></data>
   <data name="打开主机录像" xml:space="preserve"><value>ホストの録画を開く</value></data>
   <data name="本机录像缓存" xml:space="preserve"><value>本機の録画キャッシュ</value></data>
-  <data name="上传到保存主机前，录像先保存在这里；录像从机固定使用一个本地磁盘" xml:space="preserve"><value>保存ホストへアップロードする前に、録画をここへ保存します。録画ワークステーションはローカルディスクを 1 つだけ使用します</value></data>
+  <data name="上传到备份主机前，录像先保存在这里；录像从机固定使用一个本地磁盘" xml:space="preserve"><value>バックアップホストへアップロードする前に、録画をここへ保存します。録画ワークステーションはローカルディスクを 1 つだけ使用します</value></data>
   <data name="软件支持 NAS 备份，需要切换到主机后配置" xml:space="preserve"><value>NAS バックアップは、ホストに切り替えた後に設定できます</value></data>
   <data name="录像备份位置需要在主机上配置，是否现在切换用途？" xml:space="preserve"><value>録画のバックアップ先はホストで設定します。今すぐ用途を切り替えますか？</value></data>
   <data name="更改磁盘" xml:space="preserve"><value>ディスクを変更</value></data>
-  <data name="录像会自动上传到保存主机。本机缓存用于断网重试和临时保留，只会清理已经成功上传的录像" xml:space="preserve"><value>録画は自動で保存ホストへアップロードされます。本機のキャッシュはオフライン時の再試行と一時保存に使用し、アップロード済みの録画だけを削除します</value></data>
+  <data name="录像会自动上传到备份主机。本机缓存用于断网重试和临时保留，只会清理已经成功上传的录像" xml:space="preserve"><value>録画は自動でバックアップホストへアップロードされます。本機のキャッシュはオフライン時の再試行と一時保存に使用し、アップロード済みの録画だけを削除します</value></data>
   <data name="缓存策略" xml:space="preserve"><value>キャッシュポリシー</value></data>
   <data name="三种策略互斥，上传未确认的录像不会被清理" xml:space="preserve"><value>3 つのポリシーは排他です。アップロードが確認できていない録画は削除しません</value></data>
   <data name="上传成功后立即删除" xml:space="preserve"><value>アップロード確認後にすぐ削除</value></data>
@@ -841,46 +841,46 @@
   <data name="选择容量限制时生效，超出后从最旧的已上传录像开始清理" xml:space="preserve"><value>容量制限を選んだ場合に有効です。上限を超えると古いアップロード済み録画から削除します</value></data>
   <data name="录制工位请粘贴主机“手机/电脑连接”中的完整链接" xml:space="preserve"><value>録画ワークステーションでは、ホストの「スマートフォン/パソコンの接続」にある完全なリンクを貼り付けてください</value></data>
   <data name="使用这台电脑录像，保存到其他主机" xml:space="preserve"><value>このパソコンで録画し、別のホストに保存する</value></data>
-  <data name="使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的保存主机。本机只临时保留录像，不接收其他设备上传" xml:space="preserve"><value>本機のカメラで梱包作業を録画し、完了後に LAN 上の保存ホストへ自動でアップロードします。本機は録画を一時的に保持するだけで、他のデバイスからのアップロードは受け付けません</value></data>
-  <data name="尚未绑定保存主机" xml:space="preserve"><value>保存ホストが未接続です</value></data>
+  <data name="使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的备份主机。本机只临时保留录像，不接收其他设备上传" xml:space="preserve"><value>本機のカメラで梱包作業を録画し、完了後に LAN 上のバックアップホストへ自動でアップロードします。本機は録画を一時的に保持するだけで、他のデバイスからのアップロードは受け付けません</value></data>
+  <data name="尚未绑定备份主机" xml:space="preserve"><value>バックアップホストが未接続です</value></data>
   <data name="第 1 步，共 2 步" xml:space="preserve"><value>2 ステップ中 1 ステップ目</value></data>
   <data name="第 2 步，共 2 步" xml:space="preserve"><value>2 ステップ中 2 ステップ目</value></data>
   <data name="是否使用这台电脑录像？" xml:space="preserve"><value>このパソコンで録画しますか？</value></data>
   <data name="选择是否启用本机摄像头、麦克风、条码识别和扫码枪" xml:space="preserve"><value>本機のカメラ、マイク、バーコード認識、スキャナーを有効にするか選択します</value></data>
   <data name="启用完整电脑录像能力，包括摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒" xml:space="preserve"><value>カメラ、マイク、送り状認識、スキャナー、注文連携、音声通知を含むパソコン録画の全機能を有効にします</value></data>
   <data name="不使用这台电脑录像" xml:space="preserve"><value>このパソコンでは録画しない</value></data>
-  <data name="不初始化本机摄像头、麦克风或扫码设备；仍可作为保存主机，或只连接其他主机查看" xml:space="preserve"><value>本機のカメラ、マイク、スキャナーは初期化しません。保存ホストとして使うか、他のホストに接続して閲覧のみ行えます</value></data>
-  <data name="是否让这台电脑作为保存主机？" xml:space="preserve"><value>このパソコンを保存ホストにしますか？</value></data>
-  <data name="保存主机可以接收并长期保存手机或其他电脑上传的录像" xml:space="preserve"><value>保存ホストは、スマートフォンや他のパソコンからアップロードされた録画を受信して長期保存できます</value></data>
-  <data name="作为保存主机" xml:space="preserve"><value>保存ホストとして使用</value></data>
+  <data name="不初始化本机摄像头、麦克风或扫码设备；仍可作为备份主机，或只连接其他主机查看" xml:space="preserve"><value>本機のカメラ、マイク、スキャナーは初期化しません。バックアップホストとして使うか、他のホストに接続して閲覧のみ行えます</value></data>
+  <data name="是否让这台电脑作为备份主机？" xml:space="preserve"><value>このパソコンをバックアップホストにしますか？</value></data>
+  <data name="备份主机可以接收并长期保存手机或其他电脑上传的录像" xml:space="preserve"><value>バックアップホストは、スマートフォンや他のパソコンからアップロードされた録画を受信して長期保存できます</value></data>
+  <data name="作为备份主机" xml:space="preserve"><value>バックアップホストとして使用</value></data>
   <data name="长期保存录像，并接收手机或其他电脑录制工位上传的录像" xml:space="preserve"><value>録画を長期保存し、スマートフォンや他のパソコンの録画ワークステーションからのアップロードを受信します</value></data>
-  <data name="不作为保存主机" xml:space="preserve"><value>保存ホストにしない</value></data>
+  <data name="不作为备份主机" xml:space="preserve"><value>バックアップホストにしない</value></data>
   <data name="不接收其他设备录像；如本机录像，会自动上传到绑定主机，否则仅用于查看" xml:space="preserve"><value>他のデバイスの録画は受信しません。本機で録画する場合は接続先のホストへ自動でアップロードし、それ以外は閲覧専用になります</value></data>
   <data name="返回上一步" xml:space="preserve"><value>前へ戻る</value></data>
   <data name="只连接主机查看录像" xml:space="preserve"><value>ホストに接続して録画を閲覧するだけ</value></data>
   <data name="只接收并保存录像" xml:space="preserve"><value>録画を受信して保存するだけ</value></data>
-  <data name="录制工位 · 保存主机：" xml:space="preserve"><value>録画ワークステーション · 保存ホスト: </value></data>
+  <data name="录制工位 · 备份主机：" xml:space="preserve"><value>録画ワークステーション · バックアップホスト: </value></data>
   <data name=" · 待上传 " xml:space="preserve"><value> · アップロード待ち </value></data>
   <data name="可连接" xml:space="preserve"><value>接続可能</value></data>
-  <data name="确认后选择另一台保存主机" xml:space="preserve"><value>確認して別の保存ホストを選択</value></data>
-  <data name="更换保存主机" xml:space="preserve"><value>ホスト変更</value></data>
-  <data name="解除当前显示并选择另一台保存主机" xml:space="preserve"><value>現在の接続を解除して別の保存ホストを選択</value></data>
-  <data name="选择保存主机" xml:space="preserve"><value>ホスト選択</value></data>
-  <data name="正在搜索同一网络中的保存主机" xml:space="preserve"><value>同じネットワーク上の保存ホストを検索中</value></data>
-  <data name="重新搜索同一网络中的保存主机" xml:space="preserve"><value>同じネットワーク上の保存ホストを再検索</value></data>
-  <data name="连接列表中选中的保存主机" xml:space="preserve"><value>一覧で選択した保存ホストに接続</value></data>
-  <data name="连接保存主机" xml:space="preserve"><value>ホストに接続</value></data>
-  <data name="连接保存主机失败：{0}" xml:space="preserve"><value>保存ホストへの接続に失敗しました: {0}</value></data>
-  <data name="确认使用列表中选中的保存主机" xml:space="preserve"><value>一覧で選択した保存ホストの使用を確認</value></data>
-  <data name="使用这台保存主机" xml:space="preserve"><value>この保存ホストを使用</value></data>
-  <data name="重新搜索局域网中的保存主机" xml:space="preserve"><value>LAN 上の保存ホストを再検索</value></data>
+  <data name="确认后选择另一台备份主机" xml:space="preserve"><value>確認して別のバックアップホストを選択</value></data>
+  <data name="更换备份主机" xml:space="preserve"><value>ホスト変更</value></data>
+  <data name="解除当前显示并选择另一台备份主机" xml:space="preserve"><value>現在の接続を解除して別のバックアップホストを選択</value></data>
+  <data name="选择备份主机" xml:space="preserve"><value>ホスト選択</value></data>
+  <data name="正在搜索同一网络中的备份主机" xml:space="preserve"><value>同じネットワーク上のバックアップホストを検索中</value></data>
+  <data name="重新搜索同一网络中的备份主机" xml:space="preserve"><value>同じネットワーク上のバックアップホストを再検索</value></data>
+  <data name="连接列表中选中的备份主机" xml:space="preserve"><value>一覧で選択したバックアップホストに接続</value></data>
+  <data name="连接备份主机" xml:space="preserve"><value>ホストに接続</value></data>
+  <data name="连接备份主机失败：{0}" xml:space="preserve"><value>バックアップホストへの接続に失敗しました: {0}</value></data>
+  <data name="确认使用列表中选中的备份主机" xml:space="preserve"><value>一覧で選択したバックアップホストの使用を確認</value></data>
+  <data name="使用这台备份主机" xml:space="preserve"><value>このバックアップホストを使用</value></data>
+  <data name="重新搜索局域网中的备份主机" xml:space="preserve"><value>LAN 上のバックアップホストを再検索</value></data>
   <data name="重新搜索" xml:space="preserve"><value>再検索</value></data>
   <data name="暂不设置，返回已经运行的电脑录像主界面" xml:space="preserve"><value>設定せずに、実行中のパソコン録画のメイン画面に戻る</value></data>
   <data name="已有完整连接链接？" xml:space="preserve"><value>完全な接続リンクをお持ちですか？</value></data>
   <data name="从保存电脑复制完整连接链接并粘贴到这里" xml:space="preserve"><value>保存用パソコンから完全な接続リンクをコピーしてここに貼り付けます</value></data>
   <data name="验证并绑定" xml:space="preserve"><value>検証して接続</value></data>
   <data name="请粘贴包含安全密钥的完整连接链接" xml:space="preserve"><value>セキュリティキーを含む完全な接続リンクを貼り付けてください</value></data>
-  <data name="录像会先保存在本机。保存主机确认接收后，系统会根据缓存上限自动清理已上传文件" xml:space="preserve"><value>録画はまず本機に保存されます。保存ホストが受信を確認すると、キャッシュ上限に応じてアップロード済みファイルを自動で削除します</value></data>
+  <data name="录像会先保存在本机。备份主机确认接收后，系统会根据缓存上限自动清理已上传文件" xml:space="preserve"><value>録画はまず本機に保存されます。バックアップホストが受信を確認すると、キャッシュ上限に応じてアップロード済みファイルを自動で削除します</value></data>
   <data name="缓存位置" xml:space="preserve"><value>キャッシュの場所</value></data>
   <data name="录制工位只使用一个本地缓存位置，不会自动移动或删除原有录像" xml:space="preserve"><value>録画ワークステーションはローカルキャッシュを 1 か所だけ使用し、既存の録画を自動で移動・削除しません</value></data>
   <data name="更改位置" xml:space="preserve"><value>場所を変更</value></data>
@@ -901,7 +901,7 @@
   <data name="连接主机" xml:space="preserve"><value>ホストに接続</value></data>
   <data name="手动输入主机地址或完整连接链接" xml:space="preserve"><value>ホストのアドレスまたは完全な接続リンクを手動で入力</value></data>
   <data name="手动连接" xml:space="preserve"><value>手動接続</value></data>
-  <data name="请在保存主机的“手机/电脑连接”中复制完整链接，再粘贴到这里" xml:space="preserve"><value>保存ホストの「スマートフォン/パソコンの接続」から完全なリンクをコピーし、ここに貼り付けてください</value></data>
+  <data name="请在备份主机的“手机/电脑连接”中复制完整链接，再粘贴到这里" xml:space="preserve"><value>バックアップホストの「スマートフォン/パソコンの接続」から完全なリンクをコピーし、ここに貼り付けてください</value></data>
   <data name="选择这台电脑的用途" xml:space="preserve"><value>このパソコンの用途を選択</value></data>
   <data name="回答两个简单问题，系统会自动组合出合适的用途" xml:space="preserve"><value>簡単な 2 つの質問に答えると、適切な用途が自動で選択されます</value></data>
   <data name="1. 这台电脑要用来录像吗？" xml:space="preserve"><value>1. このパソコンで録画しますか？</value></data>
@@ -913,7 +913,7 @@
   <data name="要，作为保存录像的电脑" xml:space="preserve"><value>はい、録画を保存するパソコンにする</value></data>
   <data name="长期保存录像，并可接收和备份手机或其他录制电脑上传的录像" xml:space="preserve"><value>録画を長期保存し、スマートフォンや他の録画パソコンからのアップロードを受信してバックアップします</value></data>
   <data name="不要，交给其他电脑保存" xml:space="preserve"><value>いいえ、別のパソコンに保存</value></data>
-  <data name="本机录像时作为“录像从机”，录像先保存在本机，再上传给保存主机；不录像时作为“查看端”，连接主机查看录像" xml:space="preserve"><value>録画する場合は本機に保存してから保存ホストへアップロードします。録画しない場合はビューアーとして接続します</value></data>
+  <data name="本机录像时作为“录像从机”，录像先保存在本机，再上传给备份主机；不录像时作为“查看端”，连接主机查看录像" xml:space="preserve"><value>録画する場合は本機に保存してからバックアップホストへアップロードします。録画しない場合はビューアーとして接続します</value></data>
   <data name="选择结果" xml:space="preserve"><value>選択結果</value></data>
   <data name="请完成上面两个选择" xml:space="preserve"><value>上記 2 つの選択を完了してください</value></data>
   <data name="完成后会在这里显示最终用途和支持的能力" xml:space="preserve"><value>完了すると、最終的な用途と対応機能がここに表示されます</value></data>
@@ -921,7 +921,7 @@
   <data name="当前用途" xml:space="preserve"><value>現在の用途</value></data>
   <data name="将切换到" xml:space="preserve"><value>切り替え先</value></data>
   <data name="电脑录像并保存在本机" xml:space="preserve"><value>パソコンで録画し、本機に保存</value></data>
-  <data name="这台电脑既负责录像，也作为保存主机长期保管录像" xml:space="preserve"><value>このパソコンは録画を行い、保存ホストとして録画を長期保管します</value></data>
+  <data name="这台电脑既负责录像，也作为备份主机长期保管录像" xml:space="preserve"><value>このパソコンは録画を行い、バックアップホストとして録画を長期保管します</value></data>
   <data name="使用完整电脑录像能力" xml:space="preserve"><value>パソコン録画の全機能を使用</value></data>
   <data name="录像长期保存在本机" xml:space="preserve"><value>録画を本機に長期保存</value></data>
   <data name="可接收并备份手机录像" xml:space="preserve"><value>スマートフォンの録画を受信してバックアップ</value></data>
@@ -942,7 +942,6 @@
   <data name="连接现有主机查看录像" xml:space="preserve"><value>既存のホストに接続して録画を閲覧</value></data>
   <data name="保留订单联动和测试订单能力" xml:space="preserve"><value>注文連携とテスト注文の機能を保持</value></data>
   <data name="不接收其他设备录像" xml:space="preserve"><value>他のデバイスの録画は受信しない</value></data>
-  <data name="保存主机" xml:space="preserve"><value>保存ホスト</value></data>
   <data name="录像上传" xml:space="preserve"><value>録画のアップロード</value></data>
   <data name="待上传" xml:space="preserve"><value>アップロード待ち</value></data>
   <data name="电脑昵称" xml:space="preserve"><value>パソコン名</value></data>
@@ -1126,10 +1125,10 @@
   <data name="平时也在主画面上画出放大区域，方便随时确认" xml:space="preserve"><value>通常時もメイン画面に拡大範囲を表示して、いつでも確認できるようにします</value></data>
   <data name="调整大小与位置…" xml:space="preserve"><value>サイズと位置…</value></data>
   <data name="粘贴单号，自动去掉首尾多余字符" xml:space="preserve"><value>注文番号を貼り付け（前後の余分な文字を除去）</value></data>
-  <data name="要，作为保存主机（支持 NAS）" xml:space="preserve"><value>はい、保存ホストとして使う（NAS 対応）</value></data>
+  <data name="要，作为备份主机（支持 NAS）" xml:space="preserve"><value>はい、バックアップホストとして使う（NAS 対応）</value></data>
   <data name="主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像" xml:space="preserve"><value>録画を長期保存し、NAS 共有へのバックアップや他デバイスからの受信に対応します</value></data>
-  <data name="这台电脑既录像也负责长期保存，是保存主机，支持 NAS／网络共享备份" xml:space="preserve"><value>このパソコンは録画と長期保存の両方を担う保存ホストで、NAS／ネットワーク共有へのバックアップに対応します</value></data>
-  <data name="这台电脑不录像，作为保存主机接收其他设备录像，支持 NAS／网络共享备份" xml:space="preserve"><value>このパソコンは録画せず、保存ホストとして他のデバイスの録画を受信します。NAS／ネットワーク共有へのバックアップに対応します</value></data>
+  <data name="这台电脑既录像也负责长期保存，是备份主机，支持 NAS／网络共享备份" xml:space="preserve"><value>このパソコンは録画と長期保存の両方を担うバックアップホストで、NAS／ネットワーク共有へのバックアップに対応します</value></data>
+  <data name="这台电脑不录像，作为备份主机接收其他设备录像，支持 NAS／网络共享备份" xml:space="preserve"><value>このパソコンは録画せず、バックアップホストとして他のデバイスの録画を受信します。NAS／ネットワーク共有へのバックアップに対応します</value></data>
   <data name="支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>NAS／ネットワーク共有フォルダーへのバックアップに対応</value></data>
   <data name="软件支持 NAS 备份。主机就是负责长期保存录像的电脑；点击“添加网络位置”，在用途选择第 2 问选“要”即可配置" xml:space="preserve"><value>NAS バックアップに対応しています。ホストは録画を長期保存するパソコンです。「ネットワークの場所を追加」をクリックし、用途選択の質問 2 で「はい」を選ぶと設定できます</value></data>
   <data name="主机就是负责长期保存录像的电脑，支持 NAS／网络共享备份。要在这台电脑配置，请在用途选择第 2 问选“要”。是否现在打开用途选择？" xml:space="preserve"><value>ホストは録画を長期保存するパソコンで、NAS／ネットワーク共有へのバックアップに対応します。このパソコンで設定するには、用途選択の質問 2 で「はい」を選んでください。今すぐ用途選択を開きますか？</value></data>
@@ -1139,13 +1138,13 @@
   <data name="录像查看端" xml:space="preserve"><value>録画ビューアー</value></data>
   <data name="本机录像并长期保存，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>本機で録画して長期保存し、NAS／ネットワーク共有フォルダーへのバックアップに対応</value></data>
   <data name="接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>スマートフォンや他のパソコンの録画を受信して長期保存し、NAS／ネットワーク共有フォルダーへのバックアップに対応</value></data>
-  <data name="本机录像，自动上传到保存主机" xml:space="preserve"><value>本機で録画し、保存ホストへ自動でアップロード</value></data>
-  <data name="连接保存主机，查看和回放录像" xml:space="preserve"><value>保存ホストに接続して録画を閲覧・再生</value></data>
+  <data name="本机录像，自动上传到备份主机" xml:space="preserve"><value>本機で録画し、バックアップホストへ自動でアップロード</value></data>
+  <data name="连接备份主机，查看和回放录像" xml:space="preserve"><value>バックアップホストに接続して録画を閲覧・再生</value></data>
   <data name="PackingProof 备份主机" xml:space="preserve"><value>PackingProof バックアップホスト</value></data>
   <data name="备份主机 · 接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>バックアップホスト · スマートフォンやパソコンの録画を受信して長期保存し、NAS／ネットワーク共有フォルダーへのバックアップに対応</value></data>
   <data name="空间清理" xml:space="preserve"><value>容量のクリーンアップ</value></data>
   <data name="空间不足时会按存储规则自动清理旧录像，通常无需手动操作" xml:space="preserve"><value>空き不足時は保存ルールに従って古い録画を自動削除します。通常は手動操作が不要です</value></data>
-  <data name="缓存接近上限时自动清理已上传的录像，未上传的录像会保留" xml:space="preserve"><value>キャッシュが上限に近づくとアップロード済みの録画を削除します。未アップロード分は保持します</value></data>
+  <data name="备份确认后会自动清理已上传的录像，未上传的录像会保留" xml:space="preserve"><value>バックアップ確認後、アップロード済みの録画を削除します。未アップロード分は保持します</value></data>
   <data name="手动提前清理本机录像，不影响已备份的远端文件" xml:space="preserve"><value>本機の録画を今すぐ削除します。リモートのバックアップは変更しません</value></data>
   <data name="手动提前释放本机空间，不影响已备份的远端文件" xml:space="preserve"><value>本機の容量を今すぐ解放します。リモートのバックアップは変更しません</value></data>
   <data name="回到主界面" xml:space="preserve"><value>メイン画面に戻る</value></data>
@@ -1217,16 +1216,23 @@
   <data name="状态" xml:space="preserve"><value>ステータス</value></data>
   <data name="文件位置" xml:space="preserve"><value>ファイルの場所</value></data>
   <data name="已清理" xml:space="preserve"><value>削除済み</value></data>
-  <data name="已保存到主机" xml:space="preserve"><value>ホストに保存済み</value></data>
+  <data name="已备份到主机" xml:space="preserve"><value>ホストにバックアップ済み</value></data>
+  <data name="需要更新电脑端" xml:space="preserve"><value>このパソコンを更新してください</value></data>
+  <data name="需要更新备份主机" xml:space="preserve"><value>バックアップホストを更新してください</value></data>
+  <data name="等待更新" xml:space="preserve"><value>更新待ち</value></data>
+  <data name="当前电脑版本过低，请更新后再备份" xml:space="preserve"><value>このパソコンのバージョンが古いため、更新してからバックアップしてください</value></data>
+  <data name="备份主机版本过低，请先在主机上更新后继续备份" xml:space="preserve"><value>バックアップホストのバージョンが古いため、ホストを更新してからバックアップしてください</value></data>
+  <data name="备份主机要求更新当前电脑，更新后会自动继续备份" xml:space="preserve"><value>バックアップホストからこのパソコンの更新が要求されています。更新後、バックアップは自動で再開します</value></data>
+  <data name="当前电脑与备份主机版本不兼容，请更新后重试" xml:space="preserve"><value>このパソコンとバックアップホストのバージョンに互換性がありません。更新してから再度お試しください</value></data>
   <data name="文件已丢失，未在记录的位置找到录像" xml:space="preserve"><value>ファイルが見つかりません。記録された場所に録画がありません</value></data>
-  <data name="正在查找同一局域网中可用的保存主机" xml:space="preserve"><value>LAN 上で利用可能な保存ホストを検索中</value></data>
+  <data name="正在查找同一局域网中可用的备份主机" xml:space="preserve"><value>LAN 上で利用可能なバックアップホストを検索中</value></data>
   <data name="没有找到主机，请检查两台电脑是否连接同一网络" xml:space="preserve"><value>ホストが見つかりません。2 台のパソコンが同じネットワークに接続されているか確認してください</value></data>
-  <data name="找到了主机，但没有可接收录像的保存主机" xml:space="preserve"><value>ホストは見つかりましたが、録画を受信できる保存ホストではありません</value></data>
-  <data name="找到了保存主机，但版本过旧，请更新保存主机电脑" xml:space="preserve"><value>保存ホストが見つかりましたが、バージョンが古いため、保存ホストのパソコンを更新してください</value></data>
+  <data name="找到了主机，但没有可接收录像的备份主机" xml:space="preserve"><value>ホストは見つかりましたが、録画を受信できるバックアップホストではありません</value></data>
+  <data name="找到了备份主机，但版本过旧，请更新备份主机电脑" xml:space="preserve"><value>バックアップホストが見つかりましたが、バージョンが古いため、バックアップホストのパソコンを更新してください</value></data>
   <data name="找到 1 台主机，确认后即可连接" xml:space="preserve"><value>ホストが 1 台見つかりました。確認すると接続できます</value></data>
   <data name="搜索已取消" xml:space="preserve"><value>検索をキャンセルしました</value></data>
   <data name="正在查找其他可用主机" xml:space="preserve"><value>他の利用可能なホストを検索中</value></data>
-  <data name="正在请求保存主机允许连接" xml:space="preserve"><value>保存ホストに接続の許可を要求中</value></data>
+  <data name="正在请求备份主机允许连接" xml:space="preserve"><value>バックアップホストに接続の許可を要求中</value></data>
   <data name="需要主机允许连接" xml:space="preserve"><value>ホストの接続許可が必要です</value></data>
   <data name="已允许访问" xml:space="preserve"><value>アクセスを許可しました</value></data>
   <data name="未取得网页访问权限" xml:space="preserve"><value>Web アクセス権が未取得です</value></data>
@@ -1235,7 +1241,7 @@
   <data name="暂时离线，稍后会自动重试" xml:space="preserve"><value>一時的にオフラインです。後で自動的に再試行します</value></data>
   <data name="找到 {0} 台主机，请选择要连接的主机" xml:space="preserve"><value>ホストが {0} 台見つかりました。接続するホストを選択してください</value></data>
   <data name="搜索主机失败：{0}" xml:space="preserve"><value>ホストの検索に失敗しました: {0}</value></data>
-  <data name="已找到“{0}”，等待保存主机允许连接" xml:space="preserve"><value>「{0}」が見つかりました。保存ホストの接続許可を待っています</value></data>
+  <data name="已找到“{0}”，等待备份主机允许连接" xml:space="preserve"><value>「{0}」が見つかりました。バックアップホストの接続許可を待っています</value></data>
   <data name="正在连接“{0}”" xml:space="preserve"><value>「{0}」に接続中</value></data>
   <data name="已连接 {0}" xml:space="preserve"><value>{0} に接続しました</value></data>
   <data name="存储错误" xml:space="preserve"><value>ストレージ エラー</value></data>
@@ -1281,7 +1287,7 @@
   <data name="[0] 未检测到摄像头" xml:space="preserve"><value>[0] カメラが検出されません</value></data>
   <data name="{configuredPath}：磁盘未接入或无法确认存储位置类型" xml:space="preserve"><value>{0}: ディスクが接続されていないか、保存先の種類を確認できません</value></data>
   <data name="{displaySeconds} 秒内未处理，本次申请将自动取消" xml:space="preserve"><value>{0} 秒以内に対応しない場合、この要求は自動的に取り消されます</value></data>
-  <data name="{name}（{location}）申请连接这台保存主机。{permission}" xml:space="preserve"><value>{0}（{1}）がこの保存ホストへの接続を要求しています。{2}</value></data>
+  <data name="{name}（{location}）申请连接这台备份主机。{permission}" xml:space="preserve"><value>{0}（{1}）がこのバックアップホストへの接続を要求しています。{2}</value></data>
   <data name="{running.ProcessName}（PID {running.ProcessId}）身份已变化" xml:space="preserve"><value>{0}（PID {1}）の識別情報が変更されました</value></data>
   <data name="{running.ProcessName}（PID {running.ProcessId}）未在限定时间内退出" xml:space="preserve"><value>{0}（PID {1}）が制限時間内に終了しませんでした</value></data>
   <data name="30 天以前" xml:space="preserve"><value>30 日より前</value></data>
@@ -1291,8 +1297,8 @@
   <data name="安装失败" xml:space="preserve"><value>インストールに失敗しました</value></data>
   <data name="按空间释放本地录像" xml:space="preserve"><value>容量のためにローカル録画を解放</value></data>
   <data name="按时间清理本地录像" xml:space="preserve"><value>期間でローカル録画を削除</value></data>
-  <data name="保存主机返回的网页访问链接无效，请更新保存主机后重试" xml:space="preserve"><value>保存ホストが返した Web アクセス リンクが無効です。保存ホストを更新して再度お試しください</value></data>
-  <data name="保存主机未返回网页访问链接，请更新保存主机后重试" xml:space="preserve"><value>保存ホストが Web アクセス リンクを返しませんでした。保存ホストを更新して再度お試しください</value></data>
+  <data name="备份主机返回的网页访问链接无效，请更新备份主机后重试" xml:space="preserve"><value>バックアップホストが返した Web アクセス リンクが無効です。バックアップホストを更新して再度お試しください</value></data>
+  <data name="备份主机未返回网页访问链接，请更新备份主机后重试" xml:space="preserve"><value>バックアップホストが Web アクセス リンクを返しませんでした。バックアップホストを更新して再度お試しください</value></data>
   <data name="本地缓存不可用：{error}" xml:space="preserve"><value>ローカル キャッシュを利用できません: {0}</value></data>
   <data name="本地缓存会在接近上限时自动清理" xml:space="preserve"><value>ローカル キャッシュは上限に近づくと自動で削除されます</value></data>
   <data name="本地缓存位置不可用" xml:space="preserve"><value>ローカル キャッシュの場所を利用できません</value></data>
@@ -1470,7 +1476,7 @@
   <data name="地址缺少主机名或 IP" xml:space="preserve"><value>アドレスにホスト名または IP がありません</value></data>
   <data name="网络摄像头连接异常，尝试重连..." xml:space="preserve"><value>ネットワーク カメラの接続が異常です。再接続します...</value></data>
   <data name="网络摄像头连上了但一直没有画面，正在自动重试；请检查流地址路径、H.264 编码和其他软件占用" xml:space="preserve"><value>ネットワーク カメラには接続できましたが映像がありません。再試行中です。ストリームのパス、H.264 エンコード、他のソフトによる使用を確認してください</value></data>
-  <data name="网页访问验证失败，请在保存主机上确认后重试" xml:space="preserve"><value>Web アクセスの検証に失敗しました。保存ホストで確認して再度お試しください</value></data>
+  <data name="网页访问验证失败，请在备份主机上确认后重试" xml:space="preserve"><value>Web アクセスの検証に失敗しました。バックアップホストで確認して再度お試しください</value></data>
   <data name="未安装" xml:space="preserve"><value>未インストール</value></data>
   <data name="未检测到可用麦克风" xml:space="preserve"><value>利用可能なマイクが見つかりません</value></data>
   <data name="未检测到可用摄像头" xml:space="preserve"><value>利用可能なカメラが見つかりません</value></data>
@@ -1485,7 +1491,7 @@
   <data name="无法创建日期目录: {ex.Message}" xml:space="preserve"><value>日付フォルダーを作成できません: {0}</value></data>
   <data name="无法打开目录" xml:space="preserve"><value>フォルダーを開けません</value></data>
   <data name="无法开始录制" xml:space="preserve"><value>録画を開始できません</value></data>
-  <data name="无法连接保存主机网页，请检查网络后重试" xml:space="preserve"><value>保存ホストの Web ページに接続できません。ネットワークを確認して再度お試しください</value></data>
+  <data name="无法连接备份主机网页，请检查网络后重试" xml:space="preserve"><value>バックアップホストの Web ページに接続できません。ネットワークを確認して再度お試しください</value></data>
   <data name="无法删除扩展" xml:space="preserve"><value>拡張を削除できません</value></data>
   <data name="性能建议未完成" xml:space="preserve"><value>性能の推奨が完了していません</value></data>
   <data name="选择一台电脑保存录像；暂时不设置也可以先录像" xml:space="preserve"><value>録画を保存するパソコンを選択します。後で設定しても、先に録画を始められます</value></data>
@@ -1612,7 +1618,7 @@
   <data name="按最旧录像优先清理，直到释放所选空间；NAS 中已备份的文件不受影响" xml:space="preserve"><value>最も古い録画から削除して、指定した容量を空けます。NAS のバックアップは変更しません</value></data>
   <data name="请选择健康、可写的本机固定磁盘" xml:space="preserve"><value>正常に書き込める内蔵ディスクを選択してください</value></data>
   <data name="立即重启升级" xml:space="preserve"><value>再起動して更新</value></data>
-  <data name="管理保存主机" xml:space="preserve"><value>ホスト管理</value></data>
+  <data name="管理备份主机" xml:space="preserve"><value>ホスト管理</value></data>
   <data name="连接、绑定或管理保存电脑" xml:space="preserve"><value>保存先パソコンに接続・バインド・管理</value></data>
   <data name="订单联动接收：等待启动" xml:space="preserve"><value>注文連携受信: 起動待ち</value></data>
   <data name="订单联动接收：启动失败" xml:space="preserve"><value>注文連携受信: 起動失敗</value></data>
@@ -1621,7 +1627,7 @@
   <data name="访问保护已开启。请点击手机/电脑连接查看二维码或复制完整访问链接，再发送到需要查看录像的设备" xml:space="preserve"><value>アクセス保護が有効です。「端末を接続」から QR コードまたは完全なリンクを取得してください</value></data>
   <data name="其他电脑在浏览器输入 http://{monitorAccessAddress}，即可搜索、下载和播放视频。若打不开，请确认两台电脑在同一局域网，并检查防火墙" xml:space="preserve"><value>他のパソコンのブラウザーで http://{0} を開くと、検索・ダウンロード・再生ができます。開けない場合は同じ LAN とファイアウォールを確認してください</value></data>
   <data name="局域网服务尚未准备完成，请稍后重试" xml:space="preserve"><value>LAN サービスが準備できていません。しばらくしてから再試行してください</value></data>
-  <data name="输入保存主机地址，或粘贴连接链接；设备令牌会自动领取" xml:space="preserve"><value>保存ホストのアドレスを入力するか、接続リンクを貼り付けてください。デバイストークンは自動で取得します</value></data>
+  <data name="输入备份主机地址，或粘贴连接链接；设备令牌会自动领取" xml:space="preserve"><value>バックアップホストのアドレスを入力するか、接続リンクを貼り付けてください。デバイストークンは自動で取得します</value></data>
   <data name="旋转摄像头画面 180 度" xml:space="preserve"><value>カメラ映像を 180° 回転</value></data>
   <data name="手机 App 更新提示" xml:space="preserve"><value>スマホアプリの更新</value></data>
   <data name="修复局域网连接" xml:space="preserve"><value>LAN 接続を修復</value></data>
@@ -1629,16 +1635,16 @@
   <data name="导入发货视频" xml:space="preserve"><value>出荷動画をインポート</value></data>
   <data name="导入退货视频" xml:space="preserve"><value>返品動画をインポート</value></data>
   <data name="取消导入录像" xml:space="preserve"><value>動画のインポートをキャンセル</value></data>
-  <data name="重新搜索保存主机" xml:space="preserve"><value>保存ホストを再検索</value></data>
+  <data name="重新搜索备份主机" xml:space="preserve"><value>バックアップホストを再検索</value></data>
   <data name="正在搜索主机" xml:space="preserve"><value>ホストを検索中</value></data>
   <data name="可连接的主机" xml:space="preserve"><value>接続可能なホスト</value></data>
-  <data name="扫描保存主机二维码" xml:space="preserve"><value>保存ホストの QR を読み取る</value></data>
-  <data name="稍后设置保存主机" xml:space="preserve"><value>後で保存ホストを設定</value></data>
-  <data name="连接选中的保存主机" xml:space="preserve"><value>選択したホストに接続</value></data>
+  <data name="扫描备份主机二维码" xml:space="preserve"><value>バックアップホストの QR を読み取る</value></data>
+  <data name="稍后设置备份主机" xml:space="preserve"><value>後でバックアップホストを設定</value></data>
+  <data name="连接选中的备份主机" xml:space="preserve"><value>選択したホストに接続</value></data>
   <data name="清除输入" xml:space="preserve"><value>入力をクリア</value></data>
   <data name="粘贴单号" xml:space="preserve"><value>送り状番号を貼り付け</value></data>
   <data name="设置 {0} ({1})" xml:space="preserve"><value>設定 {0} ({1})</value></data>
-  <data name="PackingProof 保存主机 {0}" xml:space="preserve"><value>PackingProof 保存ホスト {0}</value></data>
+  <data name="PackingProof 备份主机 {0}" xml:space="preserve"><value>PackingProof バックアップホスト {0}</value></data>
   <data name="选择要导入的{0}视频文件夹" xml:space="preserve"><value>{0}動画のフォルダーを選択</value></data>
   <data name="编译日期 {0}" xml:space="preserve"><value>ビルド日時 {0}</value></data>
   <data name="编译日期未知" xml:space="preserve"><value>ビルド日時不明</value></data>
@@ -1759,7 +1765,7 @@
   <data name="当前使用系统盘，系统会保留至少 {0}，不会占满磁盘" xml:space="preserve"><value>システム ドライブを使用中。{0} 以上を予約します</value></data>
   <data name="系统会为此磁盘保留至少 {0}" xml:space="preserve"><value>このディスクでは {0} 以上を予約します</value></data>
   <data name="可以选择本地磁盘中的任意文件夹，也可以输入网络共享路径，例如：\\192.168.1.100\共享目录\PackingProofVideos" xml:space="preserve"><value>ローカル フォルダーを選択するか、ネットワーク共有パスを入力します（例: \\192.168.1.100\share\PackingProofVideos）</value></data>
-  <data name="已绑定的保存主机" xml:space="preserve"><value>バインド済みの保存ホスト</value></data>
+  <data name="已绑定的备份主机" xml:space="preserve"><value>バインド済みのバックアップホスト</value></data>
   <data name="该视频已被覆盖删除，无法播放" xml:space="preserve"><value>この録画は上書き削除されたため再生できません</value></data>
   <data name="单号: {0}" xml:space="preserve"><value>注文番号: {0}</value></data>
   <data name="删除原因: {0}" xml:space="preserve"><value>削除理由: {0}</value></data>
@@ -1793,9 +1799,9 @@
   <data name="NAS 副本已循环清理" xml:space="preserve"><value>NAS コピーはローテーション済み</value></data>
   <data name="检测到 exe 版数据。商店版与 exe 版使用独立数据目录，更新和卸载互不覆盖；exe 版的设置和录像不会自动迁移" xml:space="preserve"><value>exe 版のデータが見つかりました。Store 版と exe 版は別々のデータ フォルダーを使用し、更新やアンインストールで互いを上書きしません。exe 版の設定と録画は自動移行されません</value></data>
   <data name="检测到 Microsoft Store 版数据。Setup 版与商店版使用独立数据目录，更新和卸载互不覆盖；商店版请从 Microsoft Store 更新" xml:space="preserve"><value>Microsoft Store 版のデータが見つかりました。Setup 版と Store 版は別々のデータ フォルダーを使用し、更新やアンインストールで互いを上書きしません。Store 版は Microsoft Store から更新してください</value></data>
-  <data name="另一个 PackingProof 实例已经把当前电脑作为保存主机。两个版本可以同时运行，但同一时间只能有一个保存主机；请关闭其中一个，或把当前版本改为查看端/录像从机" xml:space="preserve"><value>別の PackingProof インスタンスがこのパソコンを保存ホストとして使用中です。2 つのエディションは同時に実行できますが、保存ホストにできるのは 1 つだけです。どちらかを終了するか、このエディションをビューアーまたは録画ワークステーションに切り替えてください</value></data>
-  <data name="不能同时作为保存主机" xml:space="preserve"><value>保存ホストは 1 つだけです</value></data>
-  <data name="另一个版本正在作为保存主机。这台电脑只能选择查看端或录像从机，不能再次作为保存主机" xml:space="preserve"><value>別のエディションが保存ホストとして使用中です。このパソコンはビューアーまたは録画ワークステーションのみ選択でき、保存ホストにはできません</value></data>
+  <data name="另一个 PackingProof 实例已经把当前电脑作为备份主机。两个版本可以同时运行，但同一时间只能有一个备份主机；请关闭其中一个，或把当前版本改为查看端/录像从机" xml:space="preserve"><value>別の PackingProof インスタンスがこのパソコンをバックアップホストとして使用中です。2 つのエディションは同時に実行できますが、バックアップホストにできるのは 1 つだけです。どちらかを終了するか、このエディションをビューアーまたは録画ワークステーションに切り替えてください</value></data>
+  <data name="不能同时作为备份主机" xml:space="preserve"><value>バックアップホストは 1 つだけです</value></data>
+  <data name="另一个版本正在作为备份主机。这台电脑只能选择查看端或录像从机，不能再次作为备份主机" xml:space="preserve"><value>別のエディションがバックアップホストとして使用中です。このパソコンはビューアーまたは録画ワークステーションのみ選択でき、バックアップホストにはできません</value></data>
   <data name="商店版更新由 Microsoft Store 统一管理，请打开 Microsoft Store 的“库”页面检查更新" xml:space="preserve"><value>ストア版の更新は Microsoft Store で管理されます。Microsoft Store の [ライブラリ] ページで更新を確認してください</value></data>
   <data name="请先关闭旧版本" xml:space="preserve"><value>旧バージョンを終了してください</value></data>
   <data name="检测到旧版本仍在运行。请先关闭旧版本，再打开新版本，避免两个进程同时写入同一份配置和录像数据库" xml:space="preserve"><value>旧バージョンが実行中です。同じ設定と録画データベースに 2 つのプロセスが書き込まないよう、旧バージョンを終了してから開いてください</value></data>
@@ -1879,10 +1885,10 @@
   <data name="今日数量单位" xml:space="preserve"><value>件</value></data>
   <data name="{0} 台需要处理" xml:space="preserve"><value>{0} 台異常</value></data>
   <data name="{0} 个异常" xml:space="preserve"><value>{0} 件異常</value></data>
-  <data name="保存主机离线，恢复后自动继续" xml:space="preserve"><value>保存先ホストはオフラインです。復旧後に自動で再開します</value></data>
-  <data name="保存主机空间不足，上传已暂停" xml:space="preserve"><value>保存先ホストの空き容量が不足しています。アップロードを一時停止しました</value></data>
+  <data name="备份主机离线，恢复后自动继续" xml:space="preserve"><value>バックアップホストはオフラインです。復旧後に自動で再開します</value></data>
+  <data name="备份主机空间不足，上传已暂停" xml:space="preserve"><value>バックアップホストの空き容量が不足しています。アップロードを一時停止しました</value></data>
   <data name="主机写入繁忙，稍后自动继续" xml:space="preserve"><value>ホストの書き込みが混み合っています。後で自動的に再開します</value></data>
-  <data name="正在检查保存主机" xml:space="preserve"><value>保存先ホストを確認中</value></data>
+  <data name="正在检查备份主机" xml:space="preserve"><value>バックアップホストを確認中</value></data>
   <data name="正在检查主机" xml:space="preserve"><value>ホストを確認中</value></data>
   <data name="{0} 自动重试" xml:space="preserve"><value>{0} に自動再試行</value></data>
   <data name="设备" xml:space="preserve"><value>デバイス</value></data>
@@ -1911,7 +1917,7 @@
   <data name="手机/电脑备份服务尚未准备完成" xml:space="preserve"><value>スマートフォン/PC バックアップ サービスはまだ準備できていません</value></data>
   <data name="设备备份服务尚未准备完成" xml:space="preserve"><value>デバイス バックアップ サービスはまだ準備できていません</value></data>
   <data name="设备与传输" xml:space="preserve"><value>デバイスと転送</value></data>
-  <data name="保存主机连接中断，稍后自动继续" xml:space="preserve"><value>保存先ホストとの接続が中断しました。後で自動的に再開します</value></data>
+  <data name="备份主机连接中断，稍后自动继续" xml:space="preserve"><value>バックアップホストとの接続が中断しました。後で自動的に再開します</value></data>
   <data name="收起" xml:space="preserve"><value>折りたたむ</value></data>
   <data name="展开" xml:space="preserve"><value>展開</value></data>
   <data name="移除" xml:space="preserve"><value>削除</value></data>
@@ -1922,30 +1928,30 @@
   <data name="设备不存在或已经解绑" xml:space="preserve"><value>デバイスが存在しないか、すでに解除されています</value></data>
   <data name="只会移除设备登记和昵称，不会删除录像文件。确定移除“{0}”吗？" xml:space="preserve"><value>クライアントのペアリングを解除してアップロード権限を取り消します。過去の録画とタグは保持されます。「{0}」を解除しますか？</value></data>
   <data name="设备移除失败，请稍后重试" xml:space="preserve"><value>デバイスの削除に失敗しました。後でもう一度お試しください</value></data>
-  <data name="保存主机已解除本机配对，请重新连接" xml:space="preserve"><value>保存先ホストがこの端末のペアリングを解除しました。再接続してください</value></data>
-  <data name="等待主机允许连接" xml:space="preserve"><value>保存先ホストの許可を待っています</value></data>
+  <data name="备份主机已解除本机配对，请重新连接" xml:space="preserve"><value>バックアップホストがこの端末のペアリングを解除しました。再接続してください</value></data>
+  <data name="等待主机允许连接" xml:space="preserve"><value>バックアップホストの許可を待っています</value></data>
   <data name="等待授权" xml:space="preserve"><value>許可待ち</value></data>
-  <data name="等待主机允许连接，录像仍保存在本机" xml:space="preserve"><value>保存先ホストの許可を待っています。録画は本機に保持されています</value></data>
+  <data name="等待主机允许连接，录像仍保存在本机" xml:space="preserve"><value>バックアップホストの許可を待っています。録画は本機に保持されています</value></data>
   <data name="暂停上传" xml:space="preserve"><value>アップロードを一時停止</value></data>
   <data name="继续上传" xml:space="preserve"><value>アップロードを再開</value></data>
   <data name="已暂停" xml:space="preserve"><value>一時停止中</value></data>
   <data name="已暂停，{0} 个录像保存在本机" xml:space="preserve"><value>一時停止中。{0} 件の録画は本機に保持されています</value></data>
   <data name="已暂停，暂无待上传录像" xml:space="preserve"><value>一時停止中。待機中の録画はありません</value></data>
   <data name="保存上传状态失败：{0}" xml:space="preserve"><value>アップロード状態を保存できませんでした: {0}</value></data>
-  <data name="保存主机拒绝了本机连接申请，可重新申请或更换保存主机" xml:space="preserve"><value>保存先ホストがこの端末の接続を拒否しました。再試行するか、別のホストを選択してください</value></data>
-  <data name="保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”" xml:space="preserve"><value>保存先ホストが接続を許可していません。再試行し、保存先ホストで「許可」を選択してください</value></data>
-  <data name="等待保存主机允许连接超时，请确认保存主机界面已打开后重新申请" xml:space="preserve"><value>保存先ホストの接続許可待ちがタイムアウトしました。保存先ホストの画面を開いて再試行してください</value></data>
-  <data name="保存主机暂时无法显示连接确认窗口，请打开保存主机界面后重试" xml:space="preserve"><value>保存先ホストで接続確認画面を表示できません。保存先ホストの画面を開いて再試行してください</value></data>
-  <data name="保存主机正在确认其他设备，请稍后重新申请" xml:space="preserve"><value>保存先ホストが別の端末を確認中です。後でもう一度お試しください</value></data>
-  <data name="无法连接保存主机，请检查网络后重试" xml:space="preserve"><value>保存先ホストに接続できません。ネットワークを確認して再試行してください</value></data>
-  <data name="保存主机版本不兼容，请更新后重新连接" xml:space="preserve"><value>保存先ホストのバージョンに対応していません。更新して再接続してください</value></data>
-  <data name="保存主机返回的连接信息无效，请更新保存主机后重试" xml:space="preserve"><value>保存先ホストから無効な接続情報が返されました。更新して再試行してください</value></data>
-  <data name="保存主机暂时无法处理连接申请，请稍后重试" xml:space="preserve"><value>保存先ホストは現在接続要求を処理できません。後でもう一度お試しください</value></data>
-  <data name="需要重新连接保存主机" xml:space="preserve"><value>保存先ホストに再接続してください</value></data>
-  <data name="需要重新连接保存主机：{0}" xml:space="preserve"><value>保存先ホストに再接続してください: {0}</value></data>
+  <data name="备份主机拒绝了本机连接申请，可重新申请或更换备份主机" xml:space="preserve"><value>バックアップホストがこの端末の接続を拒否しました。再試行するか、別のホストを選択してください</value></data>
+  <data name="备份主机未允许本机连接，可重新申请并在备份主机上点“允许连接”" xml:space="preserve"><value>バックアップホストが接続を許可していません。再試行し、バックアップホストで「許可」を選択してください</value></data>
+  <data name="等待备份主机允许连接超时，请确认备份主机界面已打开后重新申请" xml:space="preserve"><value>バックアップホストの接続許可待ちがタイムアウトしました。バックアップホストの画面を開いて再試行してください</value></data>
+  <data name="备份主机暂时无法显示连接确认窗口，请打开备份主机界面后重试" xml:space="preserve"><value>バックアップホストで接続確認画面を表示できません。バックアップホストの画面を開いて再試行してください</value></data>
+  <data name="备份主机正在确认其他设备，请稍后重新申请" xml:space="preserve"><value>バックアップホストが別の端末を確認中です。後でもう一度お試しください</value></data>
+  <data name="无法连接备份主机，请检查网络后重试" xml:space="preserve"><value>バックアップホストに接続できません。ネットワークを確認して再試行してください</value></data>
+  <data name="备份主机版本不兼容，请更新后重新连接" xml:space="preserve"><value>バックアップホストのバージョンに対応していません。更新して再接続してください</value></data>
+  <data name="备份主机返回的连接信息无效，请更新备份主机后重试" xml:space="preserve"><value>バックアップホストから無効な接続情報が返されました。更新して再試行してください</value></data>
+  <data name="备份主机暂时无法处理连接申请，请稍后重试" xml:space="preserve"><value>バックアップホストは現在接続要求を処理できません。後でもう一度お試しください</value></data>
+  <data name="需要重新连接备份主机" xml:space="preserve"><value>バックアップホストに再接続してください</value></data>
+  <data name="需要重新连接备份主机：{0}" xml:space="preserve"><value>バックアップホストに再接続してください: {0}</value></data>
   <data name="需要重新连接" xml:space="preserve"><value>再接続が必要</value></data>
   <data name="正在重新连接" xml:space="preserve"><value>再接続中</value></data>
-  <data name="无法保存主机连接状态" xml:space="preserve"><value>ホスト接続状態を保存できませんでした</value></data>
+  <data name="无法保存连接状态" xml:space="preserve"><value>接続状態を保存できませんでした</value></data>
   <data name="NetworkCameraStreamCopy" xml:space="preserve"><value>ソースストリーム直接保存（実験）</value></data>
   <data name="NetworkCameraStreamCopyHint" xml:space="preserve"><value>再エンコードなしで低スペックPC向け</value></data>
   <data name="以下功能将失效" xml:space="preserve"><value>次の機能は利用できません</value></data>

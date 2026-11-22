@@ -13,7 +13,7 @@ namespace ExpressPackingMonitoring.Localization;
 
 /// <summary>
 /// 本地化的 WPF 部分：控件树自动翻译与绑定转换器。
-/// 拆分出来是为了让不引用 WPF 的宿主（例如 macOS 保存主机）能共用同一份文案逻辑。
+/// 拆分出来是为了让不引用 WPF 的宿主（例如 macOS 备份主机）能共用同一份文案逻辑。
 /// </summary>
 public static class WpfLocalization
 {

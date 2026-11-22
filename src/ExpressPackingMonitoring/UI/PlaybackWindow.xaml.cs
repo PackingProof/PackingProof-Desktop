@@ -156,7 +156,7 @@ namespace ExpressPackingMonitoring.UI
                 }
 
                 if (IsStoredOnHost)
-                    return "已保存到主机";
+                    return "已备份到主机";
                 if (IsArchiveWarning)
                     return ArchiveStatusText;
                 return IsMissing ? "文件已丢失" : "";
@@ -1769,7 +1769,7 @@ namespace ExpressPackingMonitoring.UI
                 AppDialog.Information(
                     this,
                     AppLanguage.Get("这段录像已转移到绑定主机，请从录制工位主界面打开主机录像页面查看"),
-                    AppLanguage.Get("已保存到主机"));
+                    AppLanguage.Get("已备份到主机"));
                 UpdateLocateButtonState(video);
                 return;
             }

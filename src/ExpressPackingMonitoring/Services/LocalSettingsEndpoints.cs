@@ -30,7 +30,7 @@ internal static class LocalSettingsEndpoints
             WriteJson(ctx, 403, new
             {
                 errorCode = "local_only",
-                error = "设置只能在保存主机本机修改"
+                error = "设置只能在备份主机本机修改"
             });
             return true;
         }
@@ -141,7 +141,7 @@ internal static class LocalSettingsEndpoints
             };
             if (mapped.Length == 0)
             {
-                error = "用途只能是保存主机或查看端";
+                error = "用途只能是备份主机或查看端";
                 return false;
             }
 

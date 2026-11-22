@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 PackingProof contributors
 //
-// Mac 保存主机的菜单栏壳：只负责状态显示与动作转发，
+// Mac 备份主机的菜单栏壳：只负责状态显示与动作转发，
 // 录像、备份、存储与网页全部仍在 .NET 主机进程里。
 
 import PackageDescription

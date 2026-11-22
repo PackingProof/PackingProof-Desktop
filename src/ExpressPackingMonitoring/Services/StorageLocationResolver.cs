@@ -287,7 +287,7 @@ internal static class StorageLocationResolver
 
     /// <summary>
     /// 判定单个本地位置是否可用。requireFreeSpaceAboveReserve=false 时只要求位置存在且可写
-    /// （保存主机启动用这一档：盘快满不该让主机起不来，接收侧会按 storage_unavailable 拒收并说明原因）。
+    /// （备份主机启动用这一档：盘快满不该让主机起不来，接收侧会按 storage_unavailable 拒收并说明原因）。
     /// </summary>
     private static StorageLocationEvaluation Evaluate(
         StorageLocation location,

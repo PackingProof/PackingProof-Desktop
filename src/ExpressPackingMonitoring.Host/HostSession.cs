@@ -5,7 +5,7 @@ using ExpressPackingMonitoring.Services;
 namespace ExpressPackingMonitoring.Host;
 
 /// <summary>
-/// 保存主机模式：按配置启动 Web 服务，接收手机与电脑上传的录像。
+/// 备份主机模式：按配置启动 Web 服务，接收手机与电脑上传的录像。
 /// 服务、存储策略与数据库全部复用桌面端的实现，Mac 端只负责进程与配置。
 /// </summary>
 internal static class HostSession
@@ -78,11 +78,11 @@ internal static class HostSession
         catch (Exception ex)
         {
             // 端口被占、权限不足等都以可读信息退出，不抛堆栈
-            ReportProblem($"保存主机启动失败：{ex.Message}");
+            ReportProblem($"备份主机启动失败：{ex.Message}");
             return 1;
         }
 
-        Console.WriteLine($"保存主机已启动，存储目录 {storageDirectory}");
+        Console.WriteLine($"备份主机已启动，存储目录 {storageDirectory}");
         Console.WriteLine($"本机网页地址 {localUrl}");
         HostOptions.OpenUrl(localUrl);
 
@@ -119,12 +119,12 @@ internal static class HostSession
     }
 
     /// <summary>
-    /// 启动失败统一以"保存主机启动失败："开头：菜单栏壳按这一行判断主机为什么没起来，
+    /// 启动失败统一以"备份主机启动失败："开头：菜单栏壳按这一行判断主机为什么没起来，
     /// 只说"不可用"的写法会被壳当成还在启动，菜单就一直显示"启动中"。
     /// 提示只说界面里怎么改：Mac 用户在菜单栏壳的设置里换保存位置，不需要敲命令行
     /// </summary>
     private static void ReportStorageProblem(string message) =>
-        ReportProblem($"保存主机启动失败：{message}。请在设置里重新选择保存位置");
+        ReportProblem($"备份主机启动失败：{message}。请在设置里重新选择保存位置");
 
     private static void ReportProblem(string message) => HostOptions.ReportProblem(message);
 }

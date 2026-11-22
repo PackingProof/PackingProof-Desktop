@@ -260,13 +260,13 @@
                             </Button>
                             <Button x:Name="ViewerChangeHostButton"
                                     Style="{StaticResource ViewerActionButtonStyle}"
-                                    ToolTip="解除当前显示并选择另一台保存主机"
+                                    ToolTip="解除当前显示并选择另一台备份主机"
                                     Click="ChangeHost_Click">
                                 <StackPanel Orientation="Horizontal">
                                     <Path Data="{StaticResource FluentDatabaseIcon}"
                                           Width="16" Height="16" Stretch="Uniform"
                                           Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                    <TextBlock Text="更换保存主机" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="更换备份主机" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
                         </WrapPanel>
@@ -346,12 +346,12 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Margin="0,0,18,0">
                             <TextBlock x:Name="DiscoveryHeadingText"
-                                       Text="选择保存主机"
+                                       Text="选择备份主机"
                                        FontSize="18"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimary}"/>
                             <TextBlock x:Name="SearchStatusText"
-                                       Text="正在搜索同一网络中的保存主机"
+                                       Text="正在搜索同一网络中的备份主机"
                                        Margin="0,6,0,0"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextSecondary}"/>
@@ -359,8 +359,8 @@
                         <Button x:Name="SearchHostsButton"
                                 Grid.Column="1"
                                 Style="{StaticResource ViewerActionButtonStyle}"
-                                ToolTip="重新搜索同一网络中的保存主机"
-                                AutomationProperties.Name="重新搜索保存主机"
+                                ToolTip="重新搜索同一网络中的备份主机"
+                                AutomationProperties.Name="重新搜索备份主机"
                                 Click="SearchHosts_Click">
                             <StackPanel Orientation="Horizontal">
                                 <Path Data="{StaticResource FluentSearchIcon}"
@@ -495,8 +495,8 @@
                                     Height="40"
                                     Margin="10,0,0,0"
                                     Style="{StaticResource ViewerActionButtonStyle}"
-                                    ToolTip="使用本机录像摄像头扫描保存主机连接二维码"
-                                    AutomationProperties.Name="扫描保存主机二维码"
+                                    ToolTip="使用本机录像摄像头扫描备份主机连接二维码"
+                                    AutomationProperties.Name="扫描备份主机二维码"
                                     Visibility="Collapsed"
                                     Click="ScanPhonePairing_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -519,7 +519,7 @@
                                 Margin="0,0,10,0"
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 ToolTip="暂不设置，返回已经运行的电脑录像主界面"
-                                AutomationProperties.Name="稍后设置保存主机"
+                                AutomationProperties.Name="稍后设置备份主机"
                                 Visibility="Collapsed"
                                 Click="DeferBinding_Click">
                             <StackPanel Orientation="Horizontal">
@@ -541,8 +541,8 @@
                                 Padding="16,0"
                                 IsEnabled="False"
                                 Style="{DynamicResource PrimaryButtonStyle}"
-                                ToolTip="连接列表中选中的保存主机"
-                                AutomationProperties.Name="连接选中的保存主机"
+                                ToolTip="连接列表中选中的备份主机"
+                                AutomationProperties.Name="连接选中的备份主机"
                                 Click="BindSelected_Click">
                             <StackPanel Orientation="Horizontal">
                                 <Path Data="{StaticResource FluentWifiIcon}"
@@ -551,7 +551,7 @@
                                       Stretch="Uniform"
                                       Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                 <TextBlock x:Name="BindSelectedButtonText"
-                                           Text="连接保存主机"
+                                           Text="连接备份主机"
                                            Margin="6,0,0,0"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
@@ -567,14 +567,14 @@
                        HorizontalAlignment="Right">
                 <Button x:Name="BindingChangeHostButton"
                         Style="{StaticResource ViewerActionButtonStyle}"
-                        ToolTip="确认后选择另一台保存主机"
+                        ToolTip="确认后选择另一台备份主机"
                         Margin="0,0,10,0"
                         Click="ChangeHost_Click">
                     <StackPanel Orientation="Horizontal">
                         <Path Data="{StaticResource FluentDatabaseIcon}"
                               Width="16" Height="16" Stretch="Uniform"
                               Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                        <TextBlock Text="更换保存主机"
+                        <TextBlock Text="更换备份主机"
                                    Margin="6,0,0,0"
                                    VerticalAlignment="Center"/>
                     </StackPanel>

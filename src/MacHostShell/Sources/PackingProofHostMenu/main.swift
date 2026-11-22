@@ -54,7 +54,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     private var viewerConnected: Bool { viewerState == "online" }
 
-    /// 查看端与保存主机是两种功能：保存位置、容量上限、开机自启只对保存主机有意义
+    /// 查看端与备份主机是两种功能：保存位置、容量上限、开机自启只对备份主机有意义
     private var isViewer: Bool { purpose == "ViewerClient" }
 
     private let port = Int(ProcessInfo.processInfo.environment["PACKINGPROOF_HOST_PORT"] ?? "") ?? 5280
@@ -129,7 +129,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
     /// 退出即停止：关掉程序就把自己拉起的主机一起停掉，不留没人管的进程
     func applicationWillTerminate(_ notification: Notification) { stopHost() }
 
-    /// 主窗口关掉不等于退出：保存主机还要继续跑，菜单栏也还在
+    /// 主窗口关掉不等于退出：备份主机还要继续跑，菜单栏也还在
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     /// 点 Dock 图标重新打开主窗口
@@ -381,7 +381,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         guard !root.isEmpty else { return }
         let path = (root as NSString).appendingPathComponent("PackingProofVideos")
         applySettings(addStoragePath: path, afterApply: { [weak self] in
-            // 保存主机启动时只读一次录像根目录，新增磁盘后自动重启，不再问一遍
+            // 备份主机启动时只读一次录像根目录，新增磁盘后自动重启，不再问一遍
             self?.restartHost()
             self?.showBanner("已添加保存位置 \(path)，正在重启主机")
         })
@@ -467,7 +467,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
                     self.hostProblem = self.readHostFailure() ?? self.hostProblem
                     // 保存位置出问题时把恢复入口直接摆到用户面前，不用他去敲命令行
                     self.presentStorageRecoveryIfNeeded()
-                    // 只有保存主机才需要在后台常驻；查看端由用户显式点开回放
+                    // 只有备份主机才需要在后台常驻；查看端由用户显式点开回放
                     self.ensureHostRunning()
                 } else if serving {
                     self.hostProblem = ""
@@ -479,7 +479,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         }.resume()
     }
 
-    /// 保存主机因为保存位置起不来时，直接把主界面与设置摆出来：Mac 上换保存位置就是
+    /// 备份主机因为保存位置起不来时，直接把主界面与设置摆出来：Mac 上换保存位置就是
     /// 设置里的"添加磁盘"，全程不需要用户敲命令。同一个原因只自动弹一次，不反复抢焦点
     private func presentStorageRecoveryIfNeeded() {
         guard purpose == "MobileBackupHost", hostProblem.contains("保存位置") else { return }
@@ -492,11 +492,11 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     /// 用途项自己就是状态位：菜单不再单占一行显示"当前用途"
     private var hostPurposeTitle: String {
-        // 只在当前就是保存主机时才带状态，用户不必去翻日志
-        guard purpose == "MobileBackupHost" else { return "保存主机" }
-        if !hostProblem.isEmpty { return "保存主机未启动：\(hostProblemHeadline)" }
+        // 只在当前就是备份主机时才带状态，用户不必去翻日志
+        guard purpose == "MobileBackupHost" else { return "备份主机" }
+        if !hostProblem.isEmpty { return "备份主机未启动：\(hostProblemHeadline)" }
         // 刚点过启动、还没开始监听：说"启动中"，不要说"未运行"
-        return isHostLaunching ? "保存主机（启动中）" : "保存主机"
+        return isHostLaunching ? "备份主机（启动中）" : "备份主机"
     }
 
     /// 菜单只放得下一行：原因取到第一个冒号或句号为止。
@@ -535,7 +535,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         startHostProcess()
     }
 
-    /// 启动保存主机：装了开机自启就交给 launchd（壳再拉一个会两个主机抢同一个端口，
+    /// 启动备份主机：装了开机自启就交给 launchd（壳再拉一个会两个主机抢同一个端口，
     /// 抢不到的那个被 launchd 反复重启），托管不可用时退回壳直接拉起
     private func startHostProcess() {
         hostLaunching = true
@@ -711,7 +711,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
                       afterApply: { [weak self] in self?.stopHostAfterPurposeSwitch() })
     }
 
-    /// 切到查看端必须把本机保存主机真正停掉：不停的话端口还占着、
+    /// 切到查看端必须把本机备份主机真正停掉：不停的话端口还占着、
     /// 本机也仍被自己当成一台可连的主机，紧接着就会弹出"自己请求连接自己"
     private func stopHostAfterPurposeSwitch() {
         hostProblem = ""
@@ -721,7 +721,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         refresh()
     }
 
-    /// 切回保存主机：马上拉起来；自启由 launchd 托管时交给它重启，避免壳再拉起第二个
+    /// 切回备份主机：马上拉起来；自启由 launchd 托管时交给它重启，避免壳再拉起第二个
     private func startHostAfterPurposeSwitch() {
         hostProblem = ""
         lastLaunchAttempt = Date()
@@ -731,7 +731,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     /// 停掉同一个包里的主机进程：换用途时端口还被旧进程占着，
-    /// 查看端就会把本机当成一台保存主机连上去
+    /// 查看端就会把本机当成一台备份主机连上去
     private func stopUntrackedHostProcesses() {
         guard let executable = hostExecutable() else { return }
         let path = executable.path
@@ -751,7 +751,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
             .appendingPathComponent("Library/LaunchAgents/com.packingproof.host.plist")
     }
 
-    /// 重新加载自启任务（bootout + bootstrap）并按 RunAtLoad 立刻拉起保存主机。
+    /// 重新加载自启任务（bootout + bootstrap）并按 RunAtLoad 立刻拉起备份主机。
     /// 不用 kickstart：launchd 对刚退出的任务有 60 秒节流，kickstart 会被拖到一分钟以后，
     /// 同步等它还会把菜单卡死。返回 false 表示托管不可用，调用方要自己拉起主机
     private func restartLaunchAgent() -> Bool {
@@ -820,7 +820,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     /// 改配置一律走主机命令行：查看端不常驻 HTTP 服务，
-    /// 走本地设置接口在查看端会直接失败（切不回保存主机）
+    /// 走本地设置接口在查看端会直接失败（切不回备份主机）
     private func applySettings(
         purpose newPurpose: String? = nil,
         autostart: Bool? = nil,
@@ -890,7 +890,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         if isViewer {
             // 查看端：打开已连接的主机，而不是本机地址
             guard !hostAddress.isEmpty else {
-                showBanner("还没有连接保存主机。请先在“连接主机…”里选一台")
+                showBanner("还没有连接备份主机。请先在“连接主机…”里选一台")
                 return
             }
             if viewerConnected {
@@ -1259,13 +1259,13 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     private func updateWindowTitle() {
-        let role = isViewer ? "查看端" : "保存主机"
+        let role = isViewer ? "查看端" : "备份主机"
         mainWindow?.title = appVersion.isEmpty
             ? "PackingProof \(role)"
             : "PackingProof \(role) \(appVersion)"
     }
 
-    /// 保存主机角色下列出连进来的录像设备（与电脑端"订单联动设备"同一份数据）
+    /// 备份主机角色下列出连进来的录像设备（与电脑端"订单联动设备"同一份数据）
     private func refreshHostDevices() {
         guard !isViewer, hostServing else {
             if !hostDevices.isEmpty {
@@ -1324,7 +1324,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
             guard let last = lines.last else { continue }
             // 只有"最后写进去的就是失败"才算原因：成功启动过就不再报旧错
             if last.contains("失败") {
-                return last.replacingOccurrences(of: "保存主机启动失败：", with: "")
+                return last.replacingOccurrences(of: "备份主机启动失败：", with: "")
             }
             return nil
         }
@@ -1377,7 +1377,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     private func runHost(arguments: [String]) {
         guard let executable = hostExecutable() else {
-            showBanner("未找到主机程序：请把外壳与保存主机放在同一个 .app 里", isError: true)
+            showBanner("未找到主机程序：请把外壳与备份主机放在同一个 .app 里", isError: true)
             return
         }
 

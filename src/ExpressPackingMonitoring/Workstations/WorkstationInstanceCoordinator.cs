@@ -171,8 +171,8 @@ public sealed class WorkstationInstanceCoordinator : IDisposable
     }
 
     /// <summary>
-    /// 保存主机跨安装形态共享：Store 版和 Setup 版可以同时运行，
-    /// 但同一时间只能有一个进程作为保存主机。
+    /// 备份主机跨安装形态共享：Store 版和 Setup 版可以同时运行，
+    /// 但同一时间只能有一个进程作为备份主机。
     /// </summary>
     internal static bool TryAcquireHostLease(out IDisposable? lease, string? testScope = null)
     {

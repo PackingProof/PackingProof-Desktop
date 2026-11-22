@@ -3,12 +3,12 @@ using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.Host;
 
-// Mac 端入口：先问清这台电脑的用途，再按用途运行保存主机或查看端。
+// Mac 端入口：先问清这台电脑的用途，再按用途运行备份主机或查看端。
 //   （无参数）             首次打开会弹原生对话框问用途与存储位置
 //   --purpose host|viewer  跳过询问，直接指定用途（自动化与排查用）
-//   --storage <目录>       保存主机的录像保存位置
+//   --storage <目录>       备份主机的录像保存位置
 //   --switch-purpose       重新选择用途
-//   --install-autostart    注册成登录自启的后台服务（仅保存主机）
+//   --install-autostart    注册成登录自启的后台服务（仅备份主机）
 //   --uninstall-autostart  取消开机自启
 if (args.Any(argument => argument is "-h" or "--help"))
 {
@@ -80,7 +80,7 @@ if (installAutostart)
 {
     if (DeploymentPresets.Normalize(config.DeploymentPreset) != DeploymentPresets.MobileBackupHost)
     {
-        Console.Error.WriteLine("只有保存主机才需要开机自启；当前用途是查看端");
+        Console.Error.WriteLine("只有备份主机才需要开机自启；当前用途是查看端");
         return 2;
     }
 
@@ -91,7 +91,7 @@ if (installAutostart)
     }
 
     Console.WriteLine($"已注册开机自启：{LaunchAgentInstaller.PlistPath}");
-    Console.WriteLine("登录后会自动启动保存主机；取消用 --uninstall-autostart");
+    Console.WriteLine("登录后会自动启动备份主机；取消用 --uninstall-autostart");
     return 0;
 }
 
@@ -111,7 +111,7 @@ Console.WriteLine($"当前用途：{DeploymentPresets.GetDisplayName(config.Depl
 if (DeploymentPresets.Normalize(config.DeploymentPreset) == DeploymentPresets.ViewerClient
     && HostOptions.ServiceMode)
 {
-    Console.WriteLine("查看端不常驻，服务模式不做任何事；请从菜单栏连接保存主机");
+    Console.WriteLine("查看端不常驻，服务模式不做任何事；请从菜单栏连接备份主机");
     return 0;
 }
 
@@ -149,7 +149,7 @@ static bool TryApplyPurpose(
         string directory = (storageDirectory ?? "").Trim();
         if (string.IsNullOrWhiteSpace(directory))
         {
-            error = "作为保存主机必须指定存储目录：--storage <目录>";
+            error = "作为备份主机必须指定存储目录：--storage <目录>";
             return false;
         }
 

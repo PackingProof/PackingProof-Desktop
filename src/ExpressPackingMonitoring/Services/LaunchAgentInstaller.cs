@@ -6,7 +6,7 @@ using ExpressPackingMonitoring.Config;
 namespace ExpressPackingMonitoring.Services;
 
 /// <summary>
-/// 把保存主机注册成登录自启的后台服务（launchd LaunchAgent）。
+/// 把备份主机注册成登录自启的后台服务（launchd LaunchAgent）。
 ///
 /// 装在用户自己的 ~/Library/LaunchAgents 下：不需要管理员授权，
 /// 登录后自动拉起，崩溃自动重启；不传 --no-dialog，设备接入确认才能弹出来。

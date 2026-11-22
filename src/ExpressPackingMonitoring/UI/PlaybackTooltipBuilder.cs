@@ -72,7 +72,7 @@ namespace ExpressPackingMonitoring.UI
                         PlaybackReasonText.CleanupReason(item.DeleteReason));
             }
             if (item.IsStoredOnHost)
-                return Label("已保存到主机");
+                return Label("已备份到主机");
             if (item.IsMissing)
                 return Label("文件已丢失，未在记录的位置找到录像");
             if (item.IsArchiveWarning)

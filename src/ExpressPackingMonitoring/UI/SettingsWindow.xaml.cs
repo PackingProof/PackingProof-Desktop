@@ -244,7 +244,6 @@ namespace ExpressPackingMonitoring.UI
             if (Capabilities.CanConfigureRecordingCache)
             {
                 EnsureRecordingCacheLocationExists();
-                Config.RecordingCachePolicy = "KeepWithinSize";
                 RecordingCacheDataGrid.GetBindingExpression(ItemsControl.ItemsSourceProperty)?.UpdateTarget();
                 RefreshRecordingCacheStorageSummary();
             }
@@ -994,7 +993,6 @@ namespace ExpressPackingMonitoring.UI
 
         private async Task<bool> ValidateRecordingCacheSettingsAsync()
         {
-            Config.RecordingCachePolicy = "KeepWithinSize";
             var (snapshotFound, snapshot, error) = await Task.Run(() =>
             {
                 bool success = TryGetRecordingCacheSnapshot(

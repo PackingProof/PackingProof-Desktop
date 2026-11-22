@@ -216,6 +216,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\VideoFolderImportService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\VideoLifecycleCoordinator.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.BackupCompatibility.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.HtmlFallback.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.BackupDevices.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\OrderPushDiagnostics.cs" />

@@ -394,13 +394,13 @@ public sealed class UiScreenshotTests
                             "AUTO_WEB_0138",
                             1264 * 1024 * 1024,
                             0,
-                            "保存主机空间不足，上传已暂停"),
+                            "备份主机空间不足，上传已暂停"),
                         new TransferTaskRow(
                             3,
                             "AUTO_WEB_0131",
                             92 * 1024 * 1024,
                             0,
-                            "保存主机连接中断，稍后自动继续")
+                            "备份主机连接中断，稍后自动继续")
                     ],
                     0,
                     now.AddSeconds(10),
@@ -523,6 +523,68 @@ public sealed class UiScreenshotTests
                         7,
                         "AUTO_WEB_0136",
                         414 * 1024 * 1024,
+                        0,
+                        ""),
+                    null,
+                    [],
+                    0,
+                    null,
+                    []));
+                return window;
+            });
+
+        TryCapture(
+            "transfer-slave-client-update",
+            outputDirectory,
+            () =>
+            {
+                var window = CreateTransferManagementWindow(
+                    TransferManagementMode.RecordingTransfer,
+                    isUploadPaused: () => false,
+                    toggleUploadPause: () => Task.FromResult(true));
+                var viewModel = (TransferManagementWindowViewModel)window.DataContext;
+                viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
+                    HostConnectionState.ClientUpdateRequired,
+                    86,
+                    24,
+                    0,
+                    null,
+                    null,
+                    new TransferTaskRow(
+                        8,
+                        "AUTO_WEB_0145",
+                        328 * 1024 * 1024,
+                        0,
+                        ""),
+                    null,
+                    [],
+                    0,
+                    null,
+                    []));
+                return window;
+            });
+
+        TryCapture(
+            "transfer-slave-host-update",
+            outputDirectory,
+            () =>
+            {
+                var window = CreateTransferManagementWindow(
+                    TransferManagementMode.RecordingTransfer,
+                    isUploadPaused: () => false,
+                    toggleUploadPause: () => Task.FromResult(true));
+                var viewModel = (TransferManagementWindowViewModel)window.DataContext;
+                viewModel.ApplySnapshotForPreview(new TransferManagementSnapshot(
+                    HostConnectionState.HostUpdateRequired,
+                    86,
+                    24,
+                    0,
+                    null,
+                    null,
+                    new TransferTaskRow(
+                        9,
+                        "AUTO_WEB_0146",
+                        328 * 1024 * 1024,
                         0,
                         ""),
                     null,

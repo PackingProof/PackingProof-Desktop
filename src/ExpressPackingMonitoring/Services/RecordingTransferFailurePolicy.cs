@@ -4,7 +4,7 @@ using ExpressPackingMonitoring.Data;
 
 namespace ExpressPackingMonitoring.Services;
 
-/// <summary>保存主机按协议拒绝了这次上传；错误码和 HTTP 状态共同决定是否继续重试。</summary>
+/// <summary>备份主机按协议拒绝了这次上传；错误码和 HTTP 状态共同决定是否继续重试。</summary>
 internal sealed class RecordingTransferHostException : Exception
 {
     public RecordingTransferHostException(
@@ -47,6 +47,20 @@ internal static class RecordingTransferFailurePolicy
                 or "device_token_invalid")
             {
                 return RecordingTransferFailureKinds.HostApprovalRequired;
+            }
+            if (string.Equals(
+                    host.ErrorCode,
+                    "backup_client_upgrade_required",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return RecordingTransferFailureKinds.ClientUpgradeRequired;
+            }
+            if (string.Equals(
+                    host.ErrorCode,
+                    "backup_host_upgrade_required",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return RecordingTransferFailureKinds.HostUpgradeRequired;
             }
             if (host.ErrorCode is "host_storage_busy"
                 or "offset_mismatch"
@@ -92,13 +106,15 @@ internal static class RecordingTransferFailurePolicy
         if (exception is RecordingTransferHostException host)
         {
             if (host.ErrorCode is "enrollment_required"
-                or "device_token_invalid")
+                or "device_token_invalid"
+                or "backup_client_upgrade_required"
+                or "backup_host_upgrade_required")
             {
                 return "";
             }
             if (string.Equals(host.ErrorCode, "session_conflict", StringComparison.OrdinalIgnoreCase))
             {
-                return "保存主机上已存在同编号的其它录像，已停止自动重试；请先在保存主机删除那条旧记录，再手动重试";
+                return "备份主机上已存在同编号的其它录像，已停止自动重试；请先在备份主机删除那条旧记录，再手动重试";
             }
             if (IsRetryableHostErrorCode(host.ErrorCode)
                 || (!IsDeterministicHostErrorCode(host.ErrorCode)

@@ -4,7 +4,7 @@ import { chromium } from 'playwright-core';
 
 const baseUrl = process.env.EPM_AUTOMATION_BASE_URL;
 
-// 二维码格式随宿主不同：WPF 宿主输出 PNG，无头自动化宿主与 macOS 保存主机输出内置 SVG。
+// 二维码格式随宿主不同：WPF 宿主输出 PNG，无头自动化宿主与 macOS 备份主机输出内置 SVG。
 // 断言只要求"真的渲染出一张二维码图片"，不锁死格式；同时确认图片已经解码成功。
 const qrDataUri = /^data:image\/(?:png|svg\+xml);base64,/;
 async function waitForQr(page, selector) {

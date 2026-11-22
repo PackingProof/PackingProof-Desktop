@@ -15,6 +15,43 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class LocalizationTests
 {
+    [Fact]
+    public void BackupHostTerminology_IsConsistentAcrossLanguages()
+    {
+        string resourcesPath = Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "Resources");
+        string english = File.ReadAllText(Path.Combine(resourcesPath, "Strings.resx"));
+        string chinese = File.ReadAllText(Path.Combine(resourcesPath, "Strings.zh-Hans.resx"));
+        string japanese = File.ReadAllText(Path.Combine(resourcesPath, "Strings.ja-JP.resx"));
+        string installer = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "tools",
+            "Installer",
+            "ExpressPackingMonitoring.iss"));
+
+        Assert.Contains("Backup host", english, StringComparison.Ordinal);
+        Assert.Contains("Backed up to host", english, StringComparison.Ordinal);
+        Assert.Contains("备份主机", chinese, StringComparison.Ordinal);
+        Assert.Contains("已备份到主机", chinese, StringComparison.Ordinal);
+        Assert.Contains("バックアップホスト", japanese, StringComparison.Ordinal);
+        Assert.Contains("ホストにバックアップ済み", japanese, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("save host", english, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("storage host", english, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Saved to host", english, StringComparison.Ordinal);
+        Assert.DoesNotContain("保存主机", chinese, StringComparison.Ordinal);
+        Assert.DoesNotContain("无法备份主机", chinese, StringComparison.Ordinal);
+        Assert.DoesNotContain("已保存到主机", chinese, StringComparison.Ordinal);
+        Assert.DoesNotContain("保存ホスト", japanese, StringComparison.Ordinal);
+        Assert.DoesNotContain("保存先ホスト", japanese, StringComparison.Ordinal);
+        Assert.DoesNotContain("保存主机", installer, StringComparison.Ordinal);
+        Assert.DoesNotContain("save host", installer, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("保存ホスト", installer, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("zh-Hans", "PackingProofVideos", "快递打包视频")]
     [InlineData("zh-Hans", "PhoneBackup", "手机备份")]

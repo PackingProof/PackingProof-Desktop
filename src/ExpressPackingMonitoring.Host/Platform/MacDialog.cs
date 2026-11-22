@@ -17,12 +17,12 @@ internal static class MacDialog
         string? answer = Run(
             "set messageText to \"这台电脑要负责长期保存录像吗？\" & return & return & "
                 + "\"主机就是负责长期保存录像的电脑，可接收手机和其他电脑的录像；不保存则只连接主机查看录像。\"",
-            "set answer to button returned of (display dialog messageText buttons {\"取消\", \"不要，只连接主机查看\", \"要，作为保存主机\"} default button \"要，作为保存主机\" with title \"选择这台电脑的用途\" with icon note)",
+            "set answer to button returned of (display dialog messageText buttons {\"取消\", \"不要，只连接主机查看\", \"要，作为备份主机\"} default button \"要，作为备份主机\" with title \"选择这台电脑的用途\" with icon note)",
             "return answer");
 
         return answer switch
         {
-            "要，作为保存主机" => "host",
+            "要，作为备份主机" => "host",
             "不要，只连接主机查看" => "viewer",
             _ => null
         };
@@ -46,7 +46,7 @@ internal static class MacDialog
         string list = string.Join(", ", hostLabels.Select(label => $"\"{Escape(label)}\""));
         string? chosen = Run(
             $"set options to {{{list}}}",
-            "set chosen to choose from list options with prompt \"选择要连接的保存主机\" with title \"PackingProof 查看端\"",
+            "set chosen to choose from list options with prompt \"选择要连接的备份主机\" with title \"PackingProof 查看端\"",
             "if chosen is false then",
             "return \"\"",
             "end if",
@@ -73,7 +73,7 @@ internal static class MacDialog
         string name = string.IsNullOrWhiteSpace(deviceName) ? "未命名设备" : deviceName.Trim();
         string? answer = Run(
             $"set messageText to \"{Escape($"设备「{name}」（{kindText}）请求连接本机保存录像，是否允许？")}\"",
-            "set answer to button returned of (display dialog messageText buttons {\"不允许\", \"允许\"} default button \"允许\" with title \"PackingProof 保存主机\" with icon caution)",
+            "set answer to button returned of (display dialog messageText buttons {\"不允许\", \"允许\"} default button \"允许\" with title \"PackingProof 备份主机\" with icon caution)",
             "return answer");
         return answer == "允许";
     }

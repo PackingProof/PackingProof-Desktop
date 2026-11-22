@@ -202,7 +202,7 @@ public partial class WorkstationSelectionWindow : Window
             DeploymentPresets.RecordingWorkstation => new(
                 DeploymentPresets.RecordingWorkstation,
                 "录像从机",
-                "本机录像，自动上传到保存主机",
+                "本机录像，自动上传到备份主机",
                 [
                     "使用完整电脑录像能力",
                     "录像先安全保存在本地缓存",
@@ -223,7 +223,7 @@ public partial class WorkstationSelectionWindow : Window
             _ => new(
                 DeploymentPresets.ViewerClient,
                 "录像查看端",
-                "连接保存主机，查看和回放录像",
+                "连接备份主机，查看和回放录像",
                 [
                     "本机不录像、不长期保存录像",
                     "连接现有主机查看录像",

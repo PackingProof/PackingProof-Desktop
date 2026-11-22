@@ -685,7 +685,8 @@ public static class WorkstationNetwork
         bool nicknameCustomized = false,
         CancellationToken token = default,
         string? accessKey = null,
-        int authVersion = 0)
+        int authVersion = 0,
+        string? clientVersion = null)
     {
         address = NormalizeAddress(address);
         if (string.IsNullOrWhiteSpace(address) || string.IsNullOrWhiteSpace(nodeId))
@@ -693,6 +694,9 @@ public static class WorkstationNetwork
 
         try
         {
+            string resolvedClientVersion = string.IsNullOrWhiteSpace(clientVersion)
+                ? AppVersion.Current
+                : clientVersion.Trim();
             var payload = new
             {
                 clientId = nodeId,
@@ -702,6 +706,9 @@ public static class WorkstationNetwork
                 connected,
                 nodeId,
                 deviceType = "pc",
+                platform = "windows",
+                appVersion = resolvedClientVersion,
+                appBuildNumber = 0,
                 orderReceiverPort,
                 capabilities = new[] { "recording", "order-receiver" }
             };
@@ -737,6 +744,9 @@ public static class WorkstationNetwork
                 };
                 request.Headers.TryAddWithoutValidation("X-EPM-Device-Id", nodeId);
                 request.Headers.TryAddWithoutValidation("X-EPM-Device-Kind", "pc");
+                request.Headers.TryAddWithoutValidation(
+                    BackupCompatibilityPolicy.ClientVersionHeader,
+                    resolvedClientVersion);
                 request.Headers.TryAddWithoutValidation(
                     BackupRequestAuthentication.VersionHeader,
                     BackupRequestAuthentication.CurrentVersion.ToString());
@@ -780,6 +790,8 @@ public static class WorkstationNetwork
         {
             return new RecordingWorkstationHeartbeatResult(false, "", true);
         }
+        if ((int)response.StatusCode == 426)
+            return new RecordingWorkstationHeartbeatResult(false, "", NeedsUpgrade: true);
         if (!response.IsSuccessStatusCode)
             return new RecordingWorkstationHeartbeatResult(false, "");
 
@@ -816,12 +828,12 @@ public static class WorkstationNetwork
     {
         address = NormalizeAddress(address);
         if (address.Length == 0 || string.IsNullOrWhiteSpace(deviceId))
-            throw new InvalidOperationException("保存主机地址或本机身份无效");
+            throw new InvalidOperationException("备份主机地址或本机身份无效");
         using var client = CreateLanHttpClient(
             requestTimeout ?? TimeSpan.FromSeconds(90));
         retryDelay ??= Task.Delay;
         string resolvedClientVersion = string.IsNullOrWhiteSpace(clientVersion)
-            ? BackupCompatibilityPolicy.MinimumDesktopVersion
+            ? AppVersion.Current
             : clientVersion.Trim();
         try
         {
@@ -853,7 +865,7 @@ public static class WorkstationNetwork
                 {
                     throw new BackupDeviceEnrollmentException(
                         BackupDeviceEnrollmentFailureKind.Incompatible,
-                        AppLanguage.Get("保存主机版本过旧，请先更新电脑端"));
+                        AppLanguage.Get("备份主机版本过旧，请先更新电脑端"));
                 }
                 if ((int)response.StatusCode == 429)
                 {
@@ -871,7 +883,7 @@ public static class WorkstationNetwork
                     }
                     throw new BackupDeviceEnrollmentException(
                         BackupDeviceEnrollmentFailureKind.Busy,
-                        AppLanguage.Get("保存主机正在确认其他设备，请稍后重新申请"));
+                        AppLanguage.Get("备份主机正在确认其他设备，请稍后重新申请"));
                 }
                 if (response.StatusCode == HttpStatusCode.Forbidden)
                 {
@@ -887,8 +899,8 @@ public static class WorkstationNetwork
                             ? BackupDeviceEnrollmentFailureKind.Denied
                             : BackupDeviceEnrollmentFailureKind.Failed,
                         explicitlyDenied
-                            ? AppLanguage.Get("保存主机拒绝了本机连接申请，可重新申请或更换保存主机")
-                            : AppLanguage.Get("保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”"));
+                            ? AppLanguage.Get("备份主机拒绝了本机连接申请，可重新申请或更换备份主机")
+                            : AppLanguage.Get("备份主机未允许本机连接，可重新申请并在备份主机上点“允许连接”"));
                 }
                 if (response.StatusCode == HttpStatusCode.Conflict)
                 {
@@ -918,14 +930,14 @@ public static class WorkstationNetwork
                             unavailable?.ErrorCode,
                             "enrollment_approval_unavailable",
                             StringComparison.OrdinalIgnoreCase)
-                            ? AppLanguage.Get("保存主机暂时无法显示连接确认窗口，请打开保存主机界面后重试")
-                            : AppLanguage.Get("保存主机暂时无法处理连接申请，请稍后重试"));
+                            ? AppLanguage.Get("备份主机暂时无法显示连接确认窗口，请打开备份主机界面后重试")
+                            : AppLanguage.Get("备份主机暂时无法处理连接申请，请稍后重试"));
                 }
                 if (!response.IsSuccessStatusCode)
                 {
                     throw new BackupDeviceEnrollmentException(
                         BackupDeviceEnrollmentFailureKind.Failed,
-                        AppLanguage.Get("保存主机暂时无法处理连接申请，请稍后重试"));
+                        AppLanguage.Get("备份主机暂时无法处理连接申请，请稍后重试"));
                 }
                 BackupDeviceEnrollmentResult? result =
                     await response.Content.ReadFromJsonAsync<BackupDeviceEnrollmentResult>(
@@ -940,7 +952,7 @@ public static class WorkstationNetwork
                 {
                     throw new BackupDeviceEnrollmentException(
                         BackupDeviceEnrollmentFailureKind.InvalidResponse,
-                        AppLanguage.Get("保存主机返回的连接信息无效，请更新保存主机后重试"));
+                        AppLanguage.Get("备份主机返回的连接信息无效，请更新备份主机后重试"));
                 }
                 return result;
             }
@@ -949,13 +961,13 @@ public static class WorkstationNetwork
         {
             throw new BackupDeviceEnrollmentException(
                 BackupDeviceEnrollmentFailureKind.TimedOut,
-                AppLanguage.Get("等待保存主机允许连接超时，请确认保存主机界面已打开后重新申请"));
+                AppLanguage.Get("等待备份主机允许连接超时，请确认备份主机界面已打开后重新申请"));
         }
         catch (HttpRequestException ex)
         {
             throw new BackupDeviceEnrollmentException(
                 BackupDeviceEnrollmentFailureKind.Unreachable,
-                AppLanguage.Get("无法连接保存主机，请检查网络后重试"),
+                AppLanguage.Get("无法连接备份主机，请检查网络后重试"),
                 ex);
         }
     }
@@ -1676,7 +1688,8 @@ public static class WorkstationNetwork
 public readonly record struct RecordingWorkstationHeartbeatResult(
     bool Online,
     string AssignedDisplayName,
-    bool NeedsRepair = false);
+    bool NeedsRepair = false,
+    bool NeedsUpgrade = false);
 
 internal sealed class BackupDeviceEnrollmentResult
 {

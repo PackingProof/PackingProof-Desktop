@@ -180,7 +180,7 @@ public sealed class PlaybackTooltipBuilderTests : IDisposable
         VideoItem item = CreateItem();
         item.IsStoredOnHost = true;
 
-        Assert.Equal(L("已保存到主机"), ValueOf(item, L("状态")));
+        Assert.Equal(L("已备份到主机"), ValueOf(item, L("状态")));
     }
 
     /// <summary>正常录像不该冒出空的状态行，只留文件位置。</summary>
@@ -208,7 +208,7 @@ public sealed class PlaybackTooltipBuilderTests : IDisposable
 
             Assert.Equal("Tracking number", rows.First(row => row.Value == "SF0001").Label);
             Assert.Equal("Shipping", rows.First(row => row.Label == "Shipping / Return").Value);
-            Assert.Equal("Saved to host", rows.First(row => row.Value == "Saved to host").Value);
+            Assert.Equal("Backed up to host", rows.First(row => row.Value == "Backed up to host").Value);
             Assert.Contains(rows, row => row.Label == "File location");
         }
         finally

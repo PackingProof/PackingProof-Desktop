@@ -11,16 +11,16 @@ internal static class ViewerConnectionStatusText
     /// <summary>查看端：正在搜索同一网络中的主机。</summary>
     public const string SearchingViewer = "正在搜索同一网络中的主机";
 
-    /// <summary>保存主机：正在查找同一局域网中可用的保存主机（用于绑定主机）。</summary>
-    public const string SearchingBindingHost = "正在查找同一局域网中可用的保存主机";
+    /// <summary>备份主机：正在查找同一局域网中可用的备份主机（用于绑定主机）。</summary>
+    public const string SearchingBindingHost = "正在查找同一局域网中可用的备份主机";
 
     public const string NotFound = "没有找到主机，请检查两台电脑是否连接同一网络";
-    public const string FoundNoRecordingReceiver = "找到了主机，但没有可接收录像的保存主机";
-    public const string FoundOutdatedRecordingReceiver = "找到了保存主机，但版本过旧，请更新保存主机电脑";
+    public const string FoundNoRecordingReceiver = "找到了主机，但没有可接收录像的备份主机";
+    public const string FoundOutdatedRecordingReceiver = "找到了备份主机，但版本过旧，请更新备份主机电脑";
     public const string FoundSingle = "找到 1 台主机，确认后即可连接";
     public const string SearchCanceled = "搜索已取消";
     public const string SearchingOtherHosts = "正在查找其他可用主机";
-    public const string RequestingHostApproval = "正在请求保存主机允许连接";
+    public const string RequestingHostApproval = "正在请求备份主机允许连接";
     /// <summary>
     /// 稳态措辞：主机开着访问保护而本机还没有有效密钥。和"正在请求…"区分开，
     /// 因为菜单这类常显位置需要说明"现在是什么状态"，而不是"正在做什么"。
@@ -38,7 +38,7 @@ internal static class ViewerConnectionStatusText
     public static string SearchFailed(string reason) => $"搜索主机失败：{reason}";
 
     public static string WaitingForHostApproval(string nodeName) =>
-        $"已找到“{nodeName}”，等待保存主机允许连接";
+        $"已找到“{nodeName}”，等待备份主机允许连接";
 
     public static string Connecting(string nodeName) => $"正在连接“{nodeName}”";
 

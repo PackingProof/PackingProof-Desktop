@@ -71,13 +71,143 @@ public sealed class TransferManagementSnapshotTests
                 NeedsActionCount = 2,
                 FailurePreview =
                 [
-                    new TransferTaskRow(2, "FAILED-ORDER", 2048, 0, "保存主机空间不足")
+                    new TransferTaskRow(2, "FAILED-ORDER", 2048, 0, "备份主机空间不足")
                 ]
             });
 
         Assert.Equal("2 个异常", viewModel.SummaryText);
         Assert.True(viewModel.IsAttentionSummary);
         Assert.False(viewModel.HasDetailSummary);
+    }
+
+    [Theory]
+    [InlineData(nameof(HostConnectionState.ClientUpdateRequired), "当前电脑版本过低，请更新后再备份")]
+    [InlineData(nameof(HostConnectionState.HostUpdateRequired), "备份主机版本过低，请先在主机上更新后继续备份")]
+    public void PreparedUpgradeStatesUseTransferPopupStatusStrip(
+        string stateValue,
+        string expected)
+    {
+        HostConnectionState state = Enum.Parse<HostConnectionState>(stateValue);
+        using var database = new VideoDatabase(":memory:");
+        var service = new TransferManagementSnapshotService(
+            TransferManagementMode.RecordingTransfer,
+            new AppConfig(),
+            database,
+            webServer: null,
+            queueStore: null,
+            transferService: null);
+        using var viewModel = new TransferManagementWindowViewModel(service);
+
+        viewModel.ApplySnapshotForPreview(
+            TransferManagementSnapshot.Empty()
+            with
+            {
+                HostState = state
+            });
+
+        Assert.True(viewModel.HasDetailSummary);
+        Assert.Equal(expected, viewModel.StopReasonText);
+    }
+
+    [Theory]
+    [InlineData(nameof(HostConnectionState.ClientUpdateRequired))]
+    [InlineData(nameof(HostConnectionState.HostUpdateRequired))]
+    public void UpgradeStatesStillShowTheNextUploadSlot(
+        string stateValue)
+    {
+        HostConnectionState state = Enum.Parse<HostConnectionState>(stateValue);
+        using var database = new VideoDatabase(":memory:");
+        var service = new TransferManagementSnapshotService(
+            TransferManagementMode.RecordingTransfer,
+            new AppConfig(),
+            database,
+            webServer: null,
+            queueStore: null,
+            transferService: null);
+        using var viewModel = new TransferManagementWindowViewModel(service);
+
+        viewModel.ApplySnapshotForPreview(
+            TransferManagementSnapshot.Empty()
+            with
+            {
+                HostState = state,
+                PendingCount = 24,
+                UpcomingUpload = new TransferTaskRow(
+                    8,
+                    "AUTO_WEB_0145",
+                    328 * 1024 * 1024,
+                    0,
+                    "")
+            });
+
+        UploadSlotItem slot = Assert.IsType<UploadSlotItem>(viewModel.UploadSlot);
+        Assert.StartsWith(
+            "AUTO_WEB_0145",
+            slot.SummaryText,
+            StringComparison.Ordinal);
+        Assert.Equal("等待更新", slot.StatusText);
+        Assert.Equal("还有 24 个待上传", viewModel.RemainingUploadText);
+    }
+
+    [Theory]
+    [InlineData(
+        RecordingTransferFailureKinds.ClientUpgradeRequired,
+        nameof(HostConnectionState.ClientUpdateRequired))]
+    [InlineData(
+        RecordingTransferFailureKinds.HostUpgradeRequired,
+        nameof(HostConnectionState.HostUpdateRequired))]
+    public async Task PersistedUpgradeFailureRestoresDirectionalHostState(
+        string failureKind,
+        string expectedState)
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            using var database = new VideoDatabase(databasePath);
+            long recordId = InsertRecording(
+                database,
+                directory,
+                "UPGRADE-STATE",
+                128);
+            using var store = new RecordingTransferQueueStore(databasePath);
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            Assert.True(store.Enqueue(
+                recordId,
+                Path.Combine(directory, "video-UPGRADE-STATE.mp4"),
+                Guid.NewGuid().ToString("D"),
+                targetNodeId,
+                "http://127.0.0.1:5280",
+                DateTime.UtcNow));
+
+            RecordingTransferTask task =
+                Assert.Single(store.GetReady(DateTime.UtcNow));
+            store.DeferForHost(
+                task.Id,
+                "版本需要更新",
+                failureKind,
+                DateTime.UtcNow);
+
+            var service = new TransferManagementSnapshotService(
+                TransferManagementMode.RecordingTransfer,
+                new AppConfig(),
+                database,
+                webServer: null,
+                queueStore: store,
+                transferService: null,
+                hostHealth: () => null);
+            TransferManagementSnapshot snapshot =
+                await service.LoadAsync(TestContext.Current.CancellationToken);
+
+            Assert.Equal(
+                Enum.Parse<HostConnectionState>(expectedState),
+                snapshot.HostState);
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            DeleteTempDirectory(directory);
+        }
     }
 
     [Fact]
@@ -465,7 +595,7 @@ public sealed class TransferManagementSnapshotTests
             RecordingTransferTask task = Assert.Single(store.GetReady(now));
             store.MarkAbandoned(
                 task.Id,
-                "保存主机尚未完成安全配对",
+                "备份主机尚未完成安全配对",
                 now);
 
             int restored = store.RequeueHostApprovalBlocked(now.AddSeconds(1));

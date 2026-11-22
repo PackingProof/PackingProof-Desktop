@@ -7,6 +7,9 @@ internal static class BackupCompatibilityPolicy
     internal const string BackupProtocol = "mobile-backup-v2";
     internal const int EnrollmentVersion = 2;
     internal const int AuthenticationVersion = 3;
+    internal const string ClientVersionHeader = "X-EPM-App-Version";
+    // 0.0.105 仍处于新旧从机交叉升级期，只采集版本，不按电脑端版本拒绝。
+    internal const bool EnforceWorkstationMinimumVersion = false;
     internal const string MinimumMobileVersion = "0.5.23";
     internal const int MinimumMobileBuildNumber = 11036;
     internal const string MinimumDesktopVersion = "0.0.55";
@@ -29,14 +32,52 @@ internal static class BackupCompatibilityPolicy
         MinimumWorkstationVersion = MinimumDesktopVersion
     };
 
-    internal static bool IsCompatibleHost(BackupCompatibilityInfo? info) =>
+    internal static bool HasCompatibleHostProtocol(BackupCompatibilityInfo? info) =>
         info != null
         && string.Equals(info.Protocol, BackupProtocol, StringComparison.Ordinal)
         && info.EnrollmentVersion == EnrollmentVersion
-        && info.AuthVersion == AuthenticationVersion
-        && CompareVersions(info.HostVersion, MinimumDesktopVersion) >= 0;
+        && info.AuthVersion == AuthenticationVersion;
 
-    internal static BackupCompatibilityFailure? ValidateClient(BackupDeviceEnrollmentRequest request)
+    internal static bool IsCompatibleHost(BackupCompatibilityInfo? info) =>
+        HasCompatibleHostProtocol(info)
+        && CompareVersions(info!.HostVersion, MinimumDesktopVersion) >= 0;
+
+    internal static bool IsCompatibleWorkstationHost(
+        BackupCompatibilityInfo? info,
+        string? clientVersion,
+        bool enforceMinimum = EnforceWorkstationMinimumVersion) =>
+        HasCompatibleHostProtocol(info)
+        && (!enforceMinimum
+            || (CompareVersions(info!.HostVersion, MinimumDesktopVersion) >= 0
+                && CompareVersions(
+                    clientVersion,
+                    string.IsNullOrWhiteSpace(info.MinimumWorkstationVersion)
+                        ? MinimumDesktopVersion
+                        : info.MinimumWorkstationVersion) >= 0));
+
+    internal static BackupCompatibilityFailure? ValidateWorkstationClientVersion(
+        string? clientVersion,
+        bool enforceMinimum = EnforceWorkstationMinimumVersion)
+    {
+        if (!enforceMinimum)
+            return null;
+        // 旧从机没有版本字段。以缺失字段直接判定不兼容会让滚动升级中断备份，
+        // 因此只拦截明确上报且低于下限的版本。
+        if (string.IsNullOrWhiteSpace(clientVersion))
+            return null;
+        return CompareVersions(clientVersion, MinimumDesktopVersion) >= 0
+            ? null
+            : new BackupCompatibilityFailure(
+                "recording-workstation",
+                MinimumDesktopVersion,
+                0,
+                DesktopDownloadUrl,
+                "录制工位版本过低，请更新电脑端后重新连接");
+    }
+
+    internal static BackupCompatibilityFailure? ValidateClient(
+        BackupDeviceEnrollmentRequest request,
+        bool enforceWorkstationMinimum = EnforceWorkstationMinimumVersion)
     {
         bool workstation = string.Equals(request.DeviceKind, "pc", StringComparison.OrdinalIgnoreCase);
         bool viewer = string.Equals(request.DeviceKind, "viewer", StringComparison.OrdinalIgnoreCase);
@@ -56,7 +97,11 @@ internal static class BackupCompatibilityPolicy
                 StringComparison.Ordinal)
             && request.EnrollmentVersion == EnrollmentVersion
             && request.AuthVersion == AuthenticationVersion;
-        bool versionCompatible = CompareVersions(request.ClientVersion, minimumVersion) >= 0;
+        bool versionCompatible = workstation
+            ? ValidateWorkstationClientVersion(
+                request.ClientVersion,
+                enforceWorkstationMinimum) == null
+            : CompareVersions(request.ClientVersion, minimumVersion) >= 0;
         bool buildCompatible = !mobile || request.ClientBuildNumber >= minimumBuildNumber;
         if (protocolCompatible && versionCompatible && buildCompatible)
             return null;

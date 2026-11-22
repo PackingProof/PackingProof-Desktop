@@ -9,7 +9,7 @@ internal static class RecordingTransferStates
     public const string Uploading = "Uploading";
     public const string Uploaded = "Uploaded";
     public const string Failed = "Failed";
-    // 停止自动重试并等用户处理：本地录像已删除、保存主机已有同编号的其它录像，或重试次数用尽。
+    // 停止自动重试并等用户处理：本地录像已删除、备份主机已有同编号的其它录像，或重试次数用尽。
     public const string Abandoned = "Abandoned";
 }
 
@@ -22,6 +22,8 @@ internal static class RecordingTransferFailureKinds
     public const string RetryableTask = "RetryableTask";
     public const string ActionRequired = "ActionRequired";
     public const string HostApprovalRequired = "HostApprovalRequired";
+    public const string ClientUpgradeRequired = "ClientUpgradeRequired";
+    public const string HostUpgradeRequired = "HostUpgradeRequired";
     public const string PausedByUser = "PausedByUser";
 }
 
@@ -550,7 +552,7 @@ internal sealed class RecordingTransferQueueStore : IDisposable
                       FailureKind = @approvalKind
                       OR LastError LIKE '%安全配对%'
                       OR LastError LIKE '%设备令牌无效%'
-                      OR LastError LIKE '%重新连接保存主机%'
+                      OR LastError LIKE '%重新连接备份主机%'
                   );";
             cmd.Parameters.AddWithValue("@now", Format(now));
             cmd.Parameters.AddWithValue(
