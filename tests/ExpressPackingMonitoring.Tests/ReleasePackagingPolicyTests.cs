@@ -1080,6 +1080,7 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("merge-base --is-ancestor", pusher, StringComparison.Ordinal);
         Assert.Contains("RELEASE_PUSH_TARGET", pusher, StringComparison.Ordinal);
         Assert.Contains("Enable-ReleaseBotGitTransport", pusher, StringComparison.Ordinal);
+        Assert.Contains("(?:v|launcher-v)\\d+\\.\\d+\\.\\d+", pusher, StringComparison.Ordinal);
         Assert.DoesNotContain("return if", pusher, StringComparison.Ordinal);
         Assert.Contains("Import-GitHubReleaseAppInstallationToken", auth, StringComparison.Ordinal);
         Assert.Contains("Import-GiteeReleaseBotToken", auth, StringComparison.Ordinal);

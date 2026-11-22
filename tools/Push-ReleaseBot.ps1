@@ -76,8 +76,8 @@ function Get-RemoteName {
 if ($Kind -eq "branch" -and $Name -ne "main") {
     throw "默认发布只允许直推 main；当前目标分支：$Name"
 }
-if ($Kind -eq "tag" -and $Name -notmatch '^v\d+\.\d+\.\d+$') {
-    throw "发布标签必须使用 vX.Y.Z 形式：$Name"
+if ($Kind -eq "tag" -and $Name -notmatch '^(?:v|launcher-v)\d+\.\d+\.\d+$') {
+    throw "发布标签必须使用 vX.Y.Z 或 launcher-vX.Y.Z 形式：$Name"
 }
 if (git status --porcelain --untracked-files=all) {
     throw "远端推送前工作区必须干净"
