@@ -152,9 +152,25 @@ public partial class PlaybackWindow
 
     private async void BtnWebClip_Click(object sender, RoutedEventArgs e)
     {
+        if (VideoList.SelectedItem is not VideoItem video)
+            return;
+
+        await OpenWebClipAsync(video);
+    }
+
+    private async void OpenWebClipMenu_Click(object sender, RoutedEventArgs e)
+    {
+        VideoItem? video = GetContextMenuItem(sender);
+        if (video == null)
+            return;
+
+        await OpenWebClipAsync(video);
+    }
+
+    private async Task OpenWebClipAsync(VideoItem video)
+    {
         if (_webClipOpening
             || _webClipUrlProvider == null
-            || VideoList.SelectedItem is not VideoItem video
             || video.IsUnavailable
             || video.RecordId <= 0)
         {

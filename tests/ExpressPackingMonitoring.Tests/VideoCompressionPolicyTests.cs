@@ -370,6 +370,16 @@ public sealed class VideoCompressionPolicyTests
         Assert.Contains("Header=\"{loc:Localized 导出压缩版本…}\"", playbackXaml);
         Assert.Contains("Click=\"CompressVideo_Click\"", playbackXaml);
         Assert.Contains("IsEnabled=\"{Binding CanCompress}\"", playbackXaml);
+        Assert.Contains("Header=\"{loc:Localized 剪辑}\"", playbackXaml);
+        Assert.Contains("Click=\"OpenWebClipMenu_Click\"", playbackXaml);
+        Assert.True(
+            playbackXaml.IndexOf(
+                "Header=\"{loc:Localized 剪辑}\"",
+                StringComparison.Ordinal)
+            < playbackXaml.IndexOf(
+                "Header=\"{loc:Localized 导出压缩版本…}\"",
+                StringComparison.Ordinal),
+            "剪辑应当排在导出压缩版本上方");
         Assert.DoesNotContain("x:Name=\"BtnCompressVideo\"", playbackXaml);
         Assert.DoesNotContain("<TextBox", dialogXaml);
         Assert.Contains("x:Name=\"TargetSizeSlider\"", dialogXaml);

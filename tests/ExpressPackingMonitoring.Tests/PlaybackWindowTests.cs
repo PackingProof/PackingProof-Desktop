@@ -295,6 +295,50 @@ public sealed class PlaybackWindowTests
     }
 
     [Fact]
+    public void PlaybackList_KeepsLongOrderNamesVisible()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.xaml"));
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.xaml.cs"));
+
+        Assert.Contains(
+            "Text=\"{Binding DisplayName}\"",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("StretchDirection=\"DownOnly\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Grid.ColumnSpan=\"2\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Panel.ZIndex=\"1\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsHitTestVisible=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "TextTrimming=\"None\"",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "TextWrapping=\"NoWrap\"",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Tag=\"WebClip\"",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_webClipUrlProvider == null",
+            codeBehind,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_webClipOpening",
+            codeBehind,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GetOrderDisplayName_FallsBackToOrderId()
     {
         string result = PlaybackWindow.GetOrderDisplayName(

@@ -69,6 +69,73 @@ async function assertHeaderTitleNotTruncated(page) {
   );
 }
 
+async function assertLongOrderNumberStaysOnOneLineInsideCard(orderNumber) {
+  const originalText = await orderNumber.innerText();
+  const longNumber = 'AUTO_WEB_LONG_ORDER_1234567890_ABCDEFGHIJKLMNOPQRSTUVWXYZ_0987654321';
+  await orderNumber.evaluate((element, value) => {
+    element.textContent = value;
+    element.style.removeProperty('font-size');
+    element.style.removeProperty('transform');
+    if (typeof fitVideoOrderNumber === 'function') fitVideoOrderNumber(element);
+  }, longNumber);
+  const metrics = await orderNumber.evaluate(element => {
+    const style = getComputedStyle(element);
+    const orderRect = element.getBoundingClientRect();
+    const item = element.closest('.video-item');
+    const itemRect = item?.getBoundingClientRect();
+    const metadata = item?.querySelector('.meta-grid');
+    const metadataRect = metadata?.getBoundingClientRect();
+    const actions = item?.querySelector('.video-actions');
+    const actionsRect = actions?.getBoundingClientRect();
+    return {
+      whiteSpace: style.whiteSpace,
+      textOverflow: style.textOverflow,
+      lineHeight: Number.parseFloat(style.lineHeight),
+      height: element.getBoundingClientRect().height,
+      orderRight: orderRect.right,
+      orderBottom: orderRect.bottom,
+      metadataLeft: metadataRect?.left ?? Number.POSITIVE_INFINITY,
+      itemRight: itemRect?.right ?? Number.NEGATIVE_INFINITY,
+      actionsTop: actionsRect?.top ?? Number.POSITIVE_INFINITY
+    };
+  });
+  assert.equal(metrics.whiteSpace, 'nowrap', 'long order number must stay on one line');
+  assert.equal(metrics.textOverflow, 'clip', 'long order number should not render an ellipsis');
+  assert.ok(metrics.height <= metrics.lineHeight * 1.5, 'long order number should remain a single line');
+  assert.ok(metrics.orderRight > metrics.metadataLeft, 'long order number should extend across the metadata area');
+  assert.ok(metrics.orderRight <= metrics.itemRight + 1, 'long order number should stay inside the card');
+  assert.ok(metrics.orderBottom <= metrics.actionsTop + 1, 'order number must not overlap action buttons');
+  await orderNumber.evaluate((element, value) => {
+    element.textContent = value;
+    element.style.removeProperty('font-size');
+    element.style.removeProperty('transform');
+    if (typeof fitVideoOrderNumber === 'function') fitVideoOrderNumber(element);
+  }, originalText);
+}
+
+test('long order number stays inside the card without covering actions', { skip: !baseUrl }, async () => {
+  const executablePath = process.env.EPM_BROWSER_EXECUTABLE;
+  assert.ok(executablePath, 'EPM_BROWSER_EXECUTABLE is required');
+  const browser = await chromium.launch({ executablePath, headless: true });
+  try {
+    const context = await browser.newContext({ locale: 'zh-CN' });
+    const page = await context.newPage();
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(String(error)));
+    await page.goto(baseUrl, { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => document.querySelectorAll('.video-item .order-id').length > 0);
+
+    await assertLongOrderNumberStaysOnOneLineInsideCard(page.locator('.order-id').first());
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(
+      () => requestAnimationFrame(resolve))));
+    await assertLongOrderNumberStaysOnOneLineInsideCard(page.locator('.order-id').first());
+    assert.deepEqual(pageErrors, [], '页面不应有未捕获的脚本异常');
+  } finally {
+    await browser.close();
+  }
+});
+
 test('isolated Web server supports search, playback and clip editor entry', { skip: !baseUrl }, async () => {
   const executablePath = process.env.EPM_BROWSER_EXECUTABLE;
   assert.ok(executablePath, 'EPM_BROWSER_EXECUTABLE is required');
@@ -267,6 +334,10 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     const article = page.locator('article').filter({ hasText: 'AUTO_WEB_001' });
     await assert.doesNotReject(() => article.waitFor());
     assert.match(await page.locator('#resultsInfo').innerText(), /^第 \d+ \/ \d+ 页$/);
+    await assertLongOrderNumberStaysOnOneLineInsideCard(page.locator('.order-id').first());
+    await page.setViewportSize({ width: 390, height: 844 });
+    await assertLongOrderNumberStaysOnOneLineInsideCard(page.locator('article .order-id').first());
+    await page.setViewportSize({ width: 1280, height: 900 });
 
     await article.getByRole('button', { name: '播放', exact: true }).click();
     await assert.doesNotReject(() => page.locator('#playerOverlay.active').waitFor());

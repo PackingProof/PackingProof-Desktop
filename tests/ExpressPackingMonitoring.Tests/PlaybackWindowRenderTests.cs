@@ -122,6 +122,52 @@ public sealed class PlaybackWindowRenderTests
     }
 
     [Fact]
+    public void LongOrderNameUsesFloatingMoreButtonWithoutReservingLayout()
+    {
+        RunOnStaThread(() =>
+        {
+            var video = new VideoItem
+            {
+                DisplayName = "LONG-ORDER-" + new string('8', 72)
+            };
+            var window = new PlaybackWindow(Path.GetTempPath(), null, true, "本机");
+            try
+            {
+                var list = Assert.IsType<ListView>(window.FindName("VideoList"));
+                var row = Assert.IsAssignableFrom<FrameworkElement>(list.ItemTemplate.LoadContent());
+                row.DataContext = video;
+                row.Measure(new Size(600, double.PositiveInfinity));
+                row.Arrange(new Rect(0, 0, 600, row.DesiredSize.Height));
+                row.UpdateLayout();
+
+                TextBlock orderText = Assert.Single(
+                    FindVisualDescendants<TextBlock>(row),
+                    text => string.Equals(text.Text, video.DisplayName, StringComparison.Ordinal));
+                Button moreButton = Assert.Single(
+                    FindVisualDescendants<Button>(row),
+                    button => string.Equals(button.ToolTip as string, "更多", StringComparison.Ordinal));
+
+                Rect textBounds = orderText
+                    .TransformToAncestor(row)
+                    .TransformBounds(new Rect(new Point(0, 0), orderText.RenderSize));
+
+                Assert.Equal(TextWrapping.NoWrap, orderText.TextWrapping);
+                Assert.Equal(TextTrimming.None, orderText.TextTrimming);
+                Assert.True(textBounds.Right <= row.ActualWidth + 1);
+                Assert.True(
+                    textBounds.Right > row.ActualWidth - 108,
+                    "长单号应当能够覆盖右侧时长和大小区域");
+                Assert.Equal(0d, moreButton.Opacity);
+                Assert.False(moreButton.IsHitTestVisible);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void ScreenshotThumbnail_DecodesARealPng()
     {
         RunOnStaThread(() =>
@@ -187,5 +233,20 @@ public sealed class PlaybackWindowRenderTests
             Assert.Equal(135, dialog.PreviewImage.Width);
             Assert.Equal(240, dialog.PreviewImage.Height);
         });
+    }
+
+    private static T FindVisualDescendant<T>(DependencyObject root) where T : DependencyObject =>
+        FindVisualDescendants<T>(root).First();
+
+    private static IEnumerable<T> FindVisualDescendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(root, index);
+            if (child is T match)
+                yield return match;
+            foreach (T descendant in FindVisualDescendants<T>(child))
+                yield return descendant;
+        }
     }
 }

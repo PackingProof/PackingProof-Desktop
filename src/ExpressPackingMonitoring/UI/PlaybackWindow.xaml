@@ -227,7 +227,7 @@
             </Style.Triggers>
         </Style>
 
-        <!-- 行操作只在悬浮、选中或键盘聚焦时出现，放在标题行尾的独立列里，不覆盖单号或标签。 -->
+        <!-- 行操作不占卡片布局，只在悬浮或键盘聚焦时叠加显示。 -->
         <Style x:Key="PlaybackRowMoreButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="30"/>
             <Setter Property="Height" Value="24"/>
@@ -297,6 +297,11 @@
                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       IsEnabled="{Binding CanLocateFile}"/>
             <Separator Style="{StaticResource AppSeparatorStyle}"/>
+            <MenuItem Header="{loc:Localized 剪辑}"
+                      Tag="WebClip"
+                      Style="{StaticResource AppMenuItemStyle}"
+                      Click="OpenWebClipMenu_Click"
+                      DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
             <MenuItem Header="{loc:Localized 导出压缩版本…}"
                       Style="{StaticResource AppMenuItemStyle}"
                       Click="CompressVideo_Click"
@@ -657,26 +662,32 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="108"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0"
-                                                   Text="{Binding DisplayName}"
-                                                   FontWeight="Medium"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   VerticalAlignment="Center">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsUnavailable}" Value="True">
-                                                            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding PrimaryMetaText}"
                                                    Style="{StaticResource PlaybackSecondaryTextStyle}"
                                                    TextAlignment="Right"/>
+                                        <StackPanel Grid.ColumnSpan="2"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Left"
+                                                    VerticalAlignment="Center"
+                                                    IsHitTestVisible="False"
+                                                    Panel.ZIndex="1">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontWeight="Medium"
+                                                       TextTrimming="None"
+                                                       TextWrapping="NoWrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsUnavailable}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
                                     </Grid>
                                     <Button Grid.Row="0"
                                             Style="{StaticResource PlaybackRowMoreButtonStyle}"

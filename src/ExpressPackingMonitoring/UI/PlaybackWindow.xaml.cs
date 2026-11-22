@@ -126,6 +126,8 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
+        public bool CanWebClip => !IsUnavailable && RecordId > 0;
+
         /// <summary>这条录像在备份位置上还有归档副本：删除会保留它，确认框要说明。</summary>
         public bool HasArchiveCopy { get; set; }
 
@@ -551,7 +553,21 @@ namespace ExpressPackingMonitoring.UI
         /// </summary>
         private void VideoRowContextMenu_Opened(object sender, RoutedEventArgs e)
         {
-            if ((sender as ContextMenu)?.PlacementTarget is not FrameworkElement placementTarget) return;
+            ContextMenu? contextMenu = sender as ContextMenu;
+            if (contextMenu?.PlacementTarget is not FrameworkElement placementTarget) return;
+
+            MenuItem? webClipItem = contextMenu.Items
+                .OfType<MenuItem>()
+                .FirstOrDefault(item => string.Equals(item.Tag as string, "WebClip", StringComparison.Ordinal));
+            if (webClipItem != null)
+            {
+                webClipItem.Visibility = _webClipUrlProvider == null
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
+                webClipItem.IsEnabled = !_webClipOpening
+                    && placementTarget.DataContext is VideoItem video
+                    && video.CanWebClip;
+            }
 
             Border? row = FindContextMenuRow(placementTarget);
             if (row == null) return;
