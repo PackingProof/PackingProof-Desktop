@@ -259,7 +259,10 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
       document.getElementById('pagination').innerHTML = '';
       renderPagination(10, 20);
     });
-    assert.equal(await page.locator('#pagination .page-btn').count(), 7);
+    // 窗口宽度变化会安排一次 requestAnimationFrame 分页重绘；等目标帧完成后再计数。
+    await page.waitForFunction(
+      () => document.querySelectorAll('#pagination .page-btn').length === 7
+    );
     await page.setViewportSize({ width: 1280, height: 900 });
 
     const androidContext = await browser.newContext({
