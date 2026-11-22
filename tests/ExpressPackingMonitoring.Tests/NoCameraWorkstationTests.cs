@@ -47,6 +47,55 @@ public sealed class NoCameraWorkstationTests : IDisposable
     }
 
     [Fact]
+    public void BackupStatsSummary_StaysOnOneAlignedLine()
+    {
+        string xaml = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring",
+            "Workstations",
+            "PrintWorkstationWindow.xaml");
+        XElement summary = Assert.Single(
+            XDocument.Parse(xaml).Descendants(XName.Get(
+                "Button",
+                "http://schemas.microsoft.com/winfx/2006/xaml/presentation")),
+            element => (string?)element.Attribute(XName.Get(
+                "Name",
+                "http://schemas.microsoft.com/winfx/2006/xaml")) == "BackupStatsButton");
+
+        Assert.Empty(
+            summary.Descendants(XName.Get(
+                "WrapPanel",
+                "http://schemas.microsoft.com/winfx/2006/xaml/presentation")));
+        XElement[] labels = summary.Descendants(XName.Get(
+                "TextBlock",
+                "http://schemas.microsoft.com/winfx/2006/xaml/presentation"))
+            .ToArray();
+        Assert.All(labels, label =>
+        {
+            Assert.Equal("NoWrap", (string?)label.Attribute("TextWrapping"));
+            Assert.Equal("Center", (string?)label.Attribute("VerticalAlignment"));
+        });
+        Assert.Contains(labels, label => (string?)label.Attribute("Text") == "{loc:Localized 今日}");
+        Assert.Contains(labels, label => (string?)label.Attribute("Text") == "{loc:Localized 累计}");
+    }
+
+    [Theory]
+    [InlineData(0, false, "0")]
+    [InlineData(999, false, "999")]
+    [InlineData(1_000, true, "1K")]
+    [InlineData(17_596, true, "17.6K")]
+    [InlineData(297_838, true, "297.8K")]
+    [InlineData(999_999, true, "1M")]
+    [InlineData(1_000_000, true, "1M")]
+    [InlineData(1_250_000, true, "1.3M")]
+    public void BackupCountFormatting_IsCompactAndStable(
+        long count,
+        bool compact,
+        string expected)
+    {
+        Assert.Equal(expected, PrintWorkstationWindow.FormatBackupCount(count, compact));
+    }
+
+    [Fact]
     public void ArchiveProgressRefresh_IsEventDrivenWithoutPeriodicDirtyPolling()
     {
         string windowSource = ReadRepositoryFile(

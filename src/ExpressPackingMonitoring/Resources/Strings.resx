@@ -1873,6 +1873,7 @@ Continue? After packaging, send the archive to {0}</value></data>
   <data name="接收设备" xml:space="preserve"><value>Receive devices</value></data>
   <data name="上传任务" xml:space="preserve"><value>Upload tasks</value></data>
   <data name="今日" xml:space="preserve"><value>Today</value></data>
+  <data name="累计" xml:space="preserve"><value>Total</value></data>
   <data name="今日已上传" xml:space="preserve"><value>Uploaded today</value></data>
   <data name="今日已接收" xml:space="preserve"><value>Received today</value></data>
   <data name="今日数量单位" xml:space="preserve"><value></value></data>

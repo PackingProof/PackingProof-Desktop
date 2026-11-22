@@ -51,10 +51,10 @@ public sealed class SettingsCapabilityVisibilityTests
             (string?)summary.Attribute("Style"));
         Assert.Contains(
             summary.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "今日备份");
+            element => (string?)element.Attribute("Text") == "{loc:Localized 今日}");
         Assert.Contains(
             summary.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "累计备份");
+            element => (string?)element.Attribute("Text") == "{loc:Localized 累计}");
     }
 
     [Theory]

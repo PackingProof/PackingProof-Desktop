@@ -1873,6 +1873,7 @@
   <data name="接收设备" xml:space="preserve"><value>受信デバイス</value></data>
   <data name="上传任务" xml:space="preserve"><value>アップロード タスク</value></data>
   <data name="今日" xml:space="preserve"><value>今日</value></data>
+  <data name="累计" xml:space="preserve"><value>累計</value></data>
   <data name="今日已上传" xml:space="preserve"><value>本日アップロード済み</value></data>
   <data name="今日已接收" xml:space="preserve"><value>本日受信</value></data>
   <data name="今日数量单位" xml:space="preserve"><value>件</value></data>

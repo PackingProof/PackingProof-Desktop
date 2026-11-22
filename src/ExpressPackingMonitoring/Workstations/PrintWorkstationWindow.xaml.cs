@@ -8,6 +8,7 @@ using ExpressPackingMonitoring.Themes;
 using ExpressPackingMonitoring.UI;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -146,6 +147,26 @@ public partial class PrintWorkstationWindow : Window
             return 720;
 
         return Math.Min(720, Math.Max(1, workAreaHeight - 32));
+    }
+
+    internal static string FormatBackupCount(long count, bool compact)
+    {
+        count = Math.Max(0, count);
+        if (!compact || count < 1_000)
+            return count.ToString(CultureInfo.InvariantCulture);
+
+        if (count >= 999_950)
+            return FormatScaledBackupCount(count, 1_000_000, "M");
+        return FormatScaledBackupCount(count, 1_000, "K");
+    }
+
+    private static string FormatScaledBackupCount(long count, long divisor, string suffix)
+    {
+        decimal scaled = decimal.Round(
+            (decimal)count / divisor,
+            1,
+            MidpointRounding.AwayFromZero);
+        return scaled.ToString("0.#", CultureInfo.InvariantCulture) + suffix;
     }
 
     private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -569,8 +590,10 @@ public partial class PrintWorkstationWindow : Window
                 MobileBackupDeviceStatuses.Add(status);
             if (snapshot.Statuses.Count == 0)
                 AddEmptyDeviceStatus();
-            TodayBackupCountTextBlock.Text = snapshot.TodayCount.ToString();
-            TotalBackupCountTextBlock.Text = snapshot.TotalCount.ToString();
+            TodayBackupCountTextBlock.Text =
+                FormatBackupCount(snapshot.TodayCount, compact: false);
+            TotalBackupCountTextBlock.Text =
+                FormatBackupCount(snapshot.TotalCount, compact: true);
         });
     }
 

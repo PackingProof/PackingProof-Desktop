@@ -209,46 +209,52 @@
                             Click="OpenStatistics_Click"
                             PreviewMouseLeftButtonUp="BackupStats_MouseLeftButtonUp"
                             ToolTip="{loc:Localized 数据统计}">
-                        <WrapPanel VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,24,0">
-                                <TextBlock Text="今日备份"
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,28,0">
+                                <TextBlock Text="{loc:Localized 今日}"
                                            FontSize="15"
-                                           VerticalAlignment="Bottom"
-                                           Margin="0,0,8,4"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="NoWrap"
+                                           Margin="0,0,7,0"
                                            Foreground="{DynamicResource TextSecondary}"/>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,30,0">
-                                    <TextBlock x:Name="TodayBackupCountTextBlock"
-                                               Text="0"
-                                               FontSize="27"
-                                               FontWeight="Black"
-                                               Foreground="{DynamicResource AccentBlueDark}"/>
-                                    <TextBlock Text="个"
-                                               FontSize="15"
-                                               Margin="2,0,0,4"
-                                               VerticalAlignment="Bottom"
-                                               Foreground="{DynamicResource AccentBlueDark}"/>
-                                </StackPanel>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="累计备份"
+                                <TextBlock x:Name="TodayBackupCountTextBlock"
+                                           Text="0"
+                                           FontSize="27"
+                                           FontWeight="Black"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="NoWrap"
+                                           Foreground="{DynamicResource AccentBlueDark}"/>
+                                <TextBlock Text="{loc:Localized 今日数量单位}"
                                            FontSize="15"
-                                           VerticalAlignment="Bottom"
-                                           Margin="0,0,8,4"
-                                           Foreground="{DynamicResource TextSecondary}"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock x:Name="TotalBackupCountTextBlock"
-                                               Text="0"
-                                               FontSize="27"
-                                               FontWeight="Black"
-                                               Foreground="{DynamicResource AccentBlueDark}"/>
-                                    <TextBlock Text="个"
-                                               FontSize="15"
-                                               Margin="2,0,0,4"
-                                               VerticalAlignment="Bottom"
-                                               Foreground="{DynamicResource AccentBlueDark}"/>
-                                </StackPanel>
+                                           Margin="2,0,0,0"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="NoWrap"
+                                           Foreground="{DynamicResource AccentBlueDark}"/>
                             </StackPanel>
-                        </WrapPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{loc:Localized 累计}"
+                                           FontSize="15"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="NoWrap"
+                                           Margin="0,0,7,0"
+                                           Foreground="{DynamicResource TextSecondary}"/>
+                                <TextBlock x:Name="TotalBackupCountTextBlock"
+                                           Text="0"
+                                           FontSize="27"
+                                           FontWeight="Black"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="NoWrap"
+                                           Foreground="{DynamicResource AccentBlueDark}"/>
+                                <TextBlock Text="{loc:Localized 今日数量单位}"
+                                           FontSize="15"
+                                           Margin="2,0,0,0"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="NoWrap"
+                                           Foreground="{DynamicResource AccentBlueDark}"/>
+                            </StackPanel>
+                        </StackPanel>
                     </Button>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
