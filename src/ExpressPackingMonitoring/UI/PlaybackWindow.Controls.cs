@@ -27,7 +27,7 @@ public partial class PlaybackWindow
 
         if (_isPlaying)
         {
-            _mediaPlayer.Pause();
+            _mediaPlayer.SetPause(true);
             _timer.Stop();
             UpdatePlayState(false);
             return;
@@ -135,7 +135,7 @@ public partial class PlaybackWindow
         {
             try
             {
-                _mediaPlayer.Pause();
+                _mediaPlayer.SetPause(true);
             }
             catch
             {
@@ -310,7 +310,7 @@ public partial class PlaybackWindow
         // 记下拖动前的状态：暂停时拖动，拖完必须还是暂停（现场反馈：拖完自动变播放了）
         _wasPlayingBeforeScrub = _isPlaying && _mediaPlayer?.IsPlaying == true;
         if (_wasPlayingBeforeScrub)
-            _mediaPlayer?.Pause();
+            _mediaPlayer?.SetPause(true);
     }
 
     private void TimelineSlider_DragCompleted(object sender, DragCompletedEventArgs e)

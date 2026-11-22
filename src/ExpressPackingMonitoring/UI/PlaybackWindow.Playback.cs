@@ -369,8 +369,10 @@ public partial class PlaybackWindow
             if (!IsLoaded || _mediaPlayer == null)
                 return;
 
-            if (_secondaryActionState.IsActive)
-                shouldUnpause = false;
+            shouldUnpause = PlaybackInteractionPolicy.ShouldUnpauseAfterFirstFrame(
+                shouldUnpause,
+                _secondaryActionState.IsActive,
+                _secondaryActionState.DeferAutoPlayUntilExplicitPlay);
             if (shouldUnpause)
             {
                 _mediaPlayer.SetPause(false);

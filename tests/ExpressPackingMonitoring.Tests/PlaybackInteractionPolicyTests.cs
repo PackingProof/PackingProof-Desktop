@@ -99,6 +99,22 @@ public sealed class PlaybackInteractionPolicyTests
     }
 
     [Fact]
+    public void QueuedFirstFrameCallback_DoesNotResumeAfterExportDialogCloses()
+    {
+        var state = new PlaybackSecondaryActionState();
+
+        state.Begin();
+        state.End();
+
+        Assert.False(state.IsActive);
+        Assert.True(state.DeferAutoPlayUntilExplicitPlay);
+        Assert.False(PlaybackInteractionPolicy.ShouldUnpauseAfterFirstFrame(
+            pendingStartUnpause: true,
+            secondaryActionPause: state.IsActive,
+            deferAutoPlayUntilExplicitPlay: state.DeferAutoPlayUntilExplicitPlay));
+    }
+
+    [Fact]
     public void SecondaryActionState_HandlesOverlappingActionsAndNewSelection()
     {
         var state = new PlaybackSecondaryActionState();
@@ -251,7 +267,7 @@ public sealed class PlaybackInteractionPolicyTests
             screenshotSource,
             StringComparison.Ordinal);
         Assert.Contains("new PlaybackScreenshotDialog", screenshotSource, StringComparison.Ordinal);
-        Assert.Contains("_mediaPlayer?.Pause();", screenshotSource, StringComparison.Ordinal);
+        Assert.Contains("_mediaPlayer?.SetPause(true);", screenshotSource, StringComparison.Ordinal);
         Assert.Contains("RestorePlaybackAfterScreenshot(wasPlaying);", screenshotSource, StringComparison.Ordinal);
         Assert.DoesNotContain("File.Copy(sourcePath", screenshotSource, StringComparison.Ordinal);
         Assert.Contains("File.Move(", screenshotSource, StringComparison.Ordinal);

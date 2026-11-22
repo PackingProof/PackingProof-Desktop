@@ -109,7 +109,7 @@ public partial class PlaybackWindow
         UpdateScreenshotButtonState();
         if (wasPlaying)
         {
-            _mediaPlayer?.Pause();
+            _mediaPlayer?.SetPause(true);
             _timer.Stop();
             UpdatePlayState(false);
         }

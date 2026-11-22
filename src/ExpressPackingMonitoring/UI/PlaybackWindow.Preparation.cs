@@ -23,7 +23,7 @@ public partial class PlaybackWindow
         _isPreparingPlayback = true;
         _lastPlaybackFallback = null;
         if (_mediaPlayer?.IsPlaying == true)
-            _mediaPlayer.Pause();
+            _mediaPlayer.SetPause(true);
         _timer.Stop();
         CancelAwaitingFirstFrame();
         UpdatePlayState(false);

@@ -308,6 +308,22 @@ public sealed class VideoCompressionPolicyTests
     }
 
     [Fact]
+    public void FirstFrameCallback_RechecksDeferredPlaybackAfterExportCloses()
+    {
+        string playbackSource = ReadPlaybackFile("PlaybackWindow.Playback.cs");
+
+        Assert.Contains(
+            "shouldUnpause = PlaybackInteractionPolicy.ShouldUnpauseAfterFirstFrame(",
+            playbackSource);
+        Assert.Contains(
+            "_secondaryActionState.DeferAutoPlayUntilExplicitPlay",
+            playbackSource);
+        Assert.DoesNotContain(
+            "if (_secondaryActionState.IsActive)\n                shouldUnpause = false;",
+            playbackSource);
+    }
+
+    [Fact]
     public void ExportDialog_SerializesCancellationBeforeSuccess()
     {
         string dialog = ReadPlaybackFile("VideoCompressionDialog.xaml.cs");
@@ -364,6 +380,8 @@ public sealed class VideoCompressionPolicyTests
         string backupHostSource = ReadProjectFile(
             Path.Combine("Workstations", "PrintWorkstationWindow.xaml.cs"));
         string playbackControls = ReadPlaybackFile("PlaybackWindow.Controls.cs");
+        string playbackPreparation = ReadPlaybackFile("PlaybackWindow.Preparation.cs");
+        string playbackScreenshot = ReadPlaybackFile("PlaybackWindow.Screenshot.cs");
         string compressionService = ReadProjectFile(
             Path.Combine("Services", "VideoCompressionService.cs"));
 
@@ -435,9 +453,12 @@ public sealed class VideoCompressionPolicyTests
             playbackControls.Split(
                 "BeginSecondaryActionPause();",
                 StringSplitOptions.None).Length - 1);
-        Assert.Contains(
-            "_mediaPlayer.Pause();",
-            playbackControls);
+        Assert.Contains("_mediaPlayer.SetPause(true);", playbackControls);
+        Assert.Contains("_mediaPlayer.SetPause(true);", playbackPreparation);
+        Assert.Contains("_mediaPlayer?.SetPause(true);", playbackScreenshot);
+        Assert.DoesNotContain(".Pause();", playbackControls);
+        Assert.DoesNotContain(".Pause();", playbackPreparation);
+        Assert.DoesNotContain(".Pause();", playbackScreenshot);
         Assert.Contains(
             "UpdatePlayState(false);",
             playbackControls);
