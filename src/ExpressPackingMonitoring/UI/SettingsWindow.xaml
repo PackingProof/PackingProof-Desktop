@@ -896,11 +896,11 @@
                                                    VerticalAlignment="Center"
                                                    FontWeight="SemiBold"/>
                                     </ToggleButton>
-                                    <Button x:Name="SidebarExtensionMarketButton"
-                                            Content="{loc:Localized 扩展市场}"
-                                            Click="OpenExtensionMarket_Click"
+                                    <Button x:Name="SidebarExportDiagnosticLogsButton"
+                                            Content="{loc:Localized 导出诊断日志}"
+                                            Click="ExportDiagnosticLogs_Click"
                                             Style="{StaticResource SidebarActionButtonStyle}"
-                                            AutomationProperties.Name="扩展市场"/>
+                                            AutomationProperties.Name="{loc:Localized 导出诊断日志}"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -3966,6 +3966,10 @@
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
                                     <Grid Margin="0,0,0,18">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="16"/>
@@ -4004,13 +4008,15 @@
                                                        FontSize="12"
                                                        Foreground="{DynamicResource TextSecondary}"
                                                        TextWrapping="Wrap"/>
-                                            <TextBlock Text="{Binding Capabilities.OtherEditionNotice}"
-                                                       Visibility="{Binding Capabilities.HasOtherEditionData, Converter={StaticResource BoolToVisibility}}"
-                                                       Margin="0,6,0,0"
-                                                       FontSize="12"
-                                                       Foreground="{DynamicResource TextSecondary}"
-                                                       TextWrapping="Wrap"/>
                                         </StackPanel>
+                                        <TextBlock Grid.Row="1"
+                                                   Grid.ColumnSpan="3"
+                                                   Text="{Binding Capabilities.OtherEditionNotice}"
+                                                   Visibility="{Binding Capabilities.HasOtherEditionData, Converter={StaticResource BoolToVisibility}}"
+                                                   Margin="0,12,0,0"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondary}"
+                                                   TextWrapping="Wrap"/>
                                     </Grid>
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
@@ -4024,17 +4030,19 @@
                                             <TextBlock Text="打开 GitHub 仓库，查看源码、发布记录和问题反馈"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                        <StackPanel Grid.Column="2"
+                                                    Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
                                             <Button x:Name="CheckUpdateButton"
                                                     Content="检查更新"
                                                     Click="CheckUpdate_Click"
                                                     Style="{StaticResource SecondaryButtonStyle}"
-                                                    Margin="0,0,8,8"/>
+                                                    Margin="0,0,8,0"/>
                                             <Button x:Name="OpenRepositoryButton"
                                                     Content="打开仓库"
                                                     Click="OpenRepository_Click"
                                                     Style="{StaticResource SecondaryButtonStyle}"
-                                                    Margin="0,0,8,8"/>
+                                                    Margin="0"/>
                                         </StackPanel>
                                     </Grid>
 

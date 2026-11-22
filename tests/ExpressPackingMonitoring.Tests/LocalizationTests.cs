@@ -433,8 +433,43 @@ public sealed class LocalizationTests
         string section = xaml[start..end];
 
         Assert.Contains("<ColumnDefinition Width=\"300\"/>", section, StringComparison.Ordinal);
-        Assert.Contains("<StackPanel Grid.Column=\"2\" Orientation=\"Horizontal\">", section, StringComparison.Ordinal);
+        Assert.Contains("<StackPanel Grid.Column=\"2\"", section, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"0,0,8,0\"", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("Margin=\"0,0,8,8\"", section, StringComparison.Ordinal);
         Assert.DoesNotContain("WrapPanel", section, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SettingsSidebarUsesDiagnosticExportAction()
+    {
+        string path = Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "SettingsWindow.xaml");
+        string xaml = File.ReadAllText(path);
+
+        Assert.Contains("x:Name=\"SidebarExportDiagnosticLogsButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"{loc:Localized 导出诊断日志}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Click=\"ExportDiagnosticLogs_Click\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"SidebarExtensionMarketButton\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SettingsOtherEditionNoticeUsesFullRowBelowVersion()
+    {
+        string path = Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "SettingsWindow.xaml");
+        string xaml = File.ReadAllText(path);
+
+        Assert.Contains("Text=\"{Binding Capabilities.OtherEditionNotice}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Grid.Row=\"1\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Grid.ColumnSpan=\"3\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
