@@ -1,6 +1,5 @@
 using ExpressPackingMonitoring.Input;
 using ExpressPackingMonitoring.Logging;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -21,15 +20,6 @@ namespace ExpressPackingMonitoring.UI
 {
     public partial class MainWindow : Window
     {
-        [DllImport("user32.dll")]
-        private static extern short GetKeyState(int nVirtKey);
-        [DllImport("user32.dll")]
-        private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-        private const int VK_CAPITAL = 0x14;
-        private DispatcherTimer _capsCheckTimer;
-        private bool _capsLockStateBeforeFocus;
-        private bool _capsLockOverridden;
-        private bool _capsLockSuspended;
         private FloatingPreviewController? _floatingPreviewController;
         private DateTime _lastMouseActivityNotifyAt = DateTime.MinValue;
         private const int WM_ENTERSIZEMOVE = 0x0231;
@@ -75,78 +65,6 @@ namespace ExpressPackingMonitoring.UI
             set => SetValue(IsRecordButtonCompactProperty, value);
         }
 
-        private bool IsCapsLockOn() => (GetKeyState(VK_CAPITAL) & 1) != 0;
-
-        private void ToggleCapsLock()
-        {
-            keybd_event((byte)VK_CAPITAL, 0x45, 0, UIntPtr.Zero);
-            keybd_event((byte)VK_CAPITAL, 0x45, 2, UIntPtr.Zero);
-        }
-
-        private void EnsureCapsLockOn()
-        {
-            if (!IsCapsLockOn())
-            {
-                ToggleCapsLock();
-                _capsLockOverridden = true;
-            }
-        }
-
-        private void RestoreCapsLockState()
-        {
-            if (_capsLockOverridden && !_capsLockStateBeforeFocus && IsCapsLockOn())
-            {
-                ToggleCapsLock();
-            }
-            _capsLockOverridden = false;
-        }
-
-        private bool ShouldForceCapsLock()
-        {
-            return !_capsLockSuspended &&
-                   IsActive &&
-                   WindowState != WindowState.Minimized &&
-                   ScanInputTextBox?.IsFocused == true;
-        }
-
-        private void ApplyCapsLockForScanInput()
-        {
-            if (!ShouldForceCapsLock())
-            {
-                _capsCheckTimer.Stop();
-                return;
-            }
-
-            if (!_capsLockOverridden)
-            {
-                _capsLockStateBeforeFocus = IsCapsLockOn();
-            }
-
-            EnsureCapsLockOn();
-            if (string.IsNullOrEmpty(ScanInputTextBox.Text))
-                _capsCheckTimer.Start();
-        }
-
-        public void SuspendCapsLockForModalWindow()
-        {
-            _capsLockSuspended = true;
-            _capsCheckTimer.Stop();
-            RestoreCapsLockState();
-        }
-
-        public void ResumeCapsLockAfterModalWindow()
-        {
-            _capsLockSuspended = false;
-            Dispatcher.BeginInvoke(new System.Action(() =>
-            {
-                if (IsActive && WindowState != WindowState.Minimized)
-                {
-                    ScanInputTextBox.Focus();
-                    ApplyCapsLockForScanInput();
-                }
-            }));
-        }
-
         public MainWindow(bool enableCloseBehaviorPrompt = true)
         {
             InitializeComponent();
@@ -187,41 +105,22 @@ namespace ExpressPackingMonitoring.UI
             BtnSwitchWorkstation.PreviewMouseLeftButtonUp += BtnSwitchWorkstation_PreviewMouseLeftButtonUp;
             BtnInstallUserscript.Click += BtnInstallUserscript_Click;
             BtnSendTestOrder.Click += BtnSendTestOrder_Click;
-            _capsCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            _capsCheckTimer.Tick += (s, e) =>
-            {
-                if (string.IsNullOrEmpty(ScanInputTextBox.Text))
-                    ApplyCapsLockForScanInput();
-                else
-                    _capsCheckTimer.Stop();
-            };
             _scanAutoSubmitTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
             _scanAutoSubmitTimer.Tick += ScanAutoSubmitTimer_Tick;
             Activated += (s, e) =>
             {
-                _capsLockStateBeforeFocus = IsCapsLockOn();
-                _capsLockOverridden = false;
-                ApplyCapsLockForScanInput();
                 (DataContext as MainViewModel)?.NotifyUserActivity();
-            };
-            Deactivated += (s, e) =>
-            {
-                _capsCheckTimer.Stop();
-                RestoreCapsLockState();
             };
             StateChanged += (s, e) =>
             {
                 if (WindowState == WindowState.Minimized)
                 {
-                    _capsCheckTimer.Stop();
-                    RestoreCapsLockState();
                     // 最小化后画面交给小窗，预览按小窗尺寸发布。
                     (DataContext as MainViewModel)?.ReportMainPreviewDisplayWidth(0);
                     (DataContext as MainViewModel)?.ReportMainPreviewVisibility(false);
                 }
                 else
                 {
-                    ApplyCapsLockForScanInput();
                     ReportPreviewDisplayWidth();
                     (DataContext as MainViewModel)?.ReportMainPreviewVisibility(true);
                 }
@@ -1161,14 +1060,11 @@ namespace ExpressPackingMonitoring.UI
 
         private void ScanInputTextBox_LostFocus(object sender, RoutedEventArgs e)
         {
-            _capsCheckTimer.Stop();
-            // 延迟检查 IsActive，避免在 Deactivated 之前抢先 re-focus 导致 CapsLock 恢复失败
-            Dispatcher.BeginInvoke(new System.Action(() => { if (!_capsLockSuspended && this.IsActive) ScanInputTextBox.Focus(); }));
+            Dispatcher.BeginInvoke(new System.Action(() => { if (this.IsActive) ScanInputTextBox.Focus(); }));
         }
 
         private void ScanInputTextBox_GotFocus(object sender, RoutedEventArgs e)
         {
-            ApplyCapsLockForScanInput();
             Dispatcher.BeginInvoke(new System.Action(() => ScanInputTextBox.SelectAll()));
         }
 
@@ -1218,8 +1114,6 @@ namespace ExpressPackingMonitoring.UI
             }
 
             _shutdownInProgress = true;
-            _capsCheckTimer.Stop();
-            RestoreCapsLockState();
             (string shutdownSource, string shutdownDetail) = RuntimeLog.GetShutdownRequest();
             if (string.Equals(shutdownSource, "not-recorded", StringComparison.Ordinal))
             {
@@ -1535,8 +1429,6 @@ namespace ExpressPackingMonitoring.UI
         {
             if (_resourceCleanupInProgress) return;
             _resourceCleanupInProgress = true;
-            _capsCheckTimer.Stop();
-            RestoreCapsLockState();
 
             if (vm != null)
             {

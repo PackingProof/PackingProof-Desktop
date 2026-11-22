@@ -139,15 +139,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     settingsWin.SelectZoomTab();
                 var mainWindow = Application.Current?.MainWindow as MainWindow;
                 if (mainWindow != null) settingsWin.Owner = mainWindow;
-                mainWindow?.SuspendCapsLockForModalWindow();
-                try
-                {
-                    settingsWin.ShowDialog();
-                }
-                finally
-                {
-                    mainWindow?.ResumeCapsLockAfterModalWindow();
-                }
+                settingsWin.ShowDialog();
 
                 // 设置页请求了"调整放大位置"：退回主画面进入放大取景框编辑。
                 // 放在 ShowDialog 之后：设置窗口是模态的，藏着它主窗口仍然是禁用的。
@@ -387,18 +379,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 var clonedConfig = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(Config)) ?? new AppConfig();
                 var wizard = new FirstUseSetupWizardWindow(clonedConfig, allowSkip: false) { Owner = owner };
-                MainWindow setupOwner = owner as MainWindow;
-                setupOwner?.SuspendCapsLockForModalWindow();
 
-                bool accepted;
-                try
-                {
-                    accepted = wizard.ShowDialog() == true;
-                }
-                finally
-                {
-                    setupOwner?.ResumeCapsLockAfterModalWindow();
-                }
+                bool accepted = wizard.ShowDialog() == true;
                 bool cameraReleased = await wizard.WaitForCameraCleanupAsync();
                 if (!cameraReleased)
                 {

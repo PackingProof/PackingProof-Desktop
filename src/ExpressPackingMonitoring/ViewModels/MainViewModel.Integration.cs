@@ -481,16 +481,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 Owner = dialogOwner
             };
 
-            MainWindow mainWindow = Application.Current?.MainWindow as MainWindow;
-            mainWindow?.SuspendCapsLockForModalWindow();
-            try
-            {
-                dialog.ShowDialog();
-            }
-            finally
-            {
-                mainWindow?.ResumeCapsLockAfterModalWindow();
-            }
+            dialog.ShowDialog();
 
             if (dialog.OpenSettingsRequested && owner is not SettingsWindow)
                 OpenSettings();
@@ -570,16 +561,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void ShowMobileConnectionWindow(System.Windows.Window owner, string url)
         {
             var dialog = new MobileConnectionWindow(url, Config.RequireWebAccessKey) { Owner = owner };
-            MainWindow mainWindow = Application.Current?.MainWindow as MainWindow;
-            mainWindow?.SuspendCapsLockForModalWindow();
-            try
-            {
-                dialog.ShowDialog();
-            }
-            finally
-            {
-                mainWindow?.ResumeCapsLockAfterModalWindow();
-            }
+            dialog.ShowDialog();
         }
 
         private bool TryGetMobileConnectionUrl(out string url)
