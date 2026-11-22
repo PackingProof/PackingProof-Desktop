@@ -457,6 +457,311 @@ public sealed class RecordingTransferTests
     }
 
     [Fact]
+    public void MissingOldFilesDoNotStarveNewRecordingsFromTransferQueue()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, targetNodeId);
+            using var database = new VideoDatabase(databasePath);
+            var store = new RecordingTransferQueueStore(databasePath);
+
+            DateTime start = DateTime.Now.AddHours(-2);
+            for (int i = 0; i < 500; i++)
+            {
+                string missingPath = Path.Combine(directory, $"missing-{i:D4}.mp4");
+                long missingId = database.InsertVideoRecord(
+                    $"MISSING-{i:D4}",
+                    "发货",
+                    "",
+                    "",
+                    missingPath,
+                    start.AddSeconds(i));
+                database.UpdateVideoRecordOnStop(
+                    missingId,
+                    start.AddSeconds(i + 1),
+                    60,
+                    128,
+                    "手动");
+            }
+
+            string currentPath = Path.Combine(directory, "current.mp4");
+            File.WriteAllBytes(currentPath, new byte[128]);
+            long currentId = database.InsertVideoRecord(
+                "CURRENT",
+                "发货",
+                "",
+                "",
+                currentPath,
+                start.AddHours(1));
+            database.UpdateVideoRecordOnStop(
+                currentId,
+                start.AddHours(1).AddMinutes(1),
+                60,
+                128,
+                "手动");
+
+            using (var service = new RecordingTransferService(store, database, () => config))
+            {
+                Assert.Equal(1, service.EnqueueCompletedRecordings());
+            }
+
+            using var reopened = new RecordingTransferQueueStore(databasePath);
+            RecordingTransferTask queued = Assert.Single(reopened.GetReady(DateTime.UtcNow));
+            Assert.Equal(currentId, queued.LocalVideoRecordId);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void NewRecordingIsQueuedAfterAnEarlierScanReachedTheEnd()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, targetNodeId);
+            using var database = new VideoDatabase(databasePath);
+            var store = new RecordingTransferQueueStore(databasePath);
+
+            DateTime start = DateTime.Now.AddHours(-2);
+            for (int i = 0; i < 500; i++)
+            {
+                string missingPath = Path.Combine(directory, $"missing-{i:D4}.mp4");
+                long missingId = database.InsertVideoRecord(
+                    $"MISSING-{i:D4}",
+                    "发货",
+                    "",
+                    "",
+                    missingPath,
+                    start.AddSeconds(i));
+                database.UpdateVideoRecordOnStop(
+                    missingId,
+                    start.AddSeconds(i + 1),
+                    60,
+                    128,
+                    "手动");
+            }
+
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config);
+            Assert.Equal(0, service.EnqueueCompletedRecordings());
+
+            string currentPath = Path.Combine(directory, "current.mp4");
+            File.WriteAllBytes(currentPath, new byte[128]);
+            long currentId = database.InsertVideoRecord(
+                "CURRENT-AFTER-SCAN",
+                "发货",
+                "",
+                "",
+                currentPath,
+                start.AddHours(1));
+            database.UpdateVideoRecordOnStop(
+                currentId,
+                start.AddHours(1).AddMinutes(1),
+                60,
+                128,
+                "手动");
+
+            Assert.Equal(1, service.EnqueueCompletedRecordings());
+            RecordingTransferTask queued =
+                Assert.Single(store.GetReady(DateTime.UtcNow));
+            Assert.Equal(currentId, queued.LocalVideoRecordId);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void RetryRechecksARecordingWhoseFileReappears()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string videoPath = Path.Combine(directory, "reappearing.mp4");
+            AppConfig config = CreateConfig(
+                directory,
+                Guid.NewGuid().ToString("D"));
+            using var database = new VideoDatabase(databasePath);
+            long recordId = database.InsertVideoRecord(
+                "REAPPEARING",
+                "发货",
+                "",
+                "",
+                videoPath,
+                DateTime.Now.AddMinutes(-1));
+            database.UpdateVideoRecordOnStop(
+                recordId,
+                DateTime.Now,
+                60,
+                128,
+                "手动");
+            var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config);
+
+            Assert.Equal(0, service.EnqueueCompletedRecordings());
+            File.WriteAllBytes(videoPath, new byte[128]);
+            service.RetryNow();
+
+            Assert.Equal(1, service.EnqueueCompletedRecordings());
+            Assert.Equal(
+                recordId,
+                Assert.Single(store.GetReady(DateTime.UtcNow))
+                    .LocalVideoRecordId);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void CompletionEventQueuesNewRecordingWithoutRescanningMissingRows()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            AppConfig config = CreateConfig(
+                directory,
+                Guid.NewGuid().ToString("D"));
+            using var database = new VideoDatabase(databasePath);
+            DateTime start = DateTime.Now.AddHours(-4);
+            for (int i = 0; i < 5001; i++)
+            {
+                long recordId = database.InsertVideoRecord(
+                    $"MISSING-{i:D4}",
+                    "发货",
+                    "",
+                    "",
+                    Path.Combine(directory, $"missing-{i:D4}.mp4"),
+                    start.AddSeconds(i));
+                database.UpdateVideoRecordOnStop(
+                    recordId,
+                    start.AddSeconds(i + 1),
+                    60,
+                    128,
+                    "手动");
+            }
+
+            var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config);
+
+            Assert.Equal(0, service.EnqueueCompletedRecordings());
+
+            string currentPath = Path.Combine(directory, "current.mp4");
+            File.WriteAllBytes(currentPath, new byte[128]);
+            long currentId = database.InsertVideoRecord(
+                "CURRENT-AFTER-FULL-RESCAN",
+                "发货",
+                "",
+                "",
+                currentPath,
+                start.AddHours(2));
+            database.UpdateVideoRecordOnStop(
+                currentId,
+                start.AddHours(2).AddMinutes(1),
+                60,
+                128,
+                "手动");
+
+            service.RequestEnqueueCompletedRecording(currentId);
+            Assert.Equal(1, service.ProcessCompletedRecordingEvents());
+            Assert.Equal(
+                currentId,
+                Assert.Single(store.GetReady(DateTime.UtcNow))
+                    .LocalVideoRecordId);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void DeferredRecordingRechecksRotateAcrossAllMissingRows()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            AppConfig config = CreateConfig(
+                directory,
+                Guid.NewGuid().ToString("D"));
+            using var database = new VideoDatabase(databasePath);
+            var missingPaths = new List<string>();
+            DateTime start = DateTime.Now.AddHours(-2);
+            for (int i = 0; i < 33; i++)
+            {
+                string path = Path.Combine(directory, $"missing-{i:D2}.mp4");
+                missingPaths.Add(path);
+                long recordId = database.InsertVideoRecord(
+                    $"MISSING-{i:D2}",
+                    "发货",
+                    "",
+                    "",
+                    path,
+                    start.AddSeconds(i));
+                database.UpdateVideoRecordOnStop(
+                    recordId,
+                    start.AddSeconds(i + 1),
+                    60,
+                    128,
+                    "手动");
+            }
+
+            var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config);
+            Assert.Equal(0, service.EnqueueCompletedRecordings());
+
+            for (int i = 0; i < 32; i++)
+                File.WriteAllBytes(missingPaths[i], new byte[128]);
+            long currentA = InsertCompletedVideo(
+                database,
+                directory,
+                "CURRENT-A",
+                start.AddHours(1));
+            service.RequestEnqueueCompletedRecording(currentA);
+            Assert.Equal(33, service.ProcessCompletedRecordingEvents());
+
+            File.WriteAllBytes(missingPaths[32], new byte[128]);
+            long currentB = InsertCompletedVideo(
+                database,
+                directory,
+                "CURRENT-B",
+                start.AddHours(2));
+            service.RequestEnqueueCompletedRecording(currentB);
+            Assert.Equal(2, service.ProcessCompletedRecordingEvents());
+
+            Assert.Equal(35, store.GetSummary().PendingCount);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void CompletedRecordingIsQueuedAfterHostIsBoundLater()
     {
         string directory = CreateTempDirectory();
@@ -1516,6 +1821,30 @@ public sealed class RecordingTransferTests
         string path = Path.Combine(Path.GetTempPath(), $"RecordingTransferTests-{Guid.NewGuid():N}");
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    private static long InsertCompletedVideo(
+        VideoDatabase database,
+        string directory,
+        string orderId,
+        DateTime startTime)
+    {
+        string path = Path.Combine(directory, $"{orderId}.mp4");
+        File.WriteAllBytes(path, new byte[128]);
+        long recordId = database.InsertVideoRecord(
+            orderId,
+            "发货",
+            "",
+            "",
+            path,
+            startTime);
+        database.UpdateVideoRecordOnStop(
+            recordId,
+            startTime.AddMinutes(1),
+            60,
+            128,
+            "手动");
+        return recordId;
     }
 
     private static void DeleteTempDirectory(string path)

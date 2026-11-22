@@ -18,6 +18,8 @@ internal readonly record struct RecordingTransferCardState(
 public partial class MainViewModel
 {
     private const int RecordingCacheCleanupBatchSize = 32;
+    private static readonly TimeSpan RecordingCacheCleanupCoalesceDelay =
+        TimeSpan.FromSeconds(15);
     private static readonly TimeSpan RecordingCacheReconcileInterval =
         TimeSpan.FromHours(6);
     private RecordingTransferService? _recordingTransferService;
@@ -55,6 +57,7 @@ public partial class MainViewModel
     private bool _recordingHostAwaitingApproval;
     private bool _recordingHostPausedByUser;
     private int _recordingCacheCleanupQueued;
+    private int _recordingCacheCleanupPending;
     private readonly object _recordingCacheMaintenanceLock = new();
     private string _recordingCacheInventoryRoot = "";
     private bool _recordingCacheInventoryInitialized;
@@ -185,7 +188,7 @@ public partial class MainViewModel
 
     private void RetryRecordingTransfers()
     {
-        _recordingTransferService?.EnqueueCompletedRecordings();
+        _recordingTransferService?.RequestCompletedRecordingsScan();
         _recordingTransferService?.RetryNow();
         RecordingTransferShortStatusText = "检查中";
         RecordingTransferStatusText = "正在重新连接";
@@ -224,6 +227,8 @@ public partial class MainViewModel
             ? AppLanguage.Get("已暂停")
             : AppLanguage.Get("正在重新连接");
         _recordingTransferService?.SetUploadPaused(result.Saved.RecordingUploadPaused);
+        if (!result.Saved.RecordingUploadPaused)
+            _recordingTransferService?.RequestCompletedRecordingsScan();
         OnPropertyChanged(nameof(IsRecordingUploadPaused));
         OnPropertyChanged(nameof(RecordingUploadPauseButtonText));
         RefreshRecordingTransferSummary();
@@ -875,6 +880,7 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(BoundHostAddress));
             OnPropertyChanged(nameof(BoundHostNameDisplay));
             OnPropertyChanged(nameof(BoundHostDisplay));
+            _recordingTransferService?.RequestCompletedRecordingsScan();
             QueueRecordingWorkstationHeartbeat(force: true);
         });
     }
@@ -990,19 +996,47 @@ public partial class MainViewModel
     {
         if (!IsRecordingWorkstation)
             return;
+        Interlocked.Exchange(ref _recordingCacheCleanupPending, 1);
         if (Interlocked.Exchange(ref _recordingCacheCleanupQueued, 1) != 0)
             return;
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             try
             {
-                RunRecordingCacheMaintenance(
-                    RecordingWorkstationCachePolicy
-                        .RecordingAndPackagingHeadroomBytes);
+                CancellationToken token = _cts?.Token ?? CancellationToken.None;
+                while (!_isDisposed
+                       && Interlocked.Exchange(ref _recordingCacheCleanupPending, 0) != 0)
+                {
+                    await Task.Delay(RecordingCacheCleanupCoalesceDelay, token)
+                        .ConfigureAwait(false);
+                    if (_isDisposed)
+                        break;
+                    RecordingCacheMaintenanceResult result =
+                        RunRecordingCacheMaintenance(
+                            RecordingWorkstationCachePolicy
+                                .RecordingAndPackagingHeadroomBytes);
+                    if (RecordingWorkstationCachePolicy
+                            .ShouldDeleteVerifiedCacheImmediately(
+                                Config.RecordingCachePolicy)
+                        && result.CleanedCount >= RecordingCacheCleanupBatchSize)
+                    {
+                        Interlocked.Exchange(
+                            ref _recordingCacheCleanupPending,
+                            1);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
             }
             finally
             {
                 Interlocked.Exchange(ref _recordingCacheCleanupQueued, 0);
+                if (!_isDisposed
+                    && Volatile.Read(ref _recordingCacheCleanupPending) != 0)
+                {
+                    RunRecordingCacheCleanup();
+                }
             }
         });
     }
@@ -1085,35 +1119,55 @@ public partial class MainViewModel
                 var cleanupGroupsById =
                     new Dictionary<long, IReadOnlyList<RecordingTransferTask>>();
                 var verifiedItems = new List<RecordingCacheCleanupItem>();
-                if (RecordingWorkstationCachePolicy.RequiresCleanup(
-                        snapshot,
-                        requiredHeadroomBytes))
+                bool deleteVerifiedImmediately =
+                    RecordingWorkstationCachePolicy
+                        .ShouldDeleteVerifiedCacheImmediately(
+                            Config.RecordingCachePolicy);
+                HostConnectionState cleanupHostState =
+                    _recordingTransferService?.GetHostHealth().State
+                    ?? HostConnectionState.Unknown;
+                bool canVerifyRemoteCache =
+                    CanVerifyRemoteCacheForState(cleanupHostState);
+                if (canVerifyRemoteCache
+                    && (deleteVerifiedImmediately
+                        || RecordingWorkstationCachePolicy.RequiresCleanup(
+                            snapshot,
+                            requiredHeadroomBytes)))
                 {
-                    IReadOnlyList<RecordingTransferTask> uploaded =
-                        _recordingTransferStore.GetCacheCleanupCandidateBatch(
+                    string? legacyCachePath =
+                        AppConfig.LegacyRecordingCachePath;
+                    IReadOnlyList<string> cleanupRoots =
+                        GetRecordingCacheCleanupRoots(
                             cachePath,
-                            RecordingCacheCleanupBatchSize,
-                            BackupRequestAuthentication.CurrentVersion);
-                    foreach (RecordingTransferTask task in uploaded)
+                            legacyCachePath);
+                    foreach (string cleanupRoot in cleanupRoots)
                     {
-                        if (task.RemoteVideoRecordId is not long remoteRecordId
-                            || remoteRecordId <= 0
-                            || task.VerificationVersion < BackupRequestAuthentication.CurrentVersion
-                            || string.IsNullOrWhiteSpace(task.VerificationReceipt))
+                        IReadOnlyList<RecordingTransferTask> uploaded =
+                            _recordingTransferStore.GetCacheCleanupCandidateBatch(
+                                cleanupRoot,
+                                RecordingCacheCleanupBatchSize,
+                                BackupRequestAuthentication.CurrentVersion);
+                        foreach (RecordingTransferTask task in uploaded)
                         {
-                            continue;
+                            if (task.RemoteVideoRecordId is not long remoteRecordId
+                                || remoteRecordId <= 0
+                                || task.VerificationVersion < BackupRequestAuthentication.CurrentVersion
+                                || string.IsNullOrWhiteSpace(task.VerificationReceipt))
+                            {
+                                continue;
+                            }
+                            string path = ResolveManagedRecordingPath(task);
+                            if (path.Length == 0 || !File.Exists(path))
+                                continue;
+                            if (!verifiedTasksByPath.TryGetValue(
+                                    path,
+                                    out List<RecordingTransferTask>? tasks))
+                            {
+                                tasks = [];
+                                verifiedTasksByPath[path] = tasks;
+                            }
+                            tasks.Add(task);
                         }
-                        string path = ResolveManagedRecordingPath(task);
-                        if (path.Length == 0 || !File.Exists(path))
-                            continue;
-                        if (!verifiedTasksByPath.TryGetValue(
-                                path,
-                                out List<RecordingTransferTask>? tasks))
-                        {
-                            tasks = [];
-                            verifiedTasksByPath[path] = tasks;
-                        }
-                        tasks.Add(task);
                     }
 
                     foreach ((string path, List<RecordingTransferTask> tasks) in verifiedTasksByPath)
@@ -1137,7 +1191,8 @@ public partial class MainViewModel
                     RecordingWorkstationCachePolicy.CreateCleanupPlan(
                         snapshot,
                         requiredHeadroomBytes,
-                        verifiedItems);
+                        verifiedItems,
+                        deleteVerifiedImmediately);
                 int cleanedCount = 0;
                 long cleanedBytes = 0;
                 foreach (long taskId in plan.ItemIds)
@@ -1426,12 +1481,15 @@ public partial class MainViewModel
             string fullPath;
             try { fullPath = Path.GetFullPath(candidate); }
             catch { continue; }
-            IEnumerable<StorageLocation> managedLocations = IsRecordingWorkstation
-                ? RecordingWorkstationCachePolicy.GetConfiguredLocation(Config) is { } cacheLocation
-                    ? [cacheLocation]
-                    : []
-                : Config.StorageLocations;
-            if (managedLocations.Any(location => IsPathInside(fullPath, location.Path)))
+            IReadOnlyList<string> managedRoots = IsRecordingWorkstation
+                ? GetRecordingCacheCleanupRoots(
+                    RecordingWorkstationCachePolicy
+                        .GetConfiguredLocation(Config)?.Path ?? "",
+                    AppConfig.LegacyRecordingCachePath)
+                : Config.StorageLocations
+                    .Select(location => location.Path)
+                    .ToArray();
+            if (managedRoots.Any(root => IsPathInside(fullPath, root)))
                 return fullPath;
         }
         return "";

@@ -138,7 +138,7 @@ internal sealed class TransferManagementSnapshotService
             if (_queueStore == null)
                 return;
             _queueStore.RetryFailedNow(DateTime.UtcNow);
-            _transferService?.EnqueueCompletedRecordings();
+            _transferService?.RequestCompletedRecordingsScan();
             _transferService?.RetryNow();
         }, cancellationToken);
 

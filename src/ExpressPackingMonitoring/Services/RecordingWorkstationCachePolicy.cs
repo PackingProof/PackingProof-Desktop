@@ -104,8 +104,20 @@ internal static class RecordingWorkstationCachePolicy
     internal static RecordingCacheCleanupPlan CreateCleanupPlan(
         RecordingCacheSpaceSnapshot snapshot,
         long requiredHeadroomBytes,
-        IEnumerable<RecordingCacheCleanupItem> verifiedItems)
+        IEnumerable<RecordingCacheCleanupItem> verifiedItems,
+        bool deleteVerifiedImmediately = false)
     {
+        if (deleteVerifiedImmediately)
+        {
+            return new RecordingCacheCleanupPlan(
+                verifiedItems
+                    .Select(item => item.Id)
+                    .Distinct()
+                    .ToArray(),
+                0,
+                0);
+        }
+
         requiredHeadroomBytes = Math.Max(0, requiredHeadroomBytes);
         if (!RequiresCleanup(snapshot, requiredHeadroomBytes))
         {
@@ -136,6 +148,9 @@ internal static class RecordingWorkstationCachePolicy
 
         return new RecordingCacheCleanupPlan(selected, targetBytes, projectedBytes);
     }
+
+    internal static bool ShouldDeleteVerifiedCacheImmediately(string? policy) =>
+        string.Equals(policy, "DeleteImmediately", StringComparison.Ordinal);
 
     internal static bool RequiresCleanup(
         RecordingCacheSpaceSnapshot snapshot,
@@ -172,9 +187,7 @@ internal static class RecordingWorkstationCachePolicy
 
                 bool isSystemDrive = StorageSpacePolicy.IsSystemDrive(
                     drive.RootDirectory.FullName);
-                string suggestedPath = GetSuggestedPath(
-                    drive.RootDirectory.FullName,
-                    isSystemDrive);
+                string suggestedPath = GetSuggestedPath(drive.RootDirectory.FullName);
                 candidates.Add(new RecordingCacheDriveCandidate(
                     drive.RootDirectory.FullName,
                     suggestedPath,
@@ -221,7 +234,7 @@ internal static class RecordingWorkstationCachePolicy
                 Priority = 0
             }
         ];
-        config.RecordingCachePolicy = "KeepWithinSize";
+        config.RecordingCachePolicy = "DeleteImmediately";
         if (config.RecordingCacheMaxGB <= 0)
             config.RecordingCacheMaxGB = DefaultLimitGB;
         return true;
@@ -233,17 +246,8 @@ internal static class RecordingWorkstationCachePolicy
             .OrderBy(location => location.Priority)
             .FirstOrDefault();
 
-    internal static string GetSuggestedPath(string rootPath, bool isSystemDrive)
-    {
-        if (isSystemDrive)
-        {
-            string videosPath = Environment.GetFolderPath(
-                Environment.SpecialFolder.MyVideos);
-            if (!string.IsNullOrWhiteSpace(videosPath))
-                return Path.Combine(videosPath, AppConfig.DefaultStorageFolderName);
-        }
-        return Path.Combine(rootPath, AppConfig.DefaultStorageFolderName);
-    }
+    internal static string GetSuggestedPath(string rootPath) =>
+        Path.Combine(rootPath, AppConfig.DefaultStorageFolderName);
 
     private static bool ProbeDirectoryWritable(string path)
     {

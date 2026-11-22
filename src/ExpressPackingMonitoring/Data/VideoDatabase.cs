@@ -2157,7 +2157,9 @@ namespace ExpressPackingMonitoring.Data
                 sourceDeviceName, mode);
         }
 
-        public List<VideoRecord> GetCompletedPcVideosForTransfer(int limit = 500)
+        public List<VideoRecord> GetCompletedPcVideosForTransfer(
+            int limit = 500,
+            long afterId = 0)
         {
             if (limit <= 0) return new List<VideoRecord>();
             lock (_lock)
@@ -2178,6 +2180,7 @@ namespace ExpressPackingMonitoring.Data
                            DeleteReasonCode
                     FROM VideoRecords
                     WHERE SourceType = 'pc'
+                       AND Id > @afterId
                       AND IsDeleted = 0
                       AND StorageState = 'Local'
                       AND EndTime IS NOT NULL
@@ -2186,8 +2189,9 @@ namespace ExpressPackingMonitoring.Data
                       AND NOT EXISTS (
                           SELECT 1 FROM RecordingTransferQueue q
                           WHERE q.LocalVideoRecordId = VideoRecords.Id)
-                    ORDER BY StartTime ASC, Id ASC
+                     ORDER BY Id ASC
                     LIMIT @limit;";
+                cmd.Parameters.AddWithValue("@afterId", Math.Max(0, afterId));
                 cmd.Parameters.AddWithValue("@limit", limit);
                 using var reader = cmd.ExecuteReader();
                 var result = new List<VideoRecord>();

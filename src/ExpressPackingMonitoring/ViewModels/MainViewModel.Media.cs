@@ -97,7 +97,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     },
                     videosImported: () =>
                     {
-                        _recordingTransferService?.EnqueueCompletedRecordings();
+                        _recordingTransferService?
+                            .RequestCompletedRecordingsScan();
                         RefreshRecordingTransferSummary();
                         RunRecordingCacheCleanup();
                     },
@@ -304,6 +305,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         DeleteAudioDiagnostic(Path.ChangeExtension(mkvPath, ".audio.log"));
                         _db.ClearMkvConversionFailure(mkvPath);
                         _db.UpdateVideoFilePath(mkvPath, mp4Path);
+                        _recordingTransferService?
+                            .RequestEnqueueCompletedRecording(activeRecord.Id);
                         _archiveService?.Wake();
                         batchResult.SuccessCount++;
                         batchResult.AddFinalFile(mkvPath, mp4Path);
@@ -371,6 +374,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     DeleteEmbeddedAudioMarker(mkvPath);
                     _db.ClearMkvConversionFailure(mkvPath);
                     _db.UpdateVideoFilePath(mkvPath, mp4Path);
+                    _recordingTransferService?
+                        .RequestEnqueueCompletedRecording(activeRecord.Id);
                     _archiveService?.Wake();
                     batchResult.SuccessCount++;
                     batchResult.AddFinalFile(mkvPath, mp4Path);
@@ -430,6 +435,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (conversionResult.Success)
                 {
+                    _recordingTransferService?
+                        .RequestEnqueueCompletedRecording(activeRecord.Id);
                     _archiveService?.Wake();
                     batchResult.SuccessCount++;
                     batchResult.AddFinalFile(

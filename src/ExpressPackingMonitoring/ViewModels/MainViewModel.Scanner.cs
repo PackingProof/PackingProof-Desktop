@@ -1017,9 +1017,10 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (IsRecording)
                 {
+                    long stoppedRecordId = _currentRecordId;
                     _scanAudit?.RecordStopRequested(ScanStopOrigin.ManualButton);
                     await StopWithManualAnnouncementAsync();
-                    QueuePostStopMux("手动停止");
+                    QueuePostStopMux("手动停止", stoppedRecordId);
                     CurrentOrderId = "";
                     ScanInputText = "";
                     ShowToast("已手动停止录制");
@@ -1332,8 +1333,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         return;
                     }
                     AnnounceStopTriggered();
+                    long stoppedRecordId = _currentRecordId;
                     await InternalStopRecordingAsync(playCompletionBeep: false);
-                    QueuePostStopMux("同码停录");
+                    QueuePostStopMux("同码停录", stoppedRecordId);
                     CurrentOrderId = "";
                     ScanInputText = "";
                     ShowToast("单号匹配，已停止录制");
@@ -1461,8 +1463,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         && ReferenceEquals(_sameCodePostRollCts, owner)
                         && IsRecording)
                     {
+                        long stoppedRecordId = _currentRecordId;
                         await InternalStopRecordingAsync(playCompletionBeep: false);
-                        QueuePostStopMux("同码停录");
+                        QueuePostStopMux("同码停录", stoppedRecordId);
                         CurrentOrderId = "";
                         ScanInputText = "";
                     }

@@ -96,6 +96,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (IsCompletedConcurrentMkvConversion(mkvPath, concurrentMp4Path))
                     {
                         _db?.UpdateVideoFilePath(mkvPath, concurrentMp4Path);
+                        _recordingTransferService?
+                            .RequestEnqueueCompletedRecording(recordId);
                         RuntimeLog.Info(
                             "MkvToMp4",
                             $"Conversion already completed by another task, preserving MP4 file={Path.GetFileName(concurrentMp4Path)}");
@@ -105,7 +107,14 @@ namespace ExpressPackingMonitoring.ViewModels
                     return MkvConversionResult.Fail("MKV 文件不存在", mkvPath);
                 }
                 if (!mkvPath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (recordId > 0)
+                    {
+                        _recordingTransferService?
+                            .RequestEnqueueCompletedRecording(recordId);
+                    }
                     return MkvConversionResult.Ok(mkvPath, alreadyConverted: true);
+                }
 
                 string mp4Path = Path.ChangeExtension(mkvPath, ".mp4");
                 MkvAudioMuxPlan audioPlan = ResolveMkvAudioMuxPlan(mkvPath);
@@ -145,6 +154,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         DeleteAudioDiagnostic(audioLogPath);
                         DeleteEmbeddedAudioMarker(mkvPath);
                         _db?.UpdateVideoFilePath(mkvPath, mp4Path);
+                        _recordingTransferService?
+                            .RequestEnqueueCompletedRecording(recordId);
                         return MkvConversionResult.Ok(mp4Path, alreadyConverted: true);
                     }
                     if (validationPassed)
@@ -249,6 +260,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     DeleteAudioDiagnostic(audioLogPath);
                     DeleteEmbeddedAudioMarker(mkvPath);
                     _db?.UpdateVideoFilePath(mkvPath, mp4Path);
+                    _recordingTransferService?
+                        .RequestEnqueueCompletedRecording(recordId);
                     RuntimeLog.Info("MkvToMp4", $"Converted file={Path.GetFileName(mkvPath)}, audio={(requireAudio ? "yes" : "no")}");
                     return MkvConversionResult.Ok(mp4Path);
                 }

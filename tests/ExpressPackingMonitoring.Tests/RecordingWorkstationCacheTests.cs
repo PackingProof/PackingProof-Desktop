@@ -2,6 +2,7 @@ using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.ViewModels;
 using Microsoft.Data.Sqlite;
 using System.Globalization;
 using System.Text;
@@ -62,6 +63,27 @@ public sealed class RecordingWorkstationCacheTests
         ];
 
         Assert.Null(RecordingWorkstationCachePolicy.SelectPreferredDrive(candidates));
+    }
+
+    [Fact]
+    public void SuggestedPath_UsesDriveRootInsteadOfUserVideosFolder()
+    {
+        Assert.Equal(
+            @"C:\PackingProofVideos",
+            RecordingWorkstationCachePolicy.GetSuggestedPath(@"C:\"));
+    }
+
+    [Theory]
+    [InlineData("DeleteImmediately", true)]
+    [InlineData("KeepWithinSize", false)]
+    [InlineData("KeepDays", false)]
+    public void VerifiedCacheDeletionMode_OnlyMatchesImmediatePolicy(
+        string policy,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            RecordingWorkstationCachePolicy.ShouldDeleteVerifiedCacheImmediately(policy));
     }
 
     [Fact]
@@ -158,6 +180,30 @@ public sealed class RecordingWorkstationCacheTests
         Assert.True(plan.ProjectedCacheBytes > plan.TargetCacheBytes);
     }
 
+    [Fact]
+    public void CreateCleanupPlan_ImmediatePolicyRemovesVerifiedFilesBelowCapacityThreshold()
+    {
+        DateTime now = new(2026, 7, 30, 12, 0, 0, DateTimeKind.Utc);
+        RecordingCacheSpaceSnapshot snapshot =
+            RecordingWorkstationCachePolicy.CalculateSpace(
+                cacheBytes: 10 * GiB,
+                configuredLimitBytes: 100 * GiB,
+                availableBytes: 50 * GiB,
+                reserveBytes: 20 * GiB);
+
+        RecordingCacheCleanupPlan plan =
+            RecordingWorkstationCachePolicy.CreateCleanupPlan(
+                snapshot,
+                2 * GiB,
+                [
+                    new(7, now.AddHours(-1), GiB / 2),
+                    new(8, now, GiB / 4)
+                ],
+                deleteVerifiedImmediately: true);
+
+        Assert.Equal([7L, 8L], plan.ItemIds);
+    }
+
     [Theory]
     [InlineData(50, 100, 50, 20, false)]
     [InlineData(79, 100, 50, 20, false)]
@@ -244,10 +290,108 @@ public sealed class RecordingWorkstationCacheTests
         AppConfig.NormalizeAfterLoad(configured);
 
         Assert.Equal(40, configured.RecordingCacheMaxGB);
+        Assert.Equal("DeleteImmediately", configured.RecordingCachePolicy);
+    }
+
+    [Fact]
+    public void NormalizeAfterLoad_PrefersDriveRootOverLegacyUserVideosDefault()
+    {
+        string videosRoot = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(videosRoot))
+            return;
+
+        string legacyPath = Path.Combine(videosRoot, AppConfig.DefaultStorageFolderName);
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+            DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion,
+            StorageLocations =
+            [
+                new StorageLocation { Path = legacyPath, Priority = 0 },
+                new StorageLocation { Path = AppConfig.DefaultStoragePath, Priority = 1 }
+            ]
+        };
+
+        AppConfig.NormalizeAfterLoad(config);
+
+        StorageLocation[] ordered = config.StorageLocations
+            .OrderBy(location => location.Priority)
+            .ToArray();
+        Assert.Equal(AppConfig.DefaultStoragePath, ordered[0].Path);
+        Assert.Equal(legacyPath, ordered[1].Path);
+        Assert.Equal(
+            AppConfig.CurrentRecordingCacheDefaultPathVersion,
+            config.RecordingCacheDefaultPathVersion);
+    }
+
+    [Fact]
+    public void NormalizeAfterLoad_DefaultPathMigrationDoesNotDriftWhenRepeated()
+    {
+        string videosRoot = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(videosRoot))
+            return;
+
+        string legacyPath = Path.Combine(videosRoot, AppConfig.DefaultStorageFolderName);
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+            DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion,
+            StorageLocations =
+            [
+                new StorageLocation { Path = legacyPath, Priority = 0 },
+                new StorageLocation { Path = AppConfig.DefaultStoragePath, Priority = 1 }
+            ]
+        };
+
+        AppConfig.NormalizeAfterLoad(config);
+        StorageLocation preferred = config.StorageLocations.Single(location =>
+            string.Equals(
+                location.Path,
+                AppConfig.DefaultStoragePath,
+                StringComparison.OrdinalIgnoreCase));
+        StorageLocation legacy = config.StorageLocations.Single(location =>
+            string.Equals(
+                location.Path,
+                legacyPath,
+                StringComparison.OrdinalIgnoreCase));
+        int preferredPriority = preferred.Priority;
+        int legacyPriority = legacy.Priority;
+
+        config.RecordingCacheDefaultPathVersion = 0;
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.Equal(preferredPriority, preferred.Priority);
+        Assert.Equal(legacyPriority, legacy.Priority);
+    }
+
+    [Fact]
+    public void RecordingCacheCleanupIncludesRetiredDefaultRoot()
+    {
+        string tempRoot = CreateTempDirectory();
+        try
+        {
+            string currentRoot = Path.Combine(tempRoot, "current");
+            string legacyRoot = Path.Combine(tempRoot, "legacy");
+
+            Assert.Equal(
+                [Path.GetFullPath(currentRoot), Path.GetFullPath(legacyRoot)],
+                MainViewModel.GetRecordingCacheCleanupRoots(
+                    currentRoot,
+                    legacyRoot));
+            Assert.Equal(
+                [Path.GetFullPath(currentRoot)],
+                MainViewModel.GetRecordingCacheCleanupRoots(
+                    currentRoot,
+                    currentRoot));
+        }
+        finally
+        {
+            DeleteTempDirectory(tempRoot);
+        }
     }
 
     [Theory]
-    [InlineData(DeploymentPresets.RecordingWorkstation, "KeepDays", "KeepWithinSize")]
+    [InlineData(DeploymentPresets.RecordingWorkstation, "KeepDays", "DeleteImmediately")]
     [InlineData(DeploymentPresets.RecordingHost, "KeepDays", "KeepDays")]
     [InlineData(DeploymentPresets.MobileBackupHost, "DeleteImmediately", "DeleteImmediately")]
     public void NormalizeAfterLoad_IsolatesCachePolicyByRole(
@@ -317,6 +461,10 @@ public sealed class RecordingWorkstationCacheTests
         Assert.Contains("Header=\"{loc:Localized 存储路径}\"", cacheTab, StringComparison.Ordinal);
         Assert.Contains("Header=\"{loc:Localized 录像空间上限}\"", cacheTab, StringComparison.Ordinal);
         Assert.Contains("DataContext.Config.RecordingCacheMaxGB", cacheTab, StringComparison.Ordinal);
+        Assert.Contains(
+            "{loc:Localized 备份确认后会自动清理已上传的录像，未上传的录像会保留}",
+            cacheTab,
+            StringComparison.Ordinal);
         Assert.Contains("Content=\"更改磁盘\"", cacheTab, StringComparison.Ordinal);
         Assert.Contains("IsEnabled=\"{Binding Capabilities.CanConfigureStorage}\"", cacheTab, StringComparison.Ordinal);
         Assert.DoesNotContain("<StackPanel IsEnabled=\"{Binding Capabilities.CanConfigureStorage}\">", cacheTab, StringComparison.Ordinal);
@@ -326,6 +474,16 @@ public sealed class RecordingWorkstationCacheTests
         Assert.DoesNotContain("立即删除", cacheTab, StringComparison.Ordinal);
         Assert.DoesNotContain("RecordingCachePolicy", cacheTab, StringComparison.Ordinal);
         Assert.DoesNotContain("RecordingCacheKeepDays", cacheTab, StringComparison.Ordinal);
+
+        string settingsCode = ReadRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "SettingsWindow.xaml.cs");
+        Assert.DoesNotContain(
+            "RecordingCachePolicy = \"KeepWithinSize\"",
+            settingsCode,
+            StringComparison.Ordinal);
     }
 
     [Fact]

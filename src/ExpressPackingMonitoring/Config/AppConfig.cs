@@ -160,6 +160,7 @@ namespace ExpressPackingMonitoring.Config
         public const int CurrentWebProtectionSetupVersion = 1;
         public const int CurrentDeletedVideoVisibilitySetupVersion = 1;
         public const int CurrentStorageReserveSchemaVersion = 1;
+        public const int CurrentRecordingCacheDefaultPathVersion = 1;
         public const int CurrentZoomDwellSetupVersion = 1;
 
         /// <summary>放大停留时间的当前默认值（秒）</summary>
@@ -277,6 +278,7 @@ namespace ExpressPackingMonitoring.Config
         public int DeletedVideoVisibilitySetupVersion { get; set; }
         /// <summary>磁盘预留口径版本：1 起不再沿用历史"容量上限"反推出来的预留值</summary>
         public int StorageReserveSchemaVersion { get; set; }
+        public int RecordingCacheDefaultPathVersion { get; set; }
 
         // 放大停留时间的旧默认值迁移版本：只在升级后的第一次加载按旧默认值改写，
         // 之后用户自己选的 1 秒 / 3 秒要保留。
@@ -825,7 +827,7 @@ namespace ExpressPackingMonitoring.Config
             }
             string normalizedCachePolicy =
                 normalizedPreset == DeploymentPresets.RecordingWorkstation
-                    ? "KeepWithinSize"
+                    ? "DeleteImmediately"
                     : config.RecordingCachePolicy switch
                     {
                         "DeleteImmediately" => "DeleteImmediately",
@@ -935,6 +937,17 @@ namespace ExpressPackingMonitoring.Config
                     config.StorageLocations.Add(new StorageLocation { Path = legacyDefault, Priority = 0 });
                 else
                     config.StorageLocations.AddRange(CreateDefaultStorageLocations());
+                changed = true;
+            }
+
+            if (normalizedPreset == DeploymentPresets.RecordingWorkstation
+                && config.RecordingCacheDefaultPathVersion
+                    < CurrentRecordingCacheDefaultPathVersion)
+            {
+                if (MigrateRecordingCacheDefaultPath(config))
+                    changed = true;
+                config.RecordingCacheDefaultPathVersion =
+                    CurrentRecordingCacheDefaultPathVersion;
                 changed = true;
             }
 
@@ -1649,6 +1662,56 @@ namespace ExpressPackingMonitoring.Config
         /// Windows 没有这种卷，返回 null 表示不做此限制。
         /// </summary>
         private static string? ReadOnlySystemRoot => OperatingSystem.IsMacOS() ? "/" : null;
+
+        private static bool MigrateRecordingCacheDefaultPath(AppConfig config)
+        {
+            if (!OperatingSystem.IsWindows())
+                return false;
+
+            string? legacyPath = LegacyRecordingCachePath;
+            if (legacyPath == null)
+                return false;
+
+            StorageLocation? legacy = config.StorageLocations.FirstOrDefault(location =>
+                IsSamePath(location.Path, legacyPath));
+            if (legacy == null)
+                return false;
+
+            string preferredPath = DefaultStoragePath;
+            StorageLocation? preferred = config.StorageLocations.FirstOrDefault(location =>
+                IsSamePath(location.Path, preferredPath));
+            if (preferred != null && preferred.Priority < legacy.Priority)
+                return false;
+            if (preferred == null)
+            {
+                preferred = new StorageLocation
+                {
+                    Path = preferredPath,
+                    ReserveGB = StorageSpacePolicy.GetDefaultReserveGB(preferredPath),
+                    Priority = legacy.Priority
+                };
+                config.StorageLocations.Add(preferred);
+            }
+
+            int preferredPriority = preferred.Priority;
+            preferred.Priority = legacy.Priority;
+            legacy.Priority = Math.Max(preferredPriority, preferred.Priority + 1);
+            return true;
+        }
+
+        internal static string? LegacyRecordingCachePath
+        {
+            get
+            {
+                if (!OperatingSystem.IsWindows())
+                    return null;
+                string videosRoot = Environment.GetFolderPath(
+                    Environment.SpecialFolder.MyVideos);
+                return string.IsNullOrWhiteSpace(videosRoot)
+                    ? null
+                    : Path.Combine(videosRoot, DefaultStorageFolderName);
+            }
+        }
 
         /// <summary>
         /// 清掉落在只读系统卷根下的保存位置。旧版把 Windows 默认值（D:\快递打包视频 一类）

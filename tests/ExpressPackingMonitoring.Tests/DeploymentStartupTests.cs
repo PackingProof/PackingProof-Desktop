@@ -1004,7 +1004,7 @@ public sealed class DeploymentStartupTests
         Assert.Contains("ChangeBoundHost(owner);", transferSource, StringComparison.Ordinal);
         Assert.Contains("ShowMobileConnection(owner);", transferSource, StringComparison.Ordinal);
         Assert.Contains(
-            "_recordingTransferService?.EnqueueCompletedRecordings();",
+            "_recordingTransferService?.RetryNow();",
             transferSource,
             StringComparison.Ordinal);
         Assert.Matches(
@@ -1028,7 +1028,7 @@ public sealed class DeploymentStartupTests
         string method = source[methodStart..methodEnd];
         int conversion = method.IndexOf("await BatchConvertMkvToMp4Async", StringComparison.Ordinal);
         int enqueue = method.IndexOf(
-            "_recordingTransferService?.EnqueueCompletedRecordings();",
+            ".RequestEnqueueCompletedRecording(",
             StringComparison.Ordinal);
 
         Assert.True(conversion >= 0);

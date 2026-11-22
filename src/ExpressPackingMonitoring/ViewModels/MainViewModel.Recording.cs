@@ -332,6 +332,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         string durStr = durSec < 60 ? $"{durSec}s" : $"{(int)durSec / 60}m {durSec % 60}s";
 
                         _db?.UpdateVideoRecordOnStop(recordId, DateTime.Now, durSec, fileSize, stopReason, videoCodec, videoEncoder);
+                        _recordingTransferService?
+                            .RequestEnqueueCompletedRecording(recordId);
                         _scanAudit?.RecordRecordingFinished(
                             recordId,
                             stopOrigin: _stopOrigin,

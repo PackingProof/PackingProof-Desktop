@@ -794,7 +794,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private CancellationTokenSource _barcode2CooldownCts;
         private bool _barcode1OnCooldown;
         private bool _barcode2OnCooldown;
-        private void QueuePostStopMux(string reason)
+        private void QueuePostStopMux(string reason, long recordId)
         {
             if (_isDisposed)
                 return;
@@ -814,7 +814,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     var result = await BatchConvertMkvToMp4Async(
                         new Progress<string>(msg => Debug.WriteLine($"[PostStopMux] {msg}")),
                         CancellationToken.None).ConfigureAwait(false);
-                    _recordingTransferService?.EnqueueCompletedRecordings();
+                    _recordingTransferService?
+                        .RequestEnqueueCompletedRecording(recordId);
 
                     RuntimeLog.Info(
                         "MkvToMp4",
@@ -840,6 +841,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!await _recorderLock.WaitAsync(0)) return;
             try
             {
+                long stoppedRecordId = _currentRecordId;
                 if (isManual)
                 {
                     _scanAudit?.RecordStopRequested(ScanStopOrigin.ManualButton);
@@ -850,7 +852,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     await InternalStopRecordingAsync();
                 }
                 if (mergeAfterStop)
-                    QueuePostStopMux(isManual ? "手动停止" : "最终停止");
+                {
+                    QueuePostStopMux(
+                        isManual ? "手动停止" : "最终停止",
+                        stoppedRecordId);
+                }
                 if (isManual)
                 {
                     CurrentOrderId = "";

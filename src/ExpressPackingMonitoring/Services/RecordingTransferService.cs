@@ -27,6 +27,10 @@ internal sealed record RecordingTransferHostHealth(
 
 internal sealed class RecordingTransferService : IDisposable
 {
+    private const int EnqueueBatchSize = 500;
+    private const int MaxEnqueueBatchesPerPass = 10;
+    private const int DeferredRecordingRecheckBatchSize = 32;
+
     private readonly record struct ChunkUploadResult(
         bool Completed,
         long Offset);
@@ -50,8 +54,16 @@ internal sealed class RecordingTransferService : IDisposable
     private readonly ManualResetEventSlim _operationsIdle = new(initialState: true);
     private readonly object _lifecycleLock = new();
     private readonly object _hostHealthLock = new();
+    private readonly object _enqueueScanLock = new();
+    private readonly ConcurrentQueue<long> _completedRecordingEvents = new();
+    private readonly SortedSet<long> _deferredRecordingIds = [];
     private readonly ConcurrentDictionary<string, bool> _uploadVideoCodecSupport = new(StringComparer.OrdinalIgnoreCase);
     private Task? _worker;
+    private long _enqueueScanAfterId;
+    private long _deferredRecheckAfterId;
+    private int _recheckAllDeferredRecordingsRequested;
+    private int _completedRecordingScanRequested;
+    private int _retryFailedTasksRequested;
     private int _processing;
     private int _activeOperations;
     private int _resourcesDisposed;
@@ -122,6 +134,7 @@ internal sealed class RecordingTransferService : IDisposable
                     $"Retry-exhausted uploads restored count={revived}; host={config.LastKnownHostNodeId}");
             }
         }
+        Interlocked.Exchange(ref _completedRecordingScanRequested, 1);
         _worker ??= Task.Run(() => WorkerLoopAsync(_cts.Token));
         Signal();
     }
@@ -129,31 +142,58 @@ internal sealed class RecordingTransferService : IDisposable
     public int EnqueueCompletedRecordings()
     {
         AppConfig config = _configProvider();
-        if (!IsRecordingWorkstation(config)
-            || string.IsNullOrWhiteSpace(config.LastKnownHostNodeId)
-            || string.IsNullOrWhiteSpace(config.LastKnownHostAddress)
-            || !HasUsableHostCredential(config))
-        {
+        if (!CanTransferToConfiguredHost(config))
             return 0;
-        }
 
         int added = 0;
-        foreach (VideoRecord record in _database.GetCompletedPcVideosForTransfer())
+        lock (_enqueueScanLock)
         {
-            if (!File.Exists(record.FilePath))
-                continue;
-
-            string sourceSessionId = ResolveSessionId(config, record);
-            if (_store.Enqueue(
-                    record.Id,
-                    record.FilePath,
-                    sourceSessionId,
-                    config.LastKnownHostNodeId,
-                    config.LastKnownHostAddress,
-                    DateTime.UtcNow))
+            long afterId = _enqueueScanAfterId;
+            bool scanComplete = false;
+            for (int batch = 0; batch < MaxEnqueueBatchesPerPass; batch++)
             {
-                added++;
+                List<VideoRecord> records = _database.GetCompletedPcVideosForTransfer(
+                    EnqueueBatchSize,
+                    afterId);
+                if (records.Count == 0)
+                {
+                    scanComplete = true;
+                    break;
+                }
+
+                foreach (VideoRecord record in records)
+                {
+                    afterId = record.Id;
+                    if (!File.Exists(record.FilePath))
+                    {
+                        _deferredRecordingIds.Add(record.Id);
+                        continue;
+                    }
+
+                    string sourceSessionId = ResolveSessionId(config, record);
+                    if (_store.Enqueue(
+                            record.Id,
+                            record.FilePath,
+                            sourceSessionId,
+                            config.LastKnownHostNodeId,
+                            config.LastKnownHostAddress,
+                            DateTime.UtcNow))
+                    {
+                        added++;
+                    }
+                }
+
+                _enqueueScanAfterId = afterId;
+                if (records.Count < EnqueueBatchSize)
+                {
+                    scanComplete = true;
+                    break;
+                }
             }
+
+            added += ProcessCompletedRecordingEventsLocked(config);
+            if (!scanComplete)
+                RequestCompletedRecordingsScan();
         }
 
         if (added > 0)
@@ -164,11 +204,130 @@ internal sealed class RecordingTransferService : IDisposable
         return added;
     }
 
+    internal int ProcessCompletedRecordingEvents()
+    {
+        if (_completedRecordingEvents.IsEmpty
+            && Volatile.Read(ref _recheckAllDeferredRecordingsRequested) == 0)
+        {
+            return 0;
+        }
+        AppConfig config = _configProvider();
+        if (!CanTransferToConfiguredHost(config))
+            return 0;
+
+        int added;
+        lock (_enqueueScanLock)
+            added = ProcessCompletedRecordingEventsLocked(config);
+        if (added > 0)
+            RuntimeLog.Info(
+                "RecordingTransfer",
+                $"Queued completed recordings from event count={added}");
+        return added;
+    }
+
+    private int ProcessCompletedRecordingEventsLocked(AppConfig config)
+    {
+        bool recheckAllDeferred =
+            Interlocked.Exchange(
+                ref _recheckAllDeferredRecordingsRequested,
+                0) != 0;
+        bool processDeferred = recheckAllDeferred;
+        int added = 0;
+        while (_completedRecordingEvents.TryDequeue(out long recordId))
+        {
+            processDeferred = true;
+            added += EnqueueCompletedRecording(config, recordId);
+        }
+        if (processDeferred)
+        {
+            IReadOnlyList<long> deferredIds;
+            if (recheckAllDeferred)
+            {
+                deferredIds = _deferredRecordingIds.ToArray();
+                _deferredRecheckAfterId = 0;
+            }
+            else
+            {
+                deferredIds = _deferredRecordingIds
+                    .Where(recordId => recordId > _deferredRecheckAfterId)
+                    .Take(DeferredRecordingRecheckBatchSize)
+                    .ToArray();
+                if (deferredIds.Count == 0 && _deferredRecheckAfterId > 0)
+                {
+                    _deferredRecheckAfterId = 0;
+                    deferredIds = _deferredRecordingIds
+                        .Take(DeferredRecordingRecheckBatchSize)
+                        .ToArray();
+                }
+                if (deferredIds.Count > 0)
+                    _deferredRecheckAfterId = deferredIds[^1];
+            }
+            foreach (long recordId in deferredIds)
+            {
+                added += EnqueueCompletedRecording(config, recordId);
+            }
+        }
+        return added;
+    }
+
+    private int EnqueueCompletedRecording(AppConfig config, long recordId)
+    {
+        _deferredRecordingIds.Remove(recordId);
+        VideoRecord? record = _database.GetVideoById(recordId);
+        if (record == null
+            || !string.Equals(record.SourceType, "pc", StringComparison.OrdinalIgnoreCase)
+            || record.EndTime == default
+            || !string.Equals(record.StorageState, "Local", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                Path.GetExtension(record.FilePath),
+                ".mp4",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+        if (!File.Exists(record.FilePath))
+        {
+            _deferredRecordingIds.Add(recordId);
+            return 0;
+        }
+
+        string sourceSessionId = ResolveSessionId(config, record);
+        return _store.Enqueue(
+            record.Id,
+            record.FilePath,
+            sourceSessionId,
+            config.LastKnownHostNodeId,
+            config.LastKnownHostAddress,
+            DateTime.UtcNow)
+                ? 1
+                : 0;
+    }
+
     public void RetryNow()
     {
-        _store.RetryFailedNow(DateTime.UtcNow);
+        Interlocked.Exchange(
+            ref _recheckAllDeferredRecordingsRequested,
+            1);
+        Interlocked.Exchange(ref _retryFailedTasksRequested, 1);
         lock (_hostHealthLock)
             _nextHostProbeAt = DateTimeOffset.UtcNow;
+        Signal();
+    }
+
+    internal void RequestEnqueueCompletedRecording(long recordId)
+    {
+        if (recordId <= 0)
+            return;
+        _completedRecordingEvents.Enqueue(recordId);
+        Signal();
+    }
+
+    internal void RequestCompletedRecordingsScan()
+    {
+        Interlocked.Exchange(ref _completedRecordingScanRequested, 1);
+        Interlocked.Exchange(
+            ref _recheckAllDeferredRecordingsRequested,
+            1);
         Signal();
     }
 
@@ -335,7 +494,22 @@ internal sealed class RecordingTransferService : IDisposable
         {
             try
             {
-                EnqueueCompletedRecordings();
+                if (Interlocked.Exchange(
+                        ref _retryFailedTasksRequested,
+                        0) != 0)
+                {
+                    _store.RetryFailedNow(DateTime.UtcNow);
+                }
+                if (Interlocked.Exchange(
+                        ref _completedRecordingScanRequested,
+                        0) != 0)
+                {
+                    EnqueueCompletedRecordings();
+                }
+                else
+                {
+                    ProcessCompletedRecordingEvents();
+                }
                 await ProcessReadyOnceAsync(cancellationToken).ConfigureAwait(false);
                 TimeSpan wait = TimeSpan.FromSeconds(15);
                 RecordingTransferHostHealth health = GetHostHealth();
@@ -1190,6 +1364,12 @@ internal sealed class RecordingTransferService : IDisposable
         !string.IsNullOrWhiteSpace(config.LastKnownHostAccessKey)
         && config.LastKnownHostBackupAuthVersion
             >= BackupRequestAuthentication.CurrentVersion;
+
+    private static bool CanTransferToConfiguredHost(AppConfig config) =>
+        IsRecordingWorkstation(config)
+        && !string.IsNullOrWhiteSpace(config.LastKnownHostNodeId)
+        && !string.IsNullOrWhiteSpace(config.LastKnownHostAddress)
+        && HasUsableHostCredential(config);
 
     private void SetHostHealth(
         HostConnectionState state,

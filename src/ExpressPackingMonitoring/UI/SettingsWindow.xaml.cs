@@ -355,14 +355,7 @@ namespace ExpressPackingMonitoring.UI
                 [
                     new StorageLocation
                     {
-                        Path = Path.Combine(
-                            string.IsNullOrWhiteSpace(
-                                Environment.GetFolderPath(
-                                    Environment.SpecialFolder.MyVideos))
-                                ? AppPaths.UserDataDir
-                                : Environment.GetFolderPath(
-                                    Environment.SpecialFolder.MyVideos),
-                            AppConfig.DefaultStorageFolderName),
+                        Path = AppConfig.DefaultStoragePath,
                         Priority = 0
                     }
                 ];
@@ -854,12 +847,8 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
-            bool isSystemDrive =
-                StorageSpacePolicy.IsSystemDrive(dialog.SelectedRootPath);
             string selectedPath =
-                RecordingWorkstationCachePolicy.GetSuggestedPath(
-                    dialog.SelectedRootPath,
-                    isSystemDrive);
+                RecordingWorkstationCachePolicy.GetSuggestedPath(dialog.SelectedRootPath);
             (bool prepareSucceeded, string errorMessage) =
                 await TryPrepareStoragePathAsync(selectedPath);
             if (_isClosing) return;

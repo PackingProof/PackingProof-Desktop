@@ -184,6 +184,79 @@ public sealed class RecordingTransferCardStateTests
     }
 
     [Fact]
+    public void UiEventPathsWakeTheBackgroundTransferWorker()
+    {
+        string root = FindRepositoryRoot();
+        string transferViewModel = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Transfer.cs"));
+        string mediaViewModel = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Media.cs"));
+
+        Assert.DoesNotContain(
+            "EnqueueCompletedRecordings(",
+            transferViewModel,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "EnqueueCompletedRecordings(",
+            mediaViewModel,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            ".RequestCompletedRecordingsScan()",
+            mediaViewModel,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CompletedRecordingEnqueueUsesEventsInsteadOfPeriodicRescan()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "Services",
+            "RecordingTransferService.cs"));
+
+        Assert.DoesNotContain(
+            "CompletedRecordingFullRescan",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "ShouldRestartCompletedRecordingScan",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "RequestEnqueueCompletedRecording(",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ProcessCompletedRecordingEvents(",
+            source,
+            StringComparison.Ordinal);
+
+        int retryStart = source.IndexOf(
+            "public void RetryNow()",
+            StringComparison.Ordinal);
+        int retryEnd = source.IndexOf(
+            "internal void RequestEnqueueCompletedRecording",
+            retryStart,
+            StringComparison.Ordinal);
+        Assert.True(retryStart >= 0 && retryEnd > retryStart);
+        string retryMethod = source[retryStart..retryEnd];
+        Assert.DoesNotContain(
+            "_store.",
+            retryMethod,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TransferSummaryQueryRunsOffTheUiThread()
     {
         string source = File.ReadAllText(Path.Combine(
