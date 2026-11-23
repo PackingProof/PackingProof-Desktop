@@ -81,8 +81,6 @@ public sealed class InputPasteButtonRenderTests
     {
         RunOnStaThread(() =>
         {
-            LoadAppResources();
-
             SetClipboard("中通快递  45564646464646464");
 
             var box = new TextBox { Text = "旧内容" };
@@ -181,29 +179,9 @@ public sealed class InputPasteButtonRenderTests
 
     private static void RunOnStaThread(Action action)
     {
-        Exception? failure = null;
-        var thread = new Thread(() =>
+        WpfTestHost.Run(() =>
         {
-            try
-            {
-                if (Application.Current == null)
-                    _ = new Application();
-                // 每个用例自己把 App.xaml 那套合并资源装好：以前有的用例靠别的用例先设过
-                // Application.Current.Resources 才通过，换 SDK/框架后执行顺序一变就必现失败。
-                LoadAppResources();
-                action();
-            }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA 线程执行超时");
-        if (failure != null)
-        {
-            var detail = new StringBuilder();
-            for (Exception? current = failure; current != null; current = current.InnerException)
-                detail.AppendLine($"{current.GetType().Name}: {current.Message}");
-            throw new Xunit.Sdk.XunitException($"粘贴按钮渲染失败：{detail}");
-        }
+            action();
+        }, TimeSpan.FromSeconds(60), "STA 线程执行超时");
     }
 }

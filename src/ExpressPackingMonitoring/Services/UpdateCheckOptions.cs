@@ -9,8 +9,8 @@ namespace ExpressPackingMonitoring.Services
     {
         public const string UrlKey = "UPDATE_CHECK_URL";
         public const string FallbackUrlKey = "UPDATE_CHECK_FALLBACK_URL";
-        internal const string DefaultGiteeCheckUrl = UpdateEndpointPolicy.DefaultGiteeCheckUrl;
-        internal const string DefaultGithubCheckUrl = UpdateEndpointPolicy.DefaultGithubCheckUrl;
+        internal static readonly string DefaultGiteeCheckUrl = UpdateEndpointPolicy.DefaultGiteeCheckUrl;
+        internal static readonly string DefaultGithubCheckUrl = UpdateEndpointPolicy.DefaultGithubCheckUrl;
 
         public static string GetUpdateCheckUrl()
         {

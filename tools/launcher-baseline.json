@@ -1,23 +1,30 @@
 {
   "schema_version": 1,
   "protocol_version": 1,
-  "version": "0.0.105",
-  "tag": "launcher-v0.0.105",
-  "release_tag": "v0.0.105",
+  "version": "0.0.108",
+  "tag": "launcher-v0.0.108",
+  "artifact_prefix": "PackingProof",
+  "release_tag": "v0.0.108",
   "runtime": "win-x64",
   "update_check_url": "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest",
-  "source_fingerprint": "54bc68a67acba0052c78cf83090eaa1d60e6d63e8cfeec84e267d436c2033e9f",
+  "source_fingerprint": "06173f8e5a54bc3f63bfe6d28f8dffb66290e76cd3fd46cab975c858b9389f80",
+  "brand_profile_sha256": "1bcac8d0b7b05358ddedd8a7272e4b270ddbe25451a537aba0957bf57f503c98",
   "fingerprint_files": [
     "ExpressPackingMonitoring.Launcher/Program.cs",
     "ExpressPackingMonitoring.Launcher/ExpressPackingMonitoring.Launcher.csproj",
     "ExpressPackingMonitoring.UpdateCore/ExpressPackingMonitoring.UpdateCore.csproj",
-    "ExpressPackingMonitoring/app.ico",
     "Tools/Install-LauncherPatch.cmd",
     "Tools/Apply-LauncherPatch.ps1",
+    "Branding/Brand.props",
     "ExpressPackingMonitoring.UpdateCore/AppPatchPayloadPolicy.cs",
+    "ExpressPackingMonitoring.UpdateCore/BrandMetadata.cs",
+    "ExpressPackingMonitoring.UpdateCore/BrandText.cs",
     "ExpressPackingMonitoring.UpdateCore/LauncherProtocol.cs",
     "ExpressPackingMonitoring.UpdateCore/PackageDownloadRoutePolicy.cs",
     "ExpressPackingMonitoring.UpdateCore/PortableExecutableCetPolicy.cs",
+    "ExpressPackingMonitoring.UpdateCore/ProductCapabilities.cs",
+    "ExpressPackingMonitoring.UpdateCore/ProductRoleCapabilities.cs",
+    "ExpressPackingMonitoring.UpdateCore/ProductWebRouteGroups.cs",
     "ExpressPackingMonitoring.UpdateCore/ResumableFileDownload.cs",
     "ExpressPackingMonitoring.UpdateCore/RuntimeLayoutSeeder.cs",
     "ExpressPackingMonitoring.UpdateCore/SharedRuntimeLayout.cs",
@@ -28,10 +35,10 @@
     "ExpressPackingMonitoring.UpdateCore/UpdateReleaseSelection.cs"
   ],
   "package": {
-    "file": "PackingProof_LauncherPatch_v0.0.105.zip",
-    "size": 3230757,
-    "sha256": "23ece49e7391f322a7bc9791cc558bda4054e23beb027b68f5a490b2cdb598e4",
-    "executable_size": 7045632,
-    "executable_sha256": "63bba12846ba706aa44a812c32576e87bcad335a4fd1a29ca4f470869c66c8c0"
+    "file": "PackingProof_LauncherPatch_v0.0.108.zip",
+    "size": 3295883,
+    "sha256": "914a75105f73a9e2588d1a5df78e2bc8c7fc27daf16d8eadb4a6bad06ee00f0b",
+    "executable_size": 7197184,
+    "executable_sha256": "241e09619adaccbd77f117f98747a10b924bd9a368284d76de9faba9a6a10999"
   }
 }

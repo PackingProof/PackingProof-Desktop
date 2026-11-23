@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
 using System.Reflection;
 using Xunit;
@@ -21,31 +23,10 @@ public sealed class PlaybackWindowRenderTests
     /// <summary>WPF 控件必须在 STA 线程上创建，测试宿主默认 MTA。</summary>
     private static void RunOnStaThread(Action action)
     {
-        Exception? failure = null;
-        var thread = new Thread(() =>
+        WpfTestHost.Run(() =>
         {
-            try
-            {
-                // pack:// 方案要有 Application 实例才注册得上；
-                // 测试宿主不是 WPF 程序，这里自己建一个。
-                if (Application.Current == null)
-                    _ = new Application();
-                LoadAppResources();
-                action();
-            }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA 线程执行超时");
-        if (failure != null)
-        {
-            var detail = new System.Text.StringBuilder();
-            for (Exception? current = failure; current != null; current = current.InnerException)
-                detail.AppendLine($"{current.GetType().Name}: {current.Message}");
-            detail.AppendLine(failure.StackTrace);
-            throw new Xunit.Sdk.XunitException($"回放窗口构造失败：{detail}");
-        }
+            action();
+        }, TimeSpan.FromSeconds(60), "STA 线程执行超时");
     }
 
     /// <summary>与 App.xaml 相同的合并顺序，否则窗口里的资源键解析不到。</summary>
@@ -85,6 +66,75 @@ public sealed class PlaybackWindowRenderTests
             window.Measure(new Size(1400, 900));
             window.Arrange(new Rect(0, 0, 1400, 900));
             window.UpdateLayout();
+        });
+    }
+
+    [Fact]
+    public void MediaTabs_DefaultToAllAndFallBackToVideoWithoutPhotoStore()
+    {
+        RunOnStaThread(() =>
+        {
+            var videoOnlyWindow = new PlaybackWindow(
+                Path.GetTempPath(),
+                null,
+                true,
+                "本机");
+            var allWindow = new PlaybackWindow(
+                Path.GetTempPath(),
+                null,
+                true,
+                "本机",
+                photoStore: new ExpressPackingMonitoring.Data.PhotoStore(
+                    Path.Combine(
+                        Path.GetTempPath(),
+                        "packingproof-media-tabs-" + Guid.NewGuid().ToString("N") + ".db")));
+            var importableWindow = new PlaybackWindow(
+                Path.GetTempPath(),
+                null,
+                true,
+                videoImportService: new VideoFolderImportService(
+                    new VideoDatabase(":memory:"),
+                    [Path.GetTempPath()],
+                    sourceDeviceId: "test-device",
+                    sourceDeviceName: "测试设备"),
+                photoStore: new PhotoStore(
+                    Path.Combine(
+                        Path.GetTempPath(),
+                        "packingproof-media-import-" + Guid.NewGuid().ToString("N") + ".db")));
+            try
+            {
+                Button videoOnlyAll = Assert.IsType<Button>(
+                    videoOnlyWindow.FindName("AllMediaTabButton"));
+                Button videoOnlyVideo = Assert.IsType<Button>(
+                    videoOnlyWindow.FindName("VideoMediaTabButton"));
+                Assert.Equal(Visibility.Collapsed, videoOnlyAll.Visibility);
+                Assert.Equal(
+                    videoOnlyWindow.FindResource("AccentBlue"),
+                    videoOnlyVideo.Background);
+
+                Button all = Assert.IsType<Button>(
+                    allWindow.FindName("AllMediaTabButton"));
+                Assert.Equal(Visibility.Visible, all.Visibility);
+                Assert.Equal(allWindow.FindResource("AccentBlue"), all.Background);
+
+                Button photo = Assert.IsType<Button>(
+                    importableWindow.FindName("PhotoMediaTabButton"));
+                Button allFromPhoto = Assert.IsType<Button>(
+                    importableWindow.FindName("AllMediaTabButton"));
+                Button import = Assert.IsType<Button>(
+                    importableWindow.FindName("BtnImportVideos"));
+                Assert.Equal(Visibility.Visible, import.Visibility);
+                photo.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.Equal(Visibility.Collapsed, import.Visibility);
+                allFromPhoto.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.Equal(Visibility.Visible, import.Visibility);
+            }
+            finally
+            {
+                videoOnlyWindow.Close();
+                allWindow.Close();
+                importableWindow.Close();
+            }
         });
     }
 
@@ -207,6 +257,73 @@ public sealed class PlaybackWindowRenderTests
                 if (File.Exists(path))
                     File.Delete(path);
             }
+        });
+    }
+
+    [Fact]
+    public void PhotoPreviewSupportsWheelZoomAndLeftButtonPanning()
+    {
+        RunOnStaThread(() =>
+        {
+            string photoDbPath = Path.Combine(
+                Path.GetTempPath(),
+                "packingproof-photo-preview-" + Guid.NewGuid().ToString("N") + ".db");
+            var window = new PlaybackWindow(
+                Path.GetTempPath(),
+                null,
+                true,
+                "本机",
+                photoStore: new PhotoStore(photoDbPath));
+            BitmapSource preview = BitmapSource.Create(
+                800,
+                600,
+                96,
+                96,
+                PixelFormats.Bgra32,
+                null,
+                new byte[800 * 600 * 4],
+                800 * 4);
+            preview.Freeze();
+            window.ApplyMixedLibraryPreviewForTest(
+                null,
+                [
+                    new PhotoRecord(
+                        1,
+                        "SF-PREVIEW",
+                        "发货",
+                        Path.Combine(Path.GetTempPath(), "preview.jpg"),
+                        DateTimeOffset.Now,
+                        "device-1",
+                        "电脑1",
+                        800,
+                        600,
+                        1024,
+                        false,
+                        "",
+                        "",
+                        "Completed")
+                ],
+                preview);
+
+            var viewport = Assert.IsType<Grid>(
+                window.FindName("PhotoPreviewViewport"));
+            Assert.Equal(Visibility.Visible, viewport.Visibility);
+            viewport.Measure(new Size(800, 600));
+            viewport.Arrange(new Rect(0, 0, 800, 600));
+            viewport.UpdateLayout();
+            window.ZoomPhotoPreviewForTest(120, 800, 400);
+            Assert.True(window.PhotoPreviewScaleForTest > 1);
+
+            window.PanPhotoPreviewForTest(60, 40);
+            Vector translated = window.PhotoPreviewTranslationForTest;
+            Assert.NotEqual(0, translated.X);
+            Assert.NotEqual(0, translated.Y);
+
+            for (int index = 0; index < 20; index++)
+                window.ZoomPhotoPreviewForTest(-120, 800, 400);
+            Assert.Equal(1, window.PhotoPreviewScaleForTest, precision: 3);
+            Assert.Equal(new Vector(0, 0), window.PhotoPreviewTranslationForTest);
+            window.Content = null;
         });
     }
 

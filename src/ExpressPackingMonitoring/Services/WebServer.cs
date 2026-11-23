@@ -19,6 +19,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using ExpressPackingMonitoring.Services.Extensions;
+using ExpressPackingMonitoring.UpdateCore;
 using Microsoft.Win32;
 
 namespace ExpressPackingMonitoring.Services
@@ -176,6 +177,9 @@ namespace ExpressPackingMonitoring.Services
         private const int MaxOrderBroadcastTargets = 8;
         private HttpListener _listener;
         private readonly VideoDatabase _db;
+        private readonly PhotoStore _photoStore;
+        private readonly Func<long, Task> _photoDeleteHandler;
+        private readonly Func<long, Task> _photoArchiveRetryAsync;
         private readonly Func<bool> _isRecordingProvider;
         private readonly Func<string> _currentRecordingFileProvider;
         private readonly Func<VideoRecord, MkvConversionResult> _mkvConverter;
@@ -225,7 +229,13 @@ namespace ExpressPackingMonitoring.Services
         private readonly string _nodeId;
         private readonly string _nodeName;
         private readonly string _deploymentPreset;
-        private readonly bool _orderReceiverOnly;
+        private readonly EffectiveProductCapabilities _effectiveCapabilities;
+        private readonly WebFeatureGate _webFeatureGate;
+        private int _requestAdmissionEnabled = 1;
+        private readonly object _admissionSync = new();
+        private int _admittedRequests;
+        private readonly ManualResetEventSlim _admittedRequestsIdle =
+            new(initialState: true);
         private sealed record BackupDeviceEnrollmentOperation(
             BackupDeviceEnrollmentApprovalDecision Decision,
             BackupDeviceEnrollment Enrollment = null);
@@ -277,6 +287,26 @@ namespace ExpressPackingMonitoring.Services
         internal event Action<string, IReadOnlyList<RecordingExtensionField>> RecordingExtensionDataChanged;
         internal event Action<IReadOnlyList<ConnectedClientInfo>> ConnectedClientsChanged;
         internal event Action<MobileAppUpdateAvailableInfo> MobileAppUpdateAvailable;
+        internal bool HasActiveClipTasks => _clipService.HasActiveTasks;
+
+        internal void PauseRequestAdmission()
+        {
+            lock (_admissionSync)
+                Volatile.Write(ref _requestAdmissionEnabled, 0);
+        }
+
+        internal void ResumeRequestAdmission()
+        {
+            lock (_admissionSync)
+                Volatile.Write(ref _requestAdmissionEnabled, 1);
+        }
+
+        internal async Task<bool> WaitForAdmittedRequestsIdleAsync(
+            TimeSpan timeout,
+            CancellationToken cancellationToken = default) =>
+            await Task.Run(
+                () => _admittedRequestsIdle.Wait(timeout, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
         internal event Action<string, string> MobileBackupCompleted;
         internal event Action<bool> MobileBackupActivityChanged;
 
@@ -305,7 +335,7 @@ namespace ExpressPackingMonitoring.Services
 
         public WebServer(
             VideoDatabase db,
-            int port = 5280,
+            int port = 0,
             int transCacheMaxMB = 1024,
             Func<bool> isRecordingProvider = null,
             Func<VideoRecord, MkvConversionResult> mkvConverter = null,
@@ -328,9 +358,16 @@ namespace ExpressPackingMonitoring.Services
             bool nodeNameCustomized = false,
             Func<BackupDeviceEnrollmentRequest, BackupDeviceEnrollmentApprovalDecision> backupDeviceEnrollmentApprover = null,
             string userscriptDirectory = null,
-            Func<IReadOnlyList<string>> validatedEncodersProvider = null)
+            Func<IReadOnlyList<string>> validatedEncodersProvider = null,
+            EffectiveProductCapabilities effectiveCapabilities = null,
+            PhotoStore photoStore = null,
+            Func<long, Task> photoDeleteHandler = null,
+            Func<long, Task> photoArchiveRetryAsync = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
+            _photoStore = photoStore;
+            _photoDeleteHandler = photoDeleteHandler;
+            _photoArchiveRetryAsync = photoArchiveRetryAsync;
             _mobileAppUpdateRefreshScheduler =
                 new MobileAppUpdateRefreshScheduler(_mobileAppUpdatePolicy);
             _isRecordingProvider = isRecordingProvider ?? (() => false);
@@ -350,7 +387,9 @@ namespace ExpressPackingMonitoring.Services
             _deploymentPreset = DeploymentPresets.IsKnown(deploymentPreset)
                 ? DeploymentPresets.Normalize(deploymentPreset)
                 : DeploymentPresets.RecordingHost;
-            _orderReceiverOnly = orderReceiverOnly;
+            _effectiveCapabilities = effectiveCapabilities
+                ?? ProductCapabilityRuntime.ForPreset(_deploymentPreset);
+            _webFeatureGate = new WebFeatureGate(_effectiveCapabilities);
             _backupDeviceEnrollmentApprover = backupDeviceEnrollmentApprover;
             _clipService = new VideoClipService(
                 _db,
@@ -360,7 +399,7 @@ namespace ExpressPackingMonitoring.Services
                 () => Task.Run(CleanWebCache),
                 _ffmpegWorkLimiter,
                 validatedEncodersProvider);
-            Port = port;
+            Port = port is > 0 and <= 65535 ? port : BrandMetadata.WebServerPort;
             _transCacheMaxBytes = (long)transCacheMaxMB * 1024 * 1024;
             _extensionRecordingQueries = new ExtensionRecordingQueryService(
                 _db,
@@ -491,6 +530,11 @@ namespace ExpressPackingMonitoring.Services
 
         public void Start(bool allowAccessSetup = false)
         {
+            if (!_effectiveCapabilities.WebHostEnabled)
+            {
+                throw new InvalidOperationException(
+                    "当前软件能力不允许启动 Web 服务");
+            }
             if (IsTcpPortInUse(Port))
             {
                 throw new InvalidOperationException(
@@ -541,7 +585,8 @@ namespace ExpressPackingMonitoring.Services
                     throw;
                 }
             }
-            _mobileAppUpdateRefreshScheduler.Start();
+            if (_effectiveCapabilities.Features.MobileApp)
+                _mobileAppUpdateRefreshScheduler.Start();
             _listenTask = Task.Run(() => ListenLoop(_cts.Token));
             _videoCodecBackfillTask = Task.Run(() => BackfillVideoCodecsAsync(_cts.Token));
             StartUdpDiscoveryResponder();
@@ -590,15 +635,17 @@ namespace ExpressPackingMonitoring.Services
 
         private void StartUdpDiscoveryResponder()
         {
-            bool isHost = PackingProofCapabilities.ForPreset(_deploymentPreset)
-                .Contains(PackingProofCapabilities.Host, StringComparer.OrdinalIgnoreCase);
-            if (!isHost)
+            if (!_effectiveCapabilities.IsHost)
                 return;
 
             _udpDiscoveryResponder = new UdpDiscoveryResponder(
                 _nodeId,
                 () => Port,
-                () => true);
+                () => true,
+                webHostEnabledProvider: () => _effectiveCapabilities.WebHostEnabled,
+                routeGroupsProvider: () => _effectiveCapabilities.WebHost.EnabledGroups
+                    .Select(group => group.Name)
+                    .ToArray());
             _udpDiscoveryResponder.Start();
         }
 
@@ -648,8 +695,8 @@ namespace ExpressPackingMonitoring.Services
             ConfigureLanAccess(port, includeUrlAcl: true);
         }
 
-        internal const string FirewallRuleName = "快递打包监控 Web服务";
-        internal const string UdpFirewallRuleName = "快递打包监控 设备发现";
+        internal static string FirewallRuleName => WebBrandIdentity.FirewallRuleName;
+        internal static string UdpFirewallRuleName => WebBrandIdentity.UdpFirewallRuleName;
 
         private const uint ScManagerConnect = 0x0001;
         private const uint ServiceQueryStatus = 0x0004;
@@ -888,11 +935,11 @@ namespace ExpressPackingMonitoring.Services
             LanAccessFailureKind failureKind = ResolveLanAccessFailureKind(exception);
             if (failureKind == LanAccessFailureKind.WindowsFirewallServiceUnavailable)
             {
-                return "Windows Defender Firewall 服务未开启，手机和其他电脑暂时无法连接，本机功能不受影响。请在 Windows“服务”中启动“Windows Defender Firewall”，然后重新修复；如果该服务由安全软件或组织策略管理，请在对应软件中允许 PackingProof 的局域网和防火墙修改";
+                return BrandText.Apply("Windows Defender Firewall 服务未开启，手机和其他电脑暂时无法连接，本机功能不受影响。请在 Windows“服务”中启动“Windows Defender Firewall”，然后重新修复；如果该服务由安全软件或组织策略管理，请在对应软件中允许 PackingProof 的局域网和防火墙修改");
             }
             if (failureKind == LanAccessFailureKind.BaseFilteringEngineUnavailable)
             {
-                return "Windows 的“Base Filtering Engine”服务未开启，防火墙无法配置，手机和其他电脑暂时无法连接，本机功能不受影响。请在 Windows“服务”中启动“Base Filtering Engine”和“Windows Defender Firewall”，然后重新修复；如果服务由安全软件或组织策略管理，请在对应软件中允许 PackingProof 的局域网和防火墙修改";
+                return BrandText.Apply("Windows 的“Base Filtering Engine”服务未开启，防火墙无法配置，手机和其他电脑暂时无法连接，本机功能不受影响。请在 Windows“服务”中启动“Base Filtering Engine”和“Windows Defender Firewall”，然后重新修复；如果服务由安全软件或组织策略管理，请在对应软件中允许 PackingProof 的局域网和防火墙修改");
             }
 
             if (repairAttempted)
@@ -976,11 +1023,23 @@ namespace ExpressPackingMonitoring.Services
         private async Task HandleRequest(HttpListenerContext ctx)
         {
             IDisposable requestLease = null;
+            bool admittedRequest = false;
             try
             {
                 string path = ctx.Request.Url?.AbsolutePath?.TrimEnd('/') ?? "";
                 string method = ctx.Request.HttpMethod;
                 OrderPushDiagnostics.LogRequest(method, path, ctx.Request.RemoteEndPoint?.ToString(), EnableOrderInfoLog, WriteLog);
+
+                if (!TryBeginAdmittedRequest())
+                {
+                    SendJson(ctx, 503, new
+                    {
+                        errorCode = "mode_transition",
+                        error = "正在切换电脑用途，请稍后重试"
+                    });
+                    return;
+                }
+                admittedRequest = true;
 
                 LanRequestCategory requestCategory = ClassifyRequest(method, path);
                 if (!_requestRateLimiter.TryEnter(
@@ -1000,7 +1059,7 @@ namespace ExpressPackingMonitoring.Services
                 }
 
                 ApplyCorsHeaders(ctx);
-                ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
+                ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
                 ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Content-Range, X-EPM-Access-Key, X-EPM-Auth-Version, X-EPM-App-Version, X-EPM-Timestamp, X-EPM-Nonce, X-EPM-Content-SHA256, X-EPM-Signature, X-EPM-Device-Id, X-EPM-Device-Name, X-EPM-Device-Kind, X-EPM-Device-Platform, X-Chunk-SHA256, X-PackingProof-Extension-Version, X-PackingProof-Extension-Id, X-PackingProof-Extension-Credential-Generation, X-PackingProof-Extension-Timestamp, X-PackingProof-Extension-Nonce, X-PackingProof-Extension-Content-SHA256, X-PackingProof-Extension-Signature");
 
                 if (method == "POST")
@@ -1030,9 +1089,15 @@ namespace ExpressPackingMonitoring.Services
                     return;
                 }
 
-                if (_orderReceiverOnly && !IsOrderReceiverPathAllowed(path, method))
+                WebFeatureGateDecision featureDecision =
+                    _webFeatureGate.Evaluate(path, method);
+                if (!featureDecision.Allowed)
                 {
-                    SendJson(ctx, 404, new { error = "Not Found" });
+                    SendJson(ctx, featureDecision.StatusCode, new
+                    {
+                        errorCode = featureDecision.ErrorCode,
+                        capability = featureDecision.Capability
+                    });
                     return;
                 }
 
@@ -1072,7 +1137,14 @@ namespace ExpressPackingMonitoring.Services
                     return;
                 }
 
-                if (_requireAccessKey && RequiresAccessKey(path) && !isSignedExtensionRequest)
+                bool trustedLegacyOrderInfo =
+                    path == "/api/orderinfo"
+                    && System.Net.IPAddress.IsLoopback(
+                        ctx.Request.RemoteEndPoint.Address);
+                if (_requireAccessKey
+                    && RequiresAccessKey(path)
+                    && !isSignedExtensionRequest
+                    && !trustedLegacyOrderInfo)
                 {
                     bool authorized = TryAuthorizeRequest(ctx, out bool authorizedByQuery);
                     if (!authorized)
@@ -1093,8 +1165,11 @@ namespace ExpressPackingMonitoring.Services
 
                 switch (path)
                 {
-                    case "" or "/":
+                    case "" or "/" when _effectiveCapabilities.Features.RemoteMediaAccess:
                         ServeIndexPage(ctx);
+                        break;
+                    case "" or "/":
+                        ServeIntegrationPage(ctx);
                         break;
                     case "/api/node-info" when method == "GET":
                         HandleNodeInfo(ctx);
@@ -1108,6 +1183,25 @@ namespace ExpressPackingMonitoring.Services
                         break;
                     case "/api/videos":
                         HandleSearchVideos(ctx);
+                        break;
+                    case "/api/photos" when method == "GET":
+                        HandlePhotoSearch(ctx);
+                        break;
+                    case var p when method == "GET"
+                        && TryParsePhotoPath(p, "/thumbnail", out long photoThumbnailId):
+                        HandleServePhoto(ctx, photoThumbnailId, thumbnail: true);
+                        break;
+                    case var p when method == "GET"
+                        && TryParsePhotoPath(p, "/download", out long photoDownloadId):
+                        HandleServePhoto(ctx, photoDownloadId, thumbnail: false);
+                        break;
+                    case var p when method == "POST"
+                        && TryParsePhotoPath(p, "/archive/retry", out long photoRetryId):
+                        HandleRetryPhotoArchive(ctx, photoRetryId);
+                        break;
+                    case var p when method == "DELETE"
+                        && TryParsePhotoId(p, out long photoDeleteId):
+                        HandleDeletePhoto(ctx, photoDeleteId);
                         break;
                     case "/api/video-sources" when method == "GET":
                         HandleVideoSources(ctx);
@@ -1302,6 +1396,8 @@ namespace ExpressPackingMonitoring.Services
             }
             finally
             {
+                if (admittedRequest)
+                    EndAdmittedRequest();
                 requestLease?.Dispose();
                 _authenticatedRequestBodies.TryRemove(ctx, out _);
                 _authenticatedExtensionContexts.TryRemove(ctx, out _);
@@ -1335,6 +1431,7 @@ namespace ExpressPackingMonitoring.Services
                 return false;
             return path == ""
                 || path.StartsWith("/api/videos", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/api/photos", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/api/video-sources", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/api/storage", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/api/clip", StringComparison.OrdinalIgnoreCase)
@@ -1344,6 +1441,9 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleNodeInfo(HttpListenerContext ctx)
         {
+            IReadOnlyList<string> legacyCapabilities =
+                ProductCapabilityProtocolMapper.ToLegacyCapabilities(
+                    _effectiveCapabilities);
             SendJson(ctx, 200, new PackingProofNodeInfo
             {
                 Protocol = PackingProofNodeInfo.ExpectedProtocol,
@@ -1351,12 +1451,17 @@ namespace ExpressPackingMonitoring.Services
                 NodeId = _nodeId,
                 NodeName = _nodeName,
                 Preset = _deploymentPreset,
-                Capabilities = PackingProofCapabilities.ForPreset(_deploymentPreset).ToList(),
+                Capabilities = legacyCapabilities.ToList(),
+                CapabilitySchemaVersion = ProductCapabilitySchemaVersion.Current,
+                WebHostEnabled = _effectiveCapabilities.WebHostEnabled,
+                WebRouteGroups = _effectiveCapabilities.WebHost.EnabledGroups
+                    .Select(group => group.Name)
+                    .ToList(),
+                Features = WebFeatureGate.CreateBrowserSnapshot(
+                    _effectiveCapabilities),
                 HttpPort = Port,
                 AccessProtected = _requireAccessKey,
-                BackupCompatibility = PackingProofCapabilities.ForPreset(_deploymentPreset).Contains(
-                    PackingProofCapabilities.MobileBackup,
-                    StringComparer.OrdinalIgnoreCase)
+                BackupCompatibility = _effectiveCapabilities.Features.MobileBackupReceive
                         ? BackupCompatibilityPolicy.CreateHostInfo()
                         : null
             });
@@ -1640,9 +1745,7 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleBackupDeviceEnrollment(HttpListenerContext ctx)
         {
-            if (!PackingProofCapabilities.ForPreset(_deploymentPreset).Contains(
-                    PackingProofCapabilities.MobileBackup,
-                    StringComparer.OrdinalIgnoreCase))
+            if (!_effectiveCapabilities.Features.MobileBackupReceive)
             {
                 SendJson(ctx, 409, new { errorCode = "not_backup_host", error = "这台电脑当前不是录像文件备份主机" });
                 return;
@@ -1868,270 +1971,31 @@ namespace ExpressPackingMonitoring.Services
                 _requestsIdle.Set();
         }
 
+        private bool TryBeginAdmittedRequest()
+        {
+            lock (_admissionSync)
+            {
+                if (Volatile.Read(ref _requestAdmissionEnabled) == 0)
+                    return false;
+                if (Interlocked.Increment(ref _admittedRequests) == 1)
+                    _admittedRequestsIdle.Reset();
+                return true;
+            }
+        }
+
+        private void EndAdmittedRequest()
+        {
+            if (Interlocked.Decrement(ref _admittedRequests) == 0)
+                _admittedRequestsIdle.Set();
+        }
+
         private static string SafeDeviceId(string deviceId) =>
             deviceId.Length <= 8 ? deviceId : $"...{deviceId[^8..]}";
 
-        private void HandleMobileBackupCapabilities(HttpListenerContext ctx)
-        {
-            string deviceId = ctx.Request.Headers["X-EPM-Device-Id"];
-            string deviceName = ctx.Request.Headers["X-EPM-Device-Name"];
-            try { deviceName = Uri.UnescapeDataString(deviceName ?? ""); } catch { }
-            MobileOrderReceiverInfo registeredDevice = _mobileOrderReceivers.Register(
-                ctx.Request.RemoteEndPoint?.Address,
-                deviceId,
-                deviceName,
-                deviceKind: VideoSourceNameResolver.ReadDeviceKind(ctx.Request.Headers),
-                platform: VideoSourceNameResolver.ReadDevicePlatform(ctx.Request.Headers));
-            HostUploadStorageAvailability storage =
-                _mobileBackupService.GetStorageAvailability();
-            SendJson(ctx, 200, new
-            {
-                protocol = MobileBackupService.ProtocolVersion,
-                version = 2,
-                authVersion = BackupRequestAuthentication.CurrentVersion,
-                computerId = _mobileBackupComputerId,
-                computerName = _mobileBackupComputerName,
-                deviceName = registeredDevice?.NodeName ?? deviceName,
-                maxChunkBytes = MobileBackupService.ChunkSizeBytes,
-                supportedFormats = new[] { "video/mp4" },
-                storageAvailability = new
-                {
-                    available = storage.IsAvailable,
-                    state = storage.State,
-                    retryAfterSeconds = storage.RetryAfterSeconds,
-                    reservedBytes = storage.ReservedBytes
-                },
-                features = new
-                    {
-                    videoLibrary = true,
-                    cursorVideoLibrary = true,
-                    rangePlayback = true,
-                    multipleSessionsPerFile = false,
-                    libraryScope = "host",
-                    deviceVideoClipping = true,
-                    uploadVideoCodec = true,
-                    storageBackpressure = true
-                },
-                retryPolicy = new
-                {
-                    chunkMaxAttempts = 5,
-                    chunkBackoffSeconds = new[] { 1, 2, 4, 8, 16 },
-                    fileMaxAttempts = 3
-                }
-            });
-        }
-
-        private void HandleConnectionHeartbeat(HttpListenerContext ctx)
-        {
-            try
-            {
-                bool hasSignature = !string.IsNullOrWhiteSpace(
-                    ctx.Request.Headers[BackupRequestAuthentication.SignatureHeader]);
-                if (hasSignature
-                    && !TryAuthorizeSignedBackupRequest(
-                        ctx,
-                        out bool missingBackupKey,
-                        registerAuthorizedClient: false))
-                {
-                    SendJson(ctx, missingBackupKey ? 401 : 403, new
-                    {
-                        errorCode = missingBackupKey
-                            ? "enrollment_required"
-                            : "device_token_invalid",
-                        error = missingBackupKey
-                            ? "需要重新连接备份主机"
-                            : "设备令牌无效，请重新连接"
-                    });
-                    return;
-                }
-                ConnectedClientHeartbeat heartbeat = ReadJsonBody<ConnectedClientHeartbeat>(ctx);
-                if (RejectIncompatibleWorkstationHeartbeat(ctx, heartbeat))
-                    return;
-                if (_authenticatedDeviceIds.TryGetValue(ctx, out string authenticatedDeviceId))
-                {
-                    heartbeat.ClientId = authenticatedDeviceId;
-                    heartbeat.NodeId = authenticatedDeviceId;
-                }
-                string remoteAddress = ctx.Request.RemoteEndPoint?.Address.ToString() ?? "unknown";
-                string assignedDisplayName = "";
-                if (string.Equals(heartbeat.ClientType, "recording-workstation", StringComparison.OrdinalIgnoreCase))
-                {
-                    assignedDisplayName = _recordingComputerNicknames.Assign(
-                        heartbeat.NodeId,
-                        heartbeat.DisplayName,
-                        heartbeat.NicknameCustomized);
-                    heartbeat.DisplayName = assignedDisplayName;
-                }
-                if (heartbeat.Connected != false
-                    && string.Equals(heartbeat.ClientType, "mobile-app", StringComparison.OrdinalIgnoreCase)
-                    && IPAddress.TryParse(remoteAddress, out IPAddress mobileAddress))
-                {
-                    MobileOrderReceiverInfo registeredDevice = _mobileOrderReceivers.Register(
-                        mobileAddress,
-                        heartbeat.NodeId,
-                        heartbeat.DisplayName,
-                        heartbeat.OrderReceiverPort,
-                        heartbeat.Capabilities,
-                        deviceKind: heartbeat.DeviceType,
-                        platform: heartbeat.Platform);
-                    assignedDisplayName = registeredDevice?.NodeName
-                        ?? heartbeat.DisplayName?.Trim()
-                        ?? "";
-                    heartbeat.DisplayName = assignedDisplayName;
-                }
-                _connectedClients.Heartbeat(heartbeat, remoteAddress);
-                OfficialUserscriptMigrationService.Shared.ObserveHeartbeat(heartbeat);
-                _ = _mobileAppUpdatePolicy.RefreshInBackground();
-                NotifyMobileAppUpdateIfNeeded(heartbeat);
-                MobileAppUpdatePolicy updatePolicy = MobileAppUpdatePolicyProvider.MinimumPolicy;
-                MobileAppReleaseInfo latestRelease =
-                    MobileAppUpdatePolicyProvider.SelectLatestReleaseForPlatform(
-                        heartbeat.Platform,
-                        _mobileAppUpdatePolicy.LatestRelease,
-                        _mobileAppUpdatePolicy.LatestIosRelease);
-                string platform = (heartbeat.Platform ?? "").Trim().ToLowerInvariant();
-                SendJson(ctx, 200, new
-                {
-                    ok = true,
-                    assignedDisplayName = assignedDisplayName.Length > 0 ? assignedDisplayName : null,
-                    // 与注册响应同一份电脑名：主机改名后手机端靠心跳就能刷新"已连接电脑"。
-                    computerName = _nodeName,
-                    heartbeatIntervalSeconds = ConnectedClientRegistry.HeartbeatIntervalSeconds,
-                    expiresInSeconds = ConnectedClientRegistry.ExpirationSeconds,
-                    mobileAppUpdate = new
-                    {
-                        schemaVersion = updatePolicy.SchemaVersion,
-                        minimumVersion = updatePolicy.MinimumVersion,
-                        minimumBuildNumber = updatePolicy.MinimumBuildNumber,
-                        message = updatePolicy.Message,
-                        latestVersion = latestRelease?.Version ?? "",
-                        latestBuildNumber = latestRelease?.BuildNumber ?? 0,
-                        latestTag = latestRelease?.TagName ?? "",
-                        latestPlatform = latestRelease?.Platform ?? "",
-                        downloadUrl = latestRelease?.DownloadUrl
-                            ?? (platform == "ios"
-                                ? MobileAppUpdatePolicyProvider.TestFlightJoinUrl
-                                : MobileAppUpdatePolicyProvider.ReleasesUrl)
-                    }
-                });
-            }
-            catch (ConnectedClientValidationException ex)
-            {
-                int statusCode = ex.ErrorCode is "connection_registry_full" or "too_many_clients" ? 429 : 400;
-                SendJson(ctx, statusCode, new { errorCode = ex.ErrorCode, error = ex.Message });
-            }
-            catch (JsonException ex)
-            {
-                SendJson(ctx, 400, new { errorCode = "invalid_json", error = ex.Message });
-            }
-        }
-
-        internal IReadOnlyList<ConnectedClientInfo> GetConnectedClients() => _connectedClients.GetSnapshot();
-
-        internal HostUploadStorageAvailability GetMobileBackupStorageAvailability() =>
-            _mobileBackupService.GetStorageAvailability();
-
-        internal IReadOnlyList<MobileBackupDeviceDirectoryEntry> GetMobileBackupDeviceDirectory()
-        {
-            var devices = new Dictionary<string, MobileBackupDeviceDirectoryEntry>(
-                StringComparer.OrdinalIgnoreCase);
-            IReadOnlySet<string> removedDeviceIds =
-                GetRemovedSourceDeviceIds();
-            foreach (MobileOrderReceiverInfo mobile in _mobileOrderReceivers.GetKnownRecordingDevices())
-            {
-                if (!BackupDeviceIdentity.IsRemote(mobile.NodeId, _nodeId))
-                    continue;
-                DateTimeOffset? lastSeen = mobile.LastSeenUtc == default
-                    ? null
-                    : new DateTimeOffset(
-                        DateTime.SpecifyKind(mobile.LastSeenUtc, DateTimeKind.Utc));
-                devices[mobile.NodeId] = new MobileBackupDeviceDirectoryEntry(
-                    mobile.NodeId,
-                    mobile.NodeName,
-                    mobile.Online,
-                    lastSeen);
-            }
-
-            foreach (ConnectedClientInfo client in _connectedClients.GetSnapshot())
-            {
-                if (!string.Equals(client.ClientType, "mobile-app", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(
-                        client.ClientType,
-                        "recording-workstation",
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                string deviceId = string.IsNullOrWhiteSpace(client.NodeId)
-                    ? client.ClientId
-                    : client.NodeId;
-                if (!BackupDeviceIdentity.IsRemote(deviceId, _nodeId)
-                    || removedDeviceIds.Contains(deviceId))
-                    continue;
-                devices.TryGetValue(
-                    deviceId,
-                    out MobileBackupDeviceDirectoryEntry existing);
-                string displayName = client.DisplayName;
-                if (string.IsNullOrWhiteSpace(displayName) && existing != null)
-                    displayName = existing.DisplayName;
-                devices[deviceId] = new MobileBackupDeviceDirectoryEntry(
-                    deviceId,
-                    displayName,
-                    true,
-                    client.LastSeenUtc);
-            }
-
-            return devices.Values.ToArray();
-        }
-
-        internal IReadOnlyList<OrderIntegrationDeviceStatus> GetOrderIntegrationDeviceStatuses()
-        {
-            IReadOnlyDictionary<string, OrderIntegrationActivity> activities =
-                _orderIntegrationActivities.GetSnapshot();
-            var statuses = GetRecordingDevices("", includeKnown: true)
-                .Where(device => device.Online || activities.ContainsKey(device.NodeId))
-                .Select(device =>
-                {
-                    activities.TryGetValue(device.NodeId, out OrderIntegrationActivity activity);
-                    return new OrderIntegrationDeviceStatus(
-                        device.NodeId,
-                        device.NodeName,
-                        device.DeviceType,
-                        device.Online,
-                        activity?.LastActivityUtc,
-                        activity?.ReceivedCount ?? 0);
-                })
-                .ToList();
-            HashSet<string> knownNodeIds = statuses
-                .Select(device => device.NodeId)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            HashSet<string> onlineNodeIds = _connectedClients.GetSnapshot()
-                .Where(client => string.Equals(client.ClientType, "recording-workstation", StringComparison.OrdinalIgnoreCase))
-                .Select(client => client.NodeId)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (RecordingComputerNicknameInfo computer in _recordingComputerNicknames.GetKnown())
-            {
-                if (!knownNodeIds.Add(computer.NodeId)) continue;
-                activities.TryGetValue(computer.NodeId, out OrderIntegrationActivity activity);
-                bool online = onlineNodeIds.Contains(computer.NodeId);
-                if (!online && activity == null) continue;
-                statuses.Add(new OrderIntegrationDeviceStatus(
-                    computer.NodeId,
-                    computer.DisplayName,
-                    "pc",
-                    online,
-                    activity?.LastActivityUtc,
-                    activity?.ReceivedCount ?? 0));
-            }
-            return statuses
-                .OrderByDescending(device => device.Online)
-                .ThenBy(device => device.DisplayName, StringComparer.CurrentCulture)
-                .ToArray();
-        }
-
         private void NotifyMobileAppUpdateIfNeeded(ConnectedClientHeartbeat heartbeat)
         {
+            if (!_effectiveCapabilities.Features.MobileApp)
+                return;
             if (!ShouldNotifyUnknownMobileVersion(heartbeat))
                 return;
 
@@ -2916,6 +2780,15 @@ namespace ExpressPackingMonitoring.Services
         internal static MobileAppDownloadInfo CreateMobileAppDownloadInfo(
             MobileAppReleaseInfo latestRelease)
         {
+            if (!ProductCapabilityRuntime.CurrentFeatures.MobileApp)
+            {
+                return new MobileAppDownloadInfo(
+                    "",
+                    "",
+                    "",
+                    "",
+                    "");
+            }
             string downloadUrl = MobileAppUpdatePolicyProvider.ReleasesUrl;
             string iosDownloadUrl = MobileAppUpdatePolicyProvider.TestFlightJoinUrl;
             return new MobileAppDownloadInfo(
@@ -3212,29 +3085,30 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleExtensionCapabilities(HttpListenerContext ctx)
         {
+            bool enabled = _effectiveCapabilities.Features.ExtensionApi;
             RuntimeLog.Info(
                 "ExtensionApi",
-                $"Capabilities requested enrollmentConfigured={_extensionEnrollment != null}, preset={_deploymentPreset}");
+                $"Capabilities requested enabled={enabled}, enrollmentConfigured={_extensionEnrollment != null}, preset={_deploymentPreset}");
             SendJson(ctx, 200, new
             {
                 apiVersion = "v1",
-                extensionApiEnabled = true,
-                product = "PackingProof",
+                extensionApiEnabled = enabled,
+                product = BrandMetadata.CompatibilityId,
                 nodeId = _nodeId,
                 nodeName = _nodeName,
                 accessKeyRequired = _requireAccessKey,
                 features = new
                 {
-                    ordersWrite = true,
-                    signedScanTasks = true,
+                    ordersWrite = enabled && _effectiveCapabilities.Features.OrderReceiver,
+                    signedScanTasks = enabled,
                     totalItemCount = true,
                     mergedOrderCount = true,
                     providerId = true,
-                    recordingMetadataWrite = true,
-                    watermarkFields = true,
-                    recordingSearch = true,
-                    recordingDownload = true,
-                    recordingDelivery = true
+                    recordingMetadataWrite = enabled,
+                    watermarkFields = enabled,
+                    recordingSearch = enabled && _effectiveCapabilities.Features.MediaLibrary,
+                    recordingDownload = enabled && _effectiveCapabilities.Features.MediaLibrary,
+                    recordingDelivery = enabled && _effectiveCapabilities.Features.MediaLibrary
                 },
                 limits = new
                 {
@@ -5592,6 +5466,17 @@ namespace ExpressPackingMonitoring.Services
                 ClipOutputOptions options = new(ClipOutputMode.Original);
                 if (string.Equals(request.Mode?.Trim(), "compressed", StringComparison.OrdinalIgnoreCase))
                 {
+                    if (!_effectiveCapabilities.Features.Compress)
+                    {
+                        SendJson(ctx, 403, new
+                        {
+                            success = false,
+                            errorCode = "capability_disabled",
+                            capability = "compress",
+                            error = "当前软件未开放压缩导出"
+                        });
+                        return;
+                    }
                     VideoCompressionCodecMode codecMode = (request.Codec ?? "").Trim().ToLowerInvariant() switch
                     {
                         "h264" or "avc" => VideoCompressionCodecMode.H264,
@@ -5603,6 +5488,17 @@ namespace ExpressPackingMonitoring.Services
                         ClipOutputMode.Compressed,
                         request.TargetBytes,
                         codecMode);
+                }
+                else if (!_effectiveCapabilities.Features.Clip)
+                {
+                    SendJson(ctx, 403, new
+                    {
+                        success = false,
+                        errorCode = "capability_disabled",
+                        capability = "clip",
+                        error = "当前软件未开放剪辑"
+                    });
+                    return;
                 }
                 string taskId = _clipService.StartClip(
                     id,
@@ -5939,12 +5835,23 @@ namespace ExpressPackingMonitoring.Services
         }
 
         // ───── 内嵌前端页面 ─────
-        private static void ServeIndexPage(HttpListenerContext ctx)
+        private void ServeIndexPage(HttpListenerContext ctx)
         {
             string indexPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Web", "index.html");
             string html = File.Exists(indexPath)
                 ? File.ReadAllText(indexPath, Encoding.UTF8)
                 : WebServerHtmlFallback.MissingIndexHtml;
+            html = html.Replace(
+                "__PACKINGPROOF_BRANDING_JSON__",
+                WebBrandIdentity.BuildBrandingJson(
+                    _effectiveCapabilities.Features.MobileApp),
+                StringComparison.Ordinal);
+            html = html.Replace(
+                "__PACKINGPROOF_PRODUCT_FEATURES_JSON__",
+                JsonSerializer.Serialize(
+                    WebFeatureGate.CreateBrowserSnapshot(_effectiveCapabilities),
+                    _jsonOptions),
+                StringComparison.Ordinal);
 
             ctx.Response.StatusCode = 200;
             ctx.Response.ContentType = "text/html; charset=utf-8";
@@ -5956,8 +5863,29 @@ namespace ExpressPackingMonitoring.Services
             ctx.Response.OutputStream.Close();
         }
 
+        private void ServeIntegrationPage(HttpListenerContext ctx)
+        {
+            string html = """
+                <!doctype html>
+                <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+                <title>PackingProof Integration WebHost</title>
+                <style>body{font-family:"Microsoft YaHei UI","Segoe UI",sans-serif;margin:40px;line-height:1.6;color:#1f2937}h1{font-size:22px}code{background:#f3f4f6;padding:2px 6px;border-radius:4px}</style>
+                </head><body><h1>PackingProof Integration WebHost</h1>
+                <p>This WebHost is serving integration routes only. Media library access is disabled for the current product capability profile.</p>
+                <p>Use <code>/api/node-info</code> or <code>/api/extensions/v1/capabilities</code> for protocol discovery.</p>
+                </body></html>
+                """;
+            byte[] bytes = Encoding.UTF8.GetBytes(html);
+            ctx.Response.StatusCode = 200;
+            ctx.Response.ContentType = "text/html; charset=utf-8";
+            ctx.Response.Headers["Cache-Control"] = "no-store";
+            ctx.Response.ContentLength64 = bytes.Length;
+            ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
+            ctx.Response.OutputStream.Close();
+        }
+
         /// <summary>
-        /// 网页头部用的品牌图标：与 app.ico 同源（都来自 GenAdvancedIcon.ps1），
+        /// 网页头部用的软件图标：与 app.ico 同源（都来自 GenAdvancedIcon.ps1），
         /// 随程序目录发布在 Web/logo.png，页面用相对路径 /logo.png 引用。
         /// </summary>
         private static void ServeWebLogo(HttpListenerContext ctx)
@@ -5981,13 +5909,14 @@ namespace ExpressPackingMonitoring.Services
 
         private void ServeInstallGuidePage(HttpListenerContext ctx)
         {
-            string authority = ctx.Request.Url?.Authority ?? $"127.0.0.1:{ctx.Request.LocalEndPoint?.Port ?? 5280}";
+            string authority = ctx.Request.Url?.Authority
+                ?? $"127.0.0.1:{ctx.Request.LocalEndPoint?.Port ?? BrandMetadata.WebServerPort}";
             IReadOnlyList<RecordingDeviceInfo> devices = GetRecordingDevices(authority, includeKnown: true);
             string scheme = ctx.Request.Url?.Scheme ?? "http";
             var catalog = new UserscriptCatalog();
             string choices = string.Join("", catalog.GetAll()
                 .Select(item => OfficialUserscriptMigrationService.BuildChoice(item, scheme, authority)));
-            string html = PrintToolInstallGuide.RenderForWeb(devices, "", choices);
+            string html = BrandText.Apply(PrintToolInstallGuide.RenderForWeb(devices, "", choices));
             ctx.Response.StatusCode = 200;
             ctx.Response.ContentType = "text/html; charset=utf-8";
             byte[] bytes = Encoding.UTF8.GetBytes(html);
@@ -6023,7 +5952,16 @@ namespace ExpressPackingMonitoring.Services
                 NodeId = _nodeId,
                 NodeName = _nodeName,
                 Preset = _deploymentPreset,
-                Capabilities = PackingProofCapabilities.ForPreset(_deploymentPreset).ToList(),
+                Capabilities = ProductCapabilityProtocolMapper
+                    .ToLegacyCapabilities(_effectiveCapabilities)
+                    .ToList(),
+                CapabilitySchemaVersion = ProductCapabilitySchemaVersion.Current,
+                WebHostEnabled = _effectiveCapabilities.WebHostEnabled,
+                WebRouteGroups = _effectiveCapabilities.WebHost.EnabledGroups
+                    .Select(group => group.Name)
+                    .ToList(),
+                Features = WebFeatureGate.CreateBrowserSnapshot(
+                    _effectiveCapabilities),
                 HttpPort = Port,
                 Address = $"http://{primaryAuthority}"
             };
@@ -6166,6 +6104,7 @@ namespace ExpressPackingMonitoring.Services
             try { _extensionRecordingQueries?.Dispose(); } catch { }
             try { _connectedClients.Dispose(); } catch { }
             _requestSlots.Dispose();
+            _admittedRequestsIdle.Dispose();
             _transcodeSlot.Dispose();
             _requestsIdle.Dispose();
             _cts.Dispose();

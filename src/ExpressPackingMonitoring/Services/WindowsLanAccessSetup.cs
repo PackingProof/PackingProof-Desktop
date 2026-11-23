@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -69,7 +70,7 @@ internal static class WindowsLanAccessSetup
 
         string outputPath = Path.Combine(
             Path.GetTempPath(),
-            $"PackingProof-lan-repair-{Guid.NewGuid():N}.log");
+            $"{BrandMetadata.ArtifactPrefix}-lan-repair-{Guid.NewGuid():N}.log");
         try
         {
             ProcessStartInfo startInfo = BuildElevatedStartInfo(

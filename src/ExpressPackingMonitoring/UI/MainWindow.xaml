@@ -35,11 +35,49 @@
             否则首次右键会明显卡顿（与回放列表同一套做法）。
         -->
         <ContextMenu x:Key="RecentRecordingContextMenu" Style="{StaticResource AppContextMenuStyle}">
+            <MenuItem Header="{loc:Localized 播放录像}"
+                      Style="{StaticResource AppMenuItemStyle}"
+                      Click="PlayRecentRecording_Click"
+                      IsEnabled="{Binding CanPlay}"
+                      DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+            <Separator Style="{StaticResource AppSeparatorStyle}"/>
             <MenuItem Header="{loc:Localized 复制单号}"
                       Style="{StaticResource AppMenuItemStyle}"
                       Click="CopyRecentOrderId_Click"
+                      IsEnabled="{Binding CanCopyOrderNumber}"
                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
         </ContextMenu>
+        <Style x:Key="RecentRowActionButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.82"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <!-- 画中画拖动框：平时完全透明，鼠标移上来才显示一圈描边 -->
         <Style x:Key="OverlayBoxDragThumbStyle" TargetType="Thumb">
             <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
@@ -168,6 +206,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
                         <Grid Grid.Column="0" Margin="0,0,20,0">
@@ -177,7 +216,8 @@
                             </Grid.ColumnDefinitions>
 
                             <ui:ModeTransitionButton x:Name="ModeButton" Grid.Column="0" Margin="0,0,16,0" ToolTip="点击切换模式"
-                                                     IsCompact="{Binding IsModeButtonCompact, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                     IsCompact="{Binding IsModeButtonCompact, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                     Visibility="{Binding Capabilities.CanChoosePurpose, Converter={StaticResource BoolToVisibility}}">
                                 <ui:ModeTransitionButton.Style>
                                     <Style TargetType="ui:ModeTransitionButton">
                                         <!-- 与录制按钮同一宽度，两个主按钮不会一长一短 -->
@@ -194,7 +234,7 @@
                                 </ui:ModeTransitionButton.Style>
                             </ui:ModeTransitionButton>
 
-                            <Grid Grid.Column="1">
+                            <Grid x:Name="ScanEntryHost" Grid.Column="1">
                                 <TextBox x:Name="ScanInputTextBox" Height="52" FontSize="22" Padding="16,0,74,0" FontWeight="Bold" CharacterCasing="Upper" InputMethod.IsInputMethodEnabled="False" InputMethod.PreferredImeState="Off" Foreground="{DynamicResource TextPrimary}" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="2" VerticalContentAlignment="Center"
                                          Text="{Binding ScanInputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          GotKeyboardFocus="ScanInputTextBox_GotFocus" PreviewMouseLeftButtonDown="ScanInputTextBox_PreviewMouseLeftButtonDown"
@@ -241,7 +281,71 @@
                             </Grid>
                         </Grid>
 
-                        <Button x:Name="RecordButton" Grid.Column="1" Command="{Binding ToggleRecordingCommand}" Focusable="False" Height="52" Cursor="Hand" ToolTip="{x:Static core:AppLanguage.StartRecordingText}">
+                        <Button x:Name="PhotoCaptureButton"
+                                Grid.Column="1"
+                                Height="52"
+                                Margin="0,0,8,0"
+                                Focusable="False"
+                                FontSize="22"
+                                FontWeight="Black"
+                                ToolTip="{loc:Localized 拍照，不停止录像}"
+                                Visibility="{Binding IsPhotoCaptureButtonVisible, Converter={StaticResource BoolToVisibility}}"
+                                Click="PhotoCaptureButton_Click">
+                            <StackPanel x:Name="PhotoActionContent"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Center">
+                                <Path x:Name="PhotoActionIcon"
+                                      Data="{StaticResource FluentPhotoCameraIcon}"
+                                      Width="22"
+                                      Height="22"
+                                      Stretch="Uniform"
+                                      Fill="{StaticResource TextOnAccent}">
+                                    <Path.Style>
+                                        <Style TargetType="Path">
+                                            <Setter Property="Margin" Value="0,0,8,0"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRecordButtonCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                    <Setter Property="Margin" Value="0"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Path.Style>
+                                </Path>
+                                <TextBlock x:Name="PhotoActionText"
+                                           Text="{loc:Localized 拍照}"
+                                           FontSize="22"
+                                           FontWeight="Black"
+                                           Foreground="{StaticResource TextOnAccent}"
+                                           VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRecordButtonCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                    <Setter Property="Width" Value="160"/>
+                                    <Setter Property="MinWidth" Value="160"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRecordButtonCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                            <Setter Property="Width" Value="52"/>
+                                            <Setter Property="MinWidth" Value="52"/>
+                                            <Setter Property="Padding" Value="0"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+                        <Button x:Name="RecordButton" Grid.Column="2" Command="{Binding ToggleRecordingCommand}" Focusable="False" Height="52" Cursor="Hand" ToolTip="{x:Static core:AppLanguage.StartRecordingText}"
+                                MouseRightButtonUp="RecordButton_MouseRightButtonUp"
+                                Visibility="{Binding Capabilities.CanOperateVideo, Converter={StaticResource BoolToVisibility}}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource ModernBtn}">
                                     <Setter Property="Width" Value="160"/>
@@ -1130,7 +1234,8 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         
-                        <Button x:Name="StatsSummaryButton" Grid.Column="0" Style="{StaticResource StatsLinkButtonStyle}" Click="StatsSummary_Click" PreviewMouseLeftButtonUp="StatsSummary_MouseLeftButtonUp" ToolTip="{loc:Localized 数据统计}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Button x:Name="StatsSummaryButton" Grid.Column="0" Style="{StaticResource StatsLinkButtonStyle}" Click="StatsSummary_Click" PreviewMouseLeftButtonUp="StatsSummary_MouseLeftButtonUp" ToolTip="{loc:Localized 数据统计}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Visibility="{Binding Capabilities.CanUseMediaLibrary, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel x:Name="StatsPanel" Orientation="Horizontal">
                             <StackPanel x:Name="TodayCountGroup" Orientation="Horizontal" Margin="0,0,16,0">
                                 <TextBlock Text="今日" FontSize="14" Style="{StaticResource StatsLinkLabelTextStyle}" VerticalAlignment="Bottom" Margin="0,0,6,3"/>
@@ -1158,15 +1263,28 @@
                         </Button>
 
                         <StackPanel x:Name="ActionButtonsPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="ExtensionButton" Style="{StaticResource ModernBtn}" Click="BtnExtensionMarket_Click" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="110" Height="42" Margin="0,0,8,0" ToolTip="{loc:Localized 扩展市场}">
+                            <Button x:Name="ExtensionButton" Style="{StaticResource ModernBtn}" Click="BtnExtensionMarket_Click" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="110" Height="42" Margin="0,0,8,0" ToolTip="{loc:Localized 扩展市场}"
+                                    Visibility="{Binding Capabilities.CanUseExtensionMarket, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel Orientation="Horizontal">
                                     <Path x:Name="ExtensionButtonIcon" Data="{StaticResource FluentBoxIcon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,7,0"/>
                                     <TextBlock x:Name="ExtensionButtonText" Text="{loc:Localized 扩展}" Foreground="{DynamicResource TextPrimary}"/>
                                 </StackPanel>
                             </Button>
-                            <Button x:Name="PlaybackButton" Style="{StaticResource ModernBtn}" Command="{Binding OpenPlaybackCommand}" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="110" Height="42" Margin="0,0,8,0" ToolTip="回放">
+                            <Button x:Name="PlaybackButton" Style="{StaticResource ModernBtn}" Command="{Binding OpenPlaybackCommand}" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="110" Height="42" Margin="0,0,8,0" ToolTip="回放"
+                                    Visibility="{Binding Capabilities.CanUseMediaLibrary, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel Orientation="Horizontal">
-                                    <Path x:Name="PlaybackButtonIcon" Data="{StaticResource FluentVideoIcon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,7,0"/>
+                                    <Path x:Name="PlaybackButtonIcon"
+                                          Data="{StaticResource FluentHistoryIcon}"
+                                          Width="18"
+                                          Height="18"
+                                          Stretch="Uniform"
+                                          Fill="{x:Null}"
+                                          Stroke="{DynamicResource AccentBlue}"
+                                          StrokeThickness="1.8"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          Margin="0,0,7,0"/>
                                     <TextBlock x:Name="PlaybackButtonText" Text="回放" Foreground="{DynamicResource TextPrimary}"/>
                                 </StackPanel>
                             </Button>
@@ -1270,11 +1388,40 @@
                         </StackPanel>
                     </Border>
                     <ListView Grid.Row="2" ItemsSource="{Binding FilteredLogs}" AlternationCount="2" BorderThickness="0" Background="{StaticResource TransparentBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Focusable" Value="False"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListViewItem">
+                                            <ContentPresenter HorizontalAlignment="Stretch"
+                                                              VerticalAlignment="Stretch"/>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListView.ItemContainerStyle>
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <!-- 容器 Border -->
-                                <Border x:Name="ItemBorder" Background="{DynamicResource ControlBackground}" CornerRadius="6" Margin="2,2,2,6" Padding="10,8" ClipToBounds="True"
+                                <Border x:Name="ItemBorder" CornerRadius="6" Margin="2,2,2,6" Padding="10,8" ClipToBounds="True"
                                         ContextMenu="{StaticResource RecentRecordingContextMenu}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource TransparentBrush}"/>
+                                            <Setter Property="BorderThickness" Value="1"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     
                                     <Grid>
                                         <!-- 1. 优化后的流光背景层：增加对比度，使用平移变换 -->
@@ -1329,6 +1476,7 @@
 
                                             <Grid Grid.Row="1" Margin="0,5,0,0">
                                                 <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
@@ -1336,24 +1484,97 @@
                                                     <Path Data="{StaticResource FluentClockIcon}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource TextMuted}" Margin="0,0,4,0"/>
                                                     <TextBlock Text="{Binding DateStr}" Foreground="{DynamicResource TextMuted}" FontSize="12"/>
                                                 </StackPanel>
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                                    <Path x:Name="DurationIcon" Data="{StaticResource FluentSaveIcon}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource TextMuted}" Margin="0,0,4,0"/>
-                                                    <TextBlock x:Name="DurationText" Text="{Binding Duration, Converter={StaticResource LocalizedTextConverter}}" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
+                                                <StackPanel x:Name="DurationPanel"
+                                                            Grid.Column="1"
+                                                            Orientation="Horizontal"
+                                                            HorizontalAlignment="Center">
+                                                    <StackPanel.Style>
+                                                        <Style TargetType="StackPanel">
+                                                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                    <Setter Property="HorizontalAlignment" Value="Right"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </StackPanel.Style>
+                                                    <Path x:Name="DurationIcon"
+                                                          Data="{StaticResource FluentHourglassIcon}"
+                                                          Width="12"
+                                                          Height="12"
+                                                          Stretch="Uniform"
+                                                          Fill="{DynamicResource TextMuted}"
+                                                          Margin="0,0,4,0"/>
+                                                    <TextBlock x:Name="DurationText"
+                                                               Text="{Binding Duration, Converter={StaticResource LocalizedTextConverter}}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource TextSecondary}"/>
+                                                </StackPanel>
+                                                <StackPanel x:Name="SavedStatusPanel"
+                                                            Grid.Column="2"
+                                                            Orientation="Horizontal"
+                                                            HorizontalAlignment="Right"
+                                                            Visibility="{Binding HasSaveStatus, Converter={StaticResource BoolToVisibility}}">
+                                                    <Path Data="{StaticResource FluentSaveIcon}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource TextMuted}" Margin="0,0,4,0"/>
+                                                    <TextBlock Text="{Binding SaveStatusText}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource TextSecondary}"/>
                                                 </StackPanel>
                                             </Grid>
+                                            <StackPanel x:Name="RecentRowActions"
+                                                        Grid.RowSpan="2"
+                                                        Orientation="Horizontal"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Center"
+                                                        Margin="0,0,6,0"
+                                                        Visibility="Collapsed"
+                                                        Panel.ZIndex="3">
+                                                <Button x:Name="CopyRecentOrderButton"
+                                                        Style="{StaticResource RecentRowActionButtonStyle}"
+                                                        IsEnabled="{Binding CanCopyOrderNumber}"
+                                                        AutomationProperties.Name="{loc:Localized 复制单号}"
+                                                        Click="CopyRecentOrderId_Click">
+                                                    <Path Data="{StaticResource FluentCopyIcon}"
+                                                          Width="15"
+                                                          Height="15"
+                                                          Stretch="Uniform"
+                                                          Fill="{DynamicResource TextSecondary}"/>
+                                                </Button>
+                                                <Button x:Name="PlayRecentButton"
+                                                        Margin="6,0,0,0"
+                                                        Style="{StaticResource RecentRowActionButtonStyle}"
+                                                        AutomationProperties.Name="{loc:Localized 播放录像}"
+                                                        Click="PlayRecentRecording_Click">
+                                                    <Path Data="{StaticResource FluentPlayIcon}"
+                                                          Width="16"
+                                                          Height="16"
+                                                          Stretch="Uniform"
+                                                          Fill="{DynamicResource TextSecondary}"/>
+                                                </Button>
+                                            </StackPanel>
                                         </Grid>
                                     </Grid>
                                 </Border>
 
                                 <!-- 触发器部分 -->
                                 <DataTemplate.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True"/>
+                                            <Condition Binding="{Binding IsActive}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter TargetName="RecentRowActions" Property="Visibility" Value="Visible"/>
+                                        <Setter TargetName="SavedStatusPanel" Property="Visibility" Value="Hidden"/>
+                                        <Setter TargetName="BadgeBorder" Property="Visibility" Value="Hidden"/>
+                                    </MultiDataTrigger>
                                     <DataTrigger Binding="{Binding IsActive}" Value="True">
                                         <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{DynamicResource AccentRed}"/>
                                         <Setter TargetName="ItemBorder" Property="BorderThickness" Value="1.5"/>
                                         <Setter TargetName="BadgeBorder" Property="Background" Value="{DynamicResource BadgeErrorBg}"/>
                                         <Setter TargetName="BadgeText" Property="Foreground" Value="{DynamicResource BadgeErrorText}"/>
                                         <Setter TargetName="DurationText" Property="Foreground" Value="{DynamicResource AccentRed}"/>
-                                        <Setter TargetName="DurationIcon" Property="Data" Value="{StaticResource FluentClockIcon}"/>
                                         <Setter TargetName="DurationIcon" Property="Fill" Value="{DynamicResource AccentRed}"/>
                                         <Setter TargetName="ActiveStatusBorder" Property="Visibility" Value="Visible"/>
                                         
@@ -1393,29 +1614,6 @@
                                 </DataTemplate.Triggers>
                             </DataTemplate>
                         </ListView.ItemTemplate>
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
-                                <Setter Property="BorderThickness" Value="0"/>
-                                <Setter Property="Margin" Value="0"/>
-                                <Setter Property="Padding" Value="0"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="ListViewItem">
-                                            <Border Background="{TemplateBinding Background}">
-                                                <ContentPresenter/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </ListView.ItemContainerStyle>
                     </ListView>
 
                     <Border Grid.Row="3"
@@ -1474,6 +1672,10 @@
                                     <Style TargetType="controls:StatusCard">
                                         <Setter Property="Visibility" Value="Visible"/>
                                         <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Capabilities.CanUseTransferManagement, Mode=OneWay}"
+                                                         Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
                                             <DataTrigger Binding="{Binding IsRecordingWorkstation, Mode=OneWay}"
                                                          Value="True">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -1538,7 +1740,8 @@
                                                  CardTitle="订单联动"
                                                  ShortStatusText="{Binding UserscriptSetupShortStatusText, Mode=OneWay}"
                                                  ShortStatusToolTip="{Binding UserscriptSetupStatusText, Mode=OneWay}"
-                                                 DetailText="{Binding OrderIntegrationStatusText, Mode=OneWay}"/>
+                                                 DetailText="{Binding OrderIntegrationStatusText, Mode=OneWay}"
+                                                 Visibility="{Binding Capabilities.CanUseOrderReceiver, Converter={StaticResource BoolToVisibility}}"/>
 
                             <Grid Grid.Row="4" Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
@@ -1559,7 +1762,8 @@
                                         ToolTip="切换用途"
                                         Cursor="Hand"
                                         Focusable="False"
-                                        IsEnabled="{Binding CanSwitchWorkstation}">
+                                        Visibility="{Binding Capabilities.CanChoosePurpose, Converter={StaticResource BoolToVisibility}}"
+                                        IsEnabled="{Binding CanInvokePurposeSwitch}">
                                     <StackPanel Orientation="Horizontal" IsHitTestVisible="False">
                                         <Path Data="{StaticResource FluentArrowSwapIcon}" Width="14" Height="14" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                         <TextBlock Text="{Binding SwitchWorkstationButtonText}" Margin="5,0,0,0" FontSize="12" VerticalAlignment="Center"/>
@@ -1600,6 +1804,7 @@
                                         Padding="9,0"
                                         Style="{StaticResource SecondaryButtonStyle}"
                                         ToolTip="打开订单联动插件安装向导"
+                                        Visibility="{Binding Capabilities.CanGenerateUserscript, Converter={StaticResource BoolToVisibility}}"
                                         Focusable="False">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" IsHitTestVisible="False">
                                         <Path Data="{StaticResource FluentIntegrationIcon}" Width="14" Height="14" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
@@ -1613,6 +1818,7 @@
                                         Padding="9,0"
                                         Style="{StaticResource SecondaryButtonStyle}"
                                         ToolTip="向当前在线的全部录像设备发送测试订单"
+                                        Visibility="{Binding Capabilities.CanUseOrderReceiver, Converter={StaticResource BoolToVisibility}}"
                                         Focusable="False">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" IsHitTestVisible="False">
                                         <Path Data="{StaticResource FluentBroadcastIcon}" Width="14" Height="14" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>

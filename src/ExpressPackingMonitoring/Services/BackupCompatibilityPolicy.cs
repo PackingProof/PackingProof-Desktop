@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -16,10 +17,12 @@ internal static class BackupCompatibilityPolicy
     // Viewer enrollment 协议兼容下限，不代表任何客户端发布版本；
     // 取 viewer 类型首次随主机发布的版本号（当前主线下一版本）。
     internal const string MinimumViewerVersion = "0.0.49";
-    internal const string MobileDownloadUrl =
-        "https://gitee.com/PackingProof/PackingProof-Mobile/releases/latest";
-    internal const string DesktopDownloadUrl =
-        "https://github.com/PackingProof/PackingProof-Desktop/releases/latest";
+    internal static string MobileDownloadUrl =>
+        ProductCapabilityRuntime.CurrentFeatures.MobileApp
+            ? BrandMetadata.MobileReleasesUrl
+            : "";
+    internal static string DesktopDownloadUrl =>
+        BrandMetadata.UpdatesUrl.TrimEnd('/') + "/latest";
 
     internal static BackupCompatibilityInfo CreateHostInfo() => new()
     {

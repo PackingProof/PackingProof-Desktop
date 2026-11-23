@@ -3,6 +3,7 @@ using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.Services.Extensions;
+using ExpressPackingMonitoring.UpdateCore;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -50,6 +51,7 @@ public partial class ExtensionMarketWindow : Window
         string? initialExtensionId = null)
     {
         InitializeComponent();
+        Title = AppLanguage.Get("PackingProof 扩展市场");
         _marketClient = marketClient;
         _installationService = installationService;
         _packageService = packageService;
@@ -346,8 +348,8 @@ public partial class ExtensionMarketWindow : Window
         bool closedSource = details.Extension.SourceAvailability == "closed-source";
         RiskPanel.Visibility = external ? Visibility.Visible : Visibility.Collapsed;
         RiskText.Text = closedSource
-            ? "⚠ 闭源外部程序。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源"
-            : "⚠ 外部程序由用户手动运行。PackingProof 不会自动启动，也无法限制它访问网络、文件或其他系统资源";
+            ? AppLanguage.Get("⚠ 闭源外部程序。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源")
+            : AppLanguage.Get("⚠ 外部程序由用户手动运行。PackingProof 不会自动启动，也无法限制它访问网络、文件或其他系统资源");
         UpdateActionState(selected);
     }
 
@@ -421,10 +423,14 @@ public partial class ExtensionMarketWindow : Window
             ? "尚未安装"
             : $"已安装：{installed.Version}";
         CompatibilityText.Text = _selectedRelease == null
-            ? "没有可安装版本"
+            ? AppLanguage.Get("没有可安装版本")
             : compatible
-                ? $"需要 PackingProof {_selectedRelease.Compatibility.MinPackingProofVersion} 或更高版本"
-                : $"需要 PackingProof {_selectedRelease.Compatibility.MinPackingProofVersion} 或更高版本，当前版本无法安装";
+                ? AppLanguage.Format(
+                    "需要 PackingProof {0} 或更高版本",
+                    _selectedRelease.Compatibility.MinPackingProofVersion)
+                : AppLanguage.Format(
+                    "需要 PackingProof {0} 或更高版本，当前版本无法安装",
+                    _selectedRelease.Compatibility.MinPackingProofVersion);
         SourceTagText.Text = selected.SourceLabel;
         SourceTagText.Tag = selected.SourceLabel;
         SourceTagBorder.Tag = selected.SourceLabel;
@@ -488,7 +494,7 @@ public partial class ExtensionMarketWindow : Window
                     installedSuffix,
                     release.Compatibility.MinPackingProofVersion),
                 IsEnabled = compatible,
-                ToolTip = compatible ? null : "当前 PackingProof 版本过低"
+                ToolTip = compatible ? null : AppLanguage.Get("当前 PackingProof 版本过低")
             };
             ExtensionMarketRelease selectedRelease = release;
             item.Click += async (_, _) => await InstallReleaseAsync(selectedRelease);
@@ -508,8 +514,8 @@ public partial class ExtensionMarketWindow : Window
         if (external && !AppDialog.Confirm(
                 this,
                 closedSource
-                    ? "这是闭源外部程序。PackingProof 无法审查其代码，也不会限制程序访问网络、文件或其他系统资源。确认下载并安装吗？"
-                    : "这是需要用户手动运行的外部程序。PackingProof 不会自动启动，也无法限制程序访问系统资源。确认下载并安装吗？",
+                    ? BrandText.Apply("这是闭源外部程序。PackingProof 无法审查其代码，也不会限制程序访问网络、文件或其他系统资源。确认下载并安装吗？")
+                    : BrandText.Apply("这是需要用户手动运行的外部程序。PackingProof 不会自动启动，也无法限制程序访问系统资源。确认下载并安装吗？"),
                 "安装外部扩展",
                 AppDialogSeverity.Warning,
                 "确认安装"))
@@ -580,7 +586,7 @@ public partial class ExtensionMarketWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Filter = "PackingProof 扩展 (*.ppext)|*.ppext|油猴脚本 (*.user.js)|*.user.js",
+            Filter = BrandMetadata.ProductName + " 扩展 (*.ppext)|*.ppext|油猴脚本 (*.user.js)|*.user.js",
             Multiselect = false,
             CheckFileExists = true,
             Title = "安装本地扩展"
@@ -596,7 +602,7 @@ public partial class ExtensionMarketWindow : Window
         {
             ExtensionPackageInspection inspection = _packageService.Inspect(dialog.FileName);
             string warning = inspection.Manifest.Type == "external-adapter"
-                ? "该 PPEXT 未经过市场审核，并且包含需要用户手动运行的外部程序。PackingProof 无法限制程序访问系统资源"
+                ? BrandText.Apply("该 PPEXT 未经过市场审核，并且包含需要用户手动运行的外部程序。PackingProof 无法限制程序访问系统资源")
                 : "该 PPEXT 未经过市场审核。请只安装来自可信开发者的扩展";
             if (!AppDialog.Confirm(
                     this,
@@ -663,10 +669,11 @@ public partial class ExtensionMarketWindow : Window
             .Select(process => $"{process.ProcessName}（PID {process.ProcessId}）"));
         if (runningProcesses.Count > 3) processList += $"等 {runningProcesses.Count} 个进程";
         string message = installed.Type == "userscript"
-            ? "这会删除 PackingProof 保存的脚本源文件，但无法替你从浏览器脚本管理器中卸载已经安装的副本"
+            ? BrandText.Apply("这会删除 PackingProof 保存的脚本源文件，但无法替你从浏览器脚本管理器中卸载已经安装的副本")
             : runningProcesses.Count > 0
-                ? $"检测到扩展仍在运行：{processList}\n\n删除前需要终止这些程序。PackingProof 只会终止安装目录内的扩展程序，不会删除扩展自己保存的配置、凭据或业务数据"
-                : "这只会删除 PackingProof 管理的安装目录，不会删除扩展自己保存的配置、凭据或业务数据";
+                ? BrandText.Apply(
+                    $"检测到扩展仍在运行：{processList}\n\n删除前需要终止这些程序。PackingProof 只会终止安装目录内的扩展程序，不会删除扩展自己保存的配置、凭据或业务数据")
+                : BrandText.Apply("这只会删除 PackingProof 管理的安装目录，不会删除扩展自己保存的配置、凭据或业务数据");
         string confirmText = runningProcesses.Count > 0 ? "终止并删除" : "确认删除";
         if (!AppDialog.Confirm(this, message + "\n\n确定继续吗？", "删除扩展", AppDialogSeverity.Warning, confirmText))
             return;

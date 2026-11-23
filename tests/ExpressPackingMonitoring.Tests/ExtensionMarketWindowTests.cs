@@ -180,27 +180,15 @@ public sealed class ExtensionMarketWindowTests
     [Fact]
     public void ScreenshotImageDecodesFromMemoryWithoutImageCacheKey()
     {
-        Exception? failure = null;
-        var thread = new Thread(() =>
+        WpfTestHost.Run(() =>
         {
-            try
-            {
-                byte[] png = Convert.FromBase64String(
-                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
-                var image = ExtensionMarketWindow.CreateScreenshotImage(png);
-                Assert.True(image.IsFrozen);
-                Assert.True(image.PixelWidth > 0);
-                Assert.True(image.PixelHeight > 0);
-            }
-            catch (Exception ex)
-            {
-                failure = ex;
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(10)), "截图解码测试超时");
-        Assert.Null(failure);
+            byte[] png = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+            var image = ExtensionMarketWindow.CreateScreenshotImage(png);
+            Assert.True(image.IsFrozen);
+            Assert.True(image.PixelWidth > 0);
+            Assert.True(image.PixelHeight > 0);
+        }, TimeSpan.FromSeconds(10), "截图解码测试超时");
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using ExpressPackingMonitoring.Localization;
 
 namespace ExpressPackingMonitoring.UI
 {
@@ -19,10 +20,10 @@ namespace ExpressPackingMonitoring.UI
             string? hint = null)
         {
             InitializeComponent();
-            Title = title ?? "选择录像保存文件夹";
+            Title = title ?? AppLanguage.Get("选择录像保存文件夹");
             DialogTitleText.Text = Title;
             DialogHintText.Text = hint
-                ?? "可以选择本地磁盘中的任意文件夹，也可以输入网络共享路径，例如：\\\\192.168.1.100\\共享目录\\PackingProofVideos";
+                ?? AppLanguage.Get("可以选择本地磁盘中的任意文件夹，也可以输入网络共享路径，例如：\\\\192.168.1.100\\共享目录\\PackingProofVideos");
             BrowseButton.Content = "浏览…";
             OkButton.Content = "确定";
             CancelButton.Content = "取消";

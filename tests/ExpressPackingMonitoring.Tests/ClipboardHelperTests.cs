@@ -175,19 +175,14 @@ public sealed class ClipboardHelperTests
         Assert.Equal(24, BitConverter.ToInt32(dib, 20));
     }
 
-    /// <summary>WPF 读剪贴板要求 STA：这里自己起一个 STA 线程读回来。</summary>
+    /// <summary>WPF 读剪贴板要求 STA：复用测试宿主的共享 STA 线程读回来。</summary>
     private static string ReadClipboardText()
     {
         string result = "";
-        var thread = new Thread(() =>
+        WpfTestHost.Run(() =>
         {
-            if (Application.Current == null)
-                _ = new Application();
             result = Clipboard.ContainsText() ? Clipboard.GetText() : "";
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(10)), "读取剪贴板超时");
+        }, TimeSpan.FromSeconds(10), "读取剪贴板超时");
         return result;
     }
 }

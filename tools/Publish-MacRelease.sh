@@ -29,6 +29,35 @@ if [ -f "${repository_root}/.env" ]; then
   set +a
 fi
 
+brand_profile="${BRAND_PROFILE:-packingproof}"
+brand_profile_dir="${BRAND_PROFILE_DIR:-}"
+if [[ -z "${brand_profile_dir}" ]]; then
+  brand_external_root="${BRAND_PROFILE_ROOT:-}"
+  local_profiles_props="${repository_root}/branding/profiles.local.props"
+  if [[ -z "${brand_external_root}" && -f "${local_profiles_props}" ]]; then
+    brand_external_root="$(sed -n 's:.*<BrandExternalProfilesRoot>\(.*\)</BrandExternalProfilesRoot>.*:\1:p' "${local_profiles_props}" | head -1)"
+  fi
+  if [[ -n "${brand_external_root}" ]]; then
+    brand_profile_dir="${brand_external_root}/${brand_profile}"
+  else
+    brand_profile_dir="${repository_root}/branding/profiles/${brand_profile}"
+  fi
+fi
+brand_props="${brand_profile_dir}/Brand.props"
+if [[ ! -f "${brand_props}" ]]; then
+  echo "找不到定制档案: ${brand_profile} (${brand_props})" >&2
+  exit 2
+fi
+brand_value() {
+  sed -n "s:.*<$1>\\(.*\\)</$1>.*:\\1:p" "${brand_props}" | head -1
+}
+brand_artifact_prefix="$(brand_value BrandArtifactPrefix)"
+brand_repository_slug="$(brand_value BrandRepositorySlug)"
+if [[ -z "${brand_artifact_prefix}" || -z "${brand_repository_slug}" ]]; then
+  echo "软件配置缺少 Mac 发布字段: ${brand_profile}" >&2
+  exit 2
+fi
+
 version="${1:-}"
 if [[ -z "${version}" ]]; then
   version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' \
@@ -50,8 +79,8 @@ case "${target}" in
 esac
 
 tag="v${version}"
-github_repo="PackingProof/PackingProof-Desktop"
-dmg_path="${repository_root}/package/mac-host/PackingProof-macOS-${version}.dmg"
+github_repo="${brand_repository_slug}"
+dmg_path="${repository_root}/package/mac-host/${brand_artifact_prefix}-macOS-${version}.dmg"
 
 # 只发布已在主干、且标签就指向当前提交的版本：先构建再打标签会让身份对不上
 if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
@@ -68,7 +97,7 @@ if [[ "$(git rev-parse "${tag}^{commit}")" != "$(git rev-parse HEAD)" ]]; then
 fi
 
 echo "==> 构建 macOS 包（${tag}）"
-"${repository_root}/tools/Publish-MacHost.sh" \
+BRAND_PROFILE="${brand_profile}" BRAND_PROFILE_DIR="${brand_profile_dir}" "${repository_root}/tools/Publish-MacHost.sh" \
   "${repository_root}/package/mac-host" "osx-arm64" "${version}"
 if [[ ! -f "${dmg_path}" ]]; then
   echo "没有产出 ${dmg_path}" >&2
@@ -81,12 +110,19 @@ if [[ "${target}" == "github" || "${target}" == "both" ]]; then
 fi
 
 if [[ "${target}" == "gitee" || "${target}" == "both" ]]; then
-  if [[ -z "${GITEE_TOKEN:-}" ]]; then
-    echo "缺少 GITEE_TOKEN（环境变量或仓库根 .env），跳过 Gitee 上传" >&2
-  else
-    echo "==> 上传 DMG 到 Gitee Release ${tag}"
-    gitee release upload --repo "${github_repo}" "${tag}" "${dmg_path}"
+  gitee_bot_token_file="${HOME}/.config/PackingProof/gitee-release-bot/token.txt"
+  if [[ ! -f "${gitee_bot_token_file}" ]]; then
+    echo "缺少 PackingProof-Release-Bot token 文件：${gitee_bot_token_file}" >&2
+    exit 2
   fi
+  GITEE_TOKEN="$(tr -d '\r\n' < "${gitee_bot_token_file}")"
+  if [[ -z "${GITEE_TOKEN}" ]]; then
+    echo "PackingProof-Release-Bot token 文件为空" >&2
+    exit 2
+  fi
+  export GITEE_TOKEN
+  echo "==> 上传 DMG 到 Gitee Release ${tag}"
+  gitee release upload --repo "${github_repo}" "${tag}" "${dmg_path}"
 fi
 
 # 清单里补一条平台声明：只作下载入口与人工核对，判定仍以资产是否存在为准
@@ -96,14 +132,14 @@ trap 'rm -rf "${work_dir}"' EXIT
 if [[ "${target}" == "github" || "${target}" == "both" ]]; then
   if gh release download "${tag}" --repo "${github_repo}" \
       --pattern "update_v${version}.json" --dir "${work_dir}" --clobber 2>/dev/null; then
-    python3 - "${work_dir}/update_v${version}.json" "${version}" <<'PY'
+python3 - "${work_dir}/update_v${version}.json" "${version}" "${brand_artifact_prefix}" <<'PY'
 import json, sys
-path, version = sys.argv[1], sys.argv[2]
+path, version, artifact_prefix = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path, encoding='utf-8') as handle:
     data = json.load(handle)
 data.setdefault('platforms', {})['macos'] = {
     'version': version,
-    'package': f'PackingProof-macOS-{version}.dmg',
+    'package': f'{artifact_prefix}-macOS-{version}.dmg',
 }
 with open(path, 'w', encoding='utf-8') as handle:
     json.dump(data, handle, ensure_ascii=False, indent=2)

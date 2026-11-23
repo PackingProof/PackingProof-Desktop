@@ -62,6 +62,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Config\AppConfig.Lens.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\AppConfig.Update.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\AppConfig.CameraVision.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\AppConfigStoragePaths.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\AppPaths.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\AppVersion.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\CameraBarcodeSpeed.cs" />
@@ -82,6 +83,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Data\MkvConversionResult.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\MkvConversionTracking.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\OrderNumberExportFilter.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\PhotoStore.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\RecordingModeFilter.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\RecordingTransferQueueStore.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\ScanEventStore.cs" />
@@ -215,7 +217,10 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\VideoCompressionService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\VideoFolderImportService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\VideoLifecycleCoordinator.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.PhotoMobile.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\WebFeatureGate.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\WebBrandIdentity.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.BackupCompatibility.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.HtmlFallback.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.BackupDevices.cs" />

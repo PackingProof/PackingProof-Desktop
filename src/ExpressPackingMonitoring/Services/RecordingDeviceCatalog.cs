@@ -77,7 +77,9 @@ internal static class RecordingDeviceCatalog
                 NodeId = mobile.NodeId,
                 NodeName = mobile.NodeName,
                 DeviceType = "mobile",
-                Address = NormalizeLanHttpAddress(mobile.Address, mobile.Port),
+                Address = NormalizeLanHttpAddress(
+                    mobile.Address,
+                    mobile.Port > 0 ? mobile.Port : UpdateCore.BrandMetadata.WebServerPort),
                 Capabilities = mobile.Capabilities.ToList(),
                 Online = mobile.Online
             });
@@ -111,7 +113,9 @@ internal static class RecordingDeviceCatalog
             device.NodeId = device.NodeId?.Trim() ?? "";
             device.NodeName = device.NodeName?.Trim() ?? "";
             device.DeviceType = device.DeviceType?.Trim().ToLowerInvariant() ?? "";
-            device.Address = NormalizeLanHttpAddress(device.Address, defaultPort: 5280);
+            device.Address = NormalizeLanHttpAddress(
+                device.Address,
+                defaultPort: UpdateCore.BrandMetadata.WebServerPort);
             device.Capabilities = device.Capabilities
                 .Where(capability => !string.IsNullOrWhiteSpace(capability))
                 .Select(capability => capability.Trim().ToLowerInvariant())

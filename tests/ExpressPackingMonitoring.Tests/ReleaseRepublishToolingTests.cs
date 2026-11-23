@@ -95,15 +95,22 @@ public sealed class ReleaseRepublishToolingTests
                      {
                          "Republish-SameVersion.ps1",
                          "ReleaseVersion.Common.ps1",
-                         "ReleaseNotes.Common.ps1"
+                         "ReleaseNotes.Common.ps1",
+                         "Branding.Common.ps1"
                      })
             {
                 File.Copy(
                     Path.Combine(repositoryRoot, "tools", scriptName),
                     Path.Combine(root, "tools", scriptName));
             }
+            CopyDirectory(
+                Path.Combine(repositoryRoot, "branding"),
+                Path.Combine(root, "branding"));
+            File.Copy(
+                Path.Combine(repositoryRoot, "tools", "launcher-baseline.json"),
+                Path.Combine(root, "tools", "launcher-baseline.json"));
 
-            // 产品版本号固定只有一个来源：仓根 Directory.Build.props。
+            // 软件版本号固定只有一个来源：仓根 Directory.Build.props。
             File.WriteAllText(
                 Path.Combine(root, "Directory.Build.props"),
                 "<Project><PropertyGroup><Version>9.9.9</Version></PropertyGroup></Project>",
@@ -226,6 +233,29 @@ public sealed class ReleaseRepublishToolingTests
         }
 
         throw new FileNotFoundException("pwsh 7 was not found on PATH; script tests require it.");
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (string directory in Directory.EnumerateDirectories(
+                     source,
+                     "*",
+                     SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(Path.Combine(
+                destination,
+                Path.GetRelativePath(source, directory)));
+        }
+        foreach (string file in Directory.EnumerateFiles(
+                     source,
+                     "*",
+                     SearchOption.AllDirectories))
+        {
+            string target = Path.Combine(destination, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target);
+        }
     }
 
     private static string FindRepositoryRoot()

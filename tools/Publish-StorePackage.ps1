@@ -27,16 +27,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "Branding.Common.ps1")
+$brand = Get-BrandProfile -RepoRoot $repoRoot
+if ($brand.ExtensionMarketPublicKeyIsPlaceholder) {
+    throw "当前软件配置仍使用扩展市场公钥占位值，不能生成 Store 正式包"
+}
 $storeRoot = Join-Path $repoRoot "docs\store"
 $manifestTemplate = Join-Path $storeRoot "AppxManifest.xml"
-$iconPath = Join-Path $repoRoot "src\ExpressPackingMonitoring\app.ico"
+$iconPath = $brand.AppIconPath
 $appProject = Join-Path $repoRoot "src\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj"
 $winttsProject = Join-Path $repoRoot "src\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj"
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $propsPath = Join-Path $repoRoot "Directory.Build.props"
     $props = [System.IO.File]::ReadAllText($propsPath, [System.Text.Encoding]::UTF8)
-    $match = [regex]::Match($props, "<Version>\s*([^<]+?)\s*</Version>")
+    $match = [regex]::Match($props, "<Version(?:\s+[^>]*)?>\s*([^<]+?)\s*</Version>")
     if (-not $match.Success) { throw "读不到 Directory.Build.props 里的 <Version>" }
     $Version = $match.Groups[1].Value.Trim()
 }
@@ -97,17 +102,17 @@ if (-not [string]::IsNullOrWhiteSpace($ConfigPath)) {
 
 $usingPlaceholderIdentity = $false
 if ([string]::IsNullOrWhiteSpace($IdentityName)) {
-    $IdentityName = "PackingProof.PackingProof"
+    $IdentityName = $brand.StoreIdentityName
     $usingPlaceholderIdentity = $true
 }
 if ([string]::IsNullOrWhiteSpace($Publisher)) {
-    $Publisher = "CN=PackingProof"
+    $Publisher = $brand.StorePublisher
     $usingPlaceholderIdentity = $true
 }
-if ([string]::IsNullOrWhiteSpace($PublisherDisplayName)) { $PublisherDisplayName = "PackingProof" }
-if ([string]::IsNullOrWhiteSpace($DisplayName)) { $DisplayName = "PackingProof 快递打包监控" }
+if ([string]::IsNullOrWhiteSpace($PublisherDisplayName)) { $PublisherDisplayName = $brand.StorePublisherDisplayName }
+if ([string]::IsNullOrWhiteSpace($DisplayName)) { $DisplayName = $brand.DisplayName }
 if ([string]::IsNullOrWhiteSpace($Description)) {
-    $Description = "扫码自动录像，按快递单号保存，支持订单播报、退款拦截、局域网回放与多工位备份"
+    $Description = $brand.Description
 }
 
 if ($RequireStoreIdentity -and $usingPlaceholderIdentity) {
@@ -267,16 +272,16 @@ if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $repoRoot "package\store"
 }
 $OutputRoot = [System.IO.Path]::GetFullPath($OutputRoot).TrimEnd("\")
-$productDir = [System.IO.Path]::GetFullPath((Join-Path $OutputRoot ("PackingProof_Store_v" + $Version)))
+$productDir = [System.IO.Path]::GetFullPath((Join-Path $OutputRoot ($brand.ArtifactPrefix + "_Store_v" + $Version)))
 $expectedPrefix = $OutputRoot + [System.IO.Path]::DirectorySeparatorChar
 if (-not $productDir.StartsWith($expectedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "产物目录不在允许的输出根目录内：$productDir"
 }
 
 $payloadDir = Join-Path $productDir "payload"
-$msixPath = Join-Path $productDir ("PackingProof_Store_v" + $Version + ".msix")
-$appxsymPath = Join-Path $productDir ("PackingProof_Store_v" + $Version + ".appxsym")
-$msixUploadPath = Join-Path $productDir ("PackingProof_Store_v" + $Version + ".msixupload")
+$msixPath = Join-Path $productDir ($brand.ArtifactPrefix + "_Store_v" + $Version + ".msix")
+$appxsymPath = Join-Path $productDir ($brand.ArtifactPrefix + "_Store_v" + $Version + ".appxsym")
+$msixUploadPath = Join-Path $productDir ($brand.ArtifactPrefix + "_Store_v" + $Version + ".msixupload")
 $symbolStagingDir = Join-Path $productDir ".appxsym-staging"
 
 $useExistingPayload = -not [string]::IsNullOrWhiteSpace($AppPayloadDir)
@@ -321,6 +326,8 @@ else {
     New-Item -ItemType Directory -Path $payloadDir -Force | Out-Null
 
     Write-Host "发布自包含应用：$Version"
+    $previousVersionEnvironment = $env:Version
+    $env:Version = $Version
     & dotnet publish $appProject `
         -c Release `
         -r win-x64 `
@@ -340,7 +347,7 @@ else {
 
     # 主程序工程不会把 WinTts 的运行时复制进 publish 输出，按发布脚本的方式单独补三份。
     $winttsTemp = Join-Path $productDir ".wintts"
-    & dotnet publish $winttsProject -c Release --nologo -o $winttsTemp
+    & dotnet publish $winttsProject -c Release --nologo -p:Version=$Version -o $winttsTemp
     if ($LASTEXITCODE -ne 0) { throw "WinTts publish 失败，退出码 $LASTEXITCODE" }
     try {
         foreach ($file in @("ExpressPackingMonitoring.WinTts.dll", "Microsoft.Windows.SDK.NET.dll", "WinRT.Runtime.dll")) {
@@ -358,6 +365,7 @@ else {
     finally {
         Remove-Item -LiteralPath $winttsTemp -Recurse -Force -ErrorAction SilentlyContinue
     }
+    $env:Version = $previousVersionEnvironment
 }
 
 [System.IO.Directory]::CreateDirectory($symbolStagingDir) | Out-Null
@@ -367,11 +375,31 @@ if (-not [string]::IsNullOrWhiteSpace($SymbolsDir)) {
 [void](Copy-SymbolFiles -SourceDirectory $payloadDir -DestinationDirectory $symbolStagingDir -RemoveSource)
 Assert-RequiredStoreSymbols -SymbolsDirectory $symbolStagingDir -PayloadDirectory $payloadDir
 
+$expectedFileVersion = if ($Version.Split(".").Count -eq 3) { "$Version.0" } else { $Version }
+$versionMismatches = @(
+    Get-ChildItem -LiteralPath $payloadDir -File -Filter "ExpressPackingMonitoring*.dll" |
+        Where-Object { $_.VersionInfo.FileVersion -ne $expectedFileVersion } |
+        ForEach-Object { "$($_.Name)=$($_.VersionInfo.FileVersion)" }
+)
+if ($versionMismatches.Count -gt 0) {
+    throw "Store payload 程序集版本不一致，期望 $expectedFileVersion：$($versionMismatches -join ', ')"
+}
+
 if (-not (Test-Path -LiteralPath (Join-Path $payloadDir "ExpressPackingMonitoring.exe") -PathType Leaf)) {
     throw "payload 里没有 ExpressPackingMonitoring.exe"
 }
 if (-not (Test-Path -LiteralPath (Join-Path $payloadDir "coreclr.dll") -PathType Leaf)) {
     throw "payload 不是自包含发布：缺少 coreclr.dll"
+}
+$drawableVoutPluginPath = Join-Path $payloadDir "libvlc\win-x64\plugins\video_output\libdrawable_plugin.dll"
+if (-not (Test-Path -LiteralPath $drawableVoutPluginPath -PathType Leaf)) {
+    throw "Store payload 缺少 LibVLC 内嵌窗口模块：$drawableVoutPluginPath"
+}
+
+$capabilityManifestPath = Join-Path $payloadDir "ProductCapabilities.json"
+Copy-Item -LiteralPath $brand.FeaturesPath -Destination $capabilityManifestPath -Force
+if (-not (Test-Path -LiteralPath $capabilityManifestPath -PathType Leaf)) {
+    throw "Store payload 缺少 ProductCapabilities.json"
 }
 
 # Store 版以 MSIX 包身份运行，主程序启动时会跳过共享运行时落成；
@@ -407,7 +435,7 @@ Get-ChildItem -LiteralPath $payloadDir -Recurse -File -Include *.pdb, *.xml |
 $assetsDir = Join-Path $payloadDir "Assets"
 & (Join-Path $PSScriptRoot "New-StoreAssets.ps1") -IconPath $iconPath -OutputDir $assetsDir
 
-$editionMarkerPath = Join-Path $payloadDir "PackingProof.PackageEdition.json"
+$editionMarkerPath = Join-Path $payloadDir $brand.PackageEditionMarker
 $editionMarker = [ordered]@{
     edition = "store"
     app_version = $Version
@@ -426,6 +454,8 @@ $manifest = $manifest.Replace("{{PACKAGE_VERSION}}", [System.Security.SecurityEl
 $manifest = $manifest.Replace("{{DISPLAY_NAME}}", [System.Security.SecurityElement]::Escape($DisplayName))
 $manifest = $manifest.Replace("{{PUBLISHER_DISPLAY_NAME}}", [System.Security.SecurityElement]::Escape($PublisherDisplayName))
 $manifest = $manifest.Replace("{{DESCRIPTION}}", [System.Security.SecurityElement]::Escape($Description))
+$manifest = $manifest.Replace("{{STORE_SHORT_NAME}}", [System.Security.SecurityElement]::Escape($brand.StoreShortName))
+$manifest = $manifest.Replace("{{STORE_STARTUP_TASK_ID}}", [System.Security.SecurityElement]::Escape($brand.StoreStartupTaskId))
 if ($manifest.Contains("{{")) { throw "AppxManifest.xml 仍有未替换的占位符" }
 
 $manifestPath = Join-Path $payloadDir "AppxManifest.xml"
@@ -459,7 +489,7 @@ $certificatePfxPath = ""
 $testCertificatePassword = ""
 if ($Sign) {
     if (-not [string]::IsNullOrWhiteSpace($CertificatePath)) {
-        $signArguments = @("sign", "/fd", "SHA256", "/f", $CertificatePath)
+        $signArguments = @("sign", "/fd", "SHA256", "/a", "/f", $CertificatePath)
         if (-not [string]::IsNullOrWhiteSpace($CertificatePassword)) {
             $signArguments += @("/p", $CertificatePassword)
         }
@@ -476,30 +506,64 @@ if ($Sign) {
             throw "自签名证书主题必须与包 Publisher 完全一致：$CertificateSubject / $Publisher"
         }
 
-        $certificate = New-SelfSignedCertificate `
+        $rootSubject = "$($brand.ArtifactPrefix) Store Test Root"
+        $rootCertificate = New-SelfSignedCertificate `
             -Type Custom `
-            -Subject $CertificateSubject `
-            -KeyUsage DigitalSignature `
-            -FriendlyName "PackingProof Store Test" `
+            -Subject $rootSubject `
+            -KeyUsage CertSign, CRLSign `
+            -KeyUsageProperty Sign `
+            -KeyExportPolicy Exportable `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -FriendlyName "$($brand.ArtifactPrefix) Store Test Root" `
             -CertStoreLocation "Cert:\CurrentUser\My" `
-            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
+            -TextExtension @("2.5.29.19={critical}{text}ca=1&pathlength=1")
+        $certificate = New-SelfSignedCertificate `
+            -Type CodeSigningCert `
+            -Subject $CertificateSubject `
+            -Signer $rootCertificate `
+            -KeyUsage DigitalSignature `
+            -KeyUsageProperty Sign `
+            -KeyExportPolicy Exportable `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -FriendlyName "$($brand.ArtifactPrefix) Store Test" `
+            -CertStoreLocation "Cert:\CurrentUser\My" `
+            -TextExtension @(
+                "2.5.29.37={text}1.3.6.1.5.5.7.3.3",
+                "2.5.29.19={critical}{text}ca=0"
+            )
         $certificateThumbprint = $certificate.Thumbprint
 
         # 通过 PFX 交给 SignTool，避免 CurrentUser\My 里的 CNG 私钥在部分机器上加载失败。
-        $certificatePfxPath = Join-Path $productDir "PackingProof-test.pfx"
-        $testCertificatePassword = "PackingProofTest!" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
+        $certificatePfxPath = Join-Path $productDir ($brand.ArtifactPrefix + "-test.pfx")
+        $testCertificatePassword = $brand.ArtifactPrefix + "Test!" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
         $securePassword = ConvertTo-SecureString -String $testCertificatePassword -AsPlainText -Force
         Export-PfxCertificate -Cert $certificate -FilePath $certificatePfxPath -Password $securePassword | Out-Null
-        & $signtool sign /fd SHA256 /f $certificatePfxPath /p $testCertificatePassword $msixPath
+        & $signtool sign /fd SHA256 /a /f $certificatePfxPath /p $testCertificatePassword $msixPath
         if ($LASTEXITCODE -ne 0) { throw "signtool 签名失败，退出码 $LASTEXITCODE" }
 
-        $certificateCerPath = Join-Path $productDir "PackingProof-test.cer"
-        Export-Certificate -Cert $certificate -FilePath $certificateCerPath | Out-Null
+        $certificateCerPath = Join-Path $productDir ($brand.ArtifactPrefix + "-test-root.cer")
+        Export-Certificate -Cert $rootCertificate -FilePath $certificateCerPath | Out-Null
         if ($TrustCertificate) {
-            $trusted = Get-ChildItem "Cert:\CurrentUser\TrustedPeople" |
-                Where-Object { $_.Thumbprint -eq $certificate.Thumbprint }
-            if (-not $trusted) {
-                Import-Certificate -FilePath $certificateCerPath -CertStoreLocation "Cert:\CurrentUser\TrustedPeople" | Out-Null
+            $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+            $principal = [System.Security.Principal.WindowsPrincipal]::new($identity)
+            if (-not $principal.IsInRole(
+                    [System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
+                throw "TrustCertificate 需要以管理员身份运行 PowerShell；MSIX 安装服务读取机器级证书信任库"
+            }
+            foreach ($store in @(
+                    "Cert:\LocalMachine\Root",
+                    "Cert:\LocalMachine\TrustedPeople")) {
+                $trusted = Get-ChildItem $store |
+                    Where-Object { $_.Thumbprint -eq $rootCertificate.Thumbprint }
+                if (-not $trusted) {
+                    Import-Certificate `
+                        -FilePath $certificateCerPath `
+                        -CertStoreLocation $store | Out-Null
+                }
             }
         }
     }
@@ -509,7 +573,7 @@ if ($Sign) {
 if (Test-Path -LiteralPath $appxsymPath -PathType Leaf) {
     Remove-Item -LiteralPath $appxsymPath -Force
 }
-$temporarySymbolArchive = Join-Path $productDir ("PackingProof_Store_v" + $Version + ".appxsym.tmp.zip")
+$temporarySymbolArchive = Join-Path $productDir ($brand.ArtifactPrefix + "_Store_v" + $Version + ".appxsym.tmp.zip")
 if (Test-Path -LiteralPath $temporarySymbolArchive -PathType Leaf) {
     Remove-Item -LiteralPath $temporarySymbolArchive -Force
 }

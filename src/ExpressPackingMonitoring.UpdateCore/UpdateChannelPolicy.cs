@@ -21,7 +21,7 @@ public static class UpdateChannelPolicy
     public const string AppConfigPropertyName = "AllowPrereleaseUpdates";
 
     private const string UserDataDirectoryOverrideKey = "EPM_USER_DATA_DIR";
-    private const string UserDataDirectoryName = "ExpressPackingMonitoring";
+    private static string UserDataDirectoryName => BrandMetadata.DataDirectoryName;
     private const string AppConfigFileName = "config.json";
 
     /// <summary>

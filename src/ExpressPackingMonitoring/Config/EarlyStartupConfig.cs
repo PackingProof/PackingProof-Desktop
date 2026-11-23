@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Config
 {
@@ -11,7 +12,7 @@ namespace ExpressPackingMonitoring.Config
     /// </summary>
     internal static class EarlyStartupConfig
     {
-        internal const string UserDataDirectoryName = "ExpressPackingMonitoring";
+        internal static string UserDataDirectoryName => BrandMetadata.DataDirectoryName;
         internal const string ForceSoftwareRenderingEnvironmentVariable = "EPM_FORCE_SOFTWARE_RENDERING";
 
         /// <summary>与 <see cref="AppPaths"/> 的用户数据目录共用同一份根目录计算，避免两处漂移。</summary>

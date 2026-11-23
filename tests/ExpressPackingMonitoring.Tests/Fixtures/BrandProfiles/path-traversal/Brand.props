@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <BrandFeaturesRelativePath>../packingproof/Features.json</BrandFeaturesRelativePath>
+  </PropertyGroup>
+</Project>

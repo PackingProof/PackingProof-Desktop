@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -18,33 +20,39 @@ public sealed class PlaybackWindowVideoHostSmokeTests
     [Fact]
     public void Playback_UsesOnlyTheEmbeddedChildWindowAndCloses()
     {
-        if (!string.Equals(
-                Environment.GetEnvironmentVariable(EnableVariable),
-                "1",
-                StringComparison.Ordinal))
+        bool required = string.Equals(
+            Environment.GetEnvironmentVariable(EnableVariable),
+            "1",
+            StringComparison.Ordinal);
+        if (!required)
         {
             Assert.Skip($"未设置 {EnableVariable}=1，跳过真实视频回放冒烟");
         }
 
         string repositoryRoot = FindRepositoryRoot();
-        string preferredFfmpeg = Path.Combine(
-            repositoryRoot,
-            "package",
-            "dependency-cache",
-            "ffmpeg",
-            "4.4.1",
-            "ffmpeg.exe");
-        string? ffmpeg = File.Exists(preferredFfmpeg)
-            ? preferredFfmpeg
-            : Directory
-                .EnumerateFiles(
-                    Path.Combine(repositoryRoot, "package"),
-                    "ffmpeg.exe",
-                    SearchOption.AllDirectories)
-                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                .FirstOrDefault();
+        string baselinePath = Path.Combine(repositoryRoot, "tools", "ffmpeg-baseline.json");
+        using JsonDocument baseline = JsonDocument.Parse(File.ReadAllBytes(baselinePath));
+        HashSet<string> acceptedSignatures = baseline.RootElement
+            .GetProperty("app_patch_compatible_executables")
+            .EnumerateArray()
+            .Select(item =>
+                $"{item.GetProperty("size").GetInt64()}|{item.GetProperty("sha256").GetString()}")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string? ffmpeg = Directory
+            .EnumerateFiles(
+                Path.Combine(repositoryRoot, "package"),
+                "ffmpeg.exe",
+                SearchOption.AllDirectories)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(path =>
+            {
+                using FileStream stream = File.OpenRead(path);
+                string hash = Convert.ToHexString(SHA256.HashData(stream));
+                return acceptedSignatures.Contains($"{new FileInfo(path).Length}|{hash}");
+            });
         if (ffmpeg == null)
-            Assert.Skip("找不到 ffmpeg.exe，跳过真实视频回放冒烟");
+            throw new Xunit.Sdk.XunitException(
+                "发布门禁找不到清单登记且哈希匹配的 ffmpeg.exe，不能跳过真实视频回放冒烟");
 
         string folder = Path.Combine(
             Path.GetTempPath(),
@@ -98,11 +106,9 @@ public sealed class PlaybackWindowVideoHostSmokeTests
         string snapshotPath = Path.Combine(
             Path.GetDirectoryName(videoPath)!,
             "回放截图-冒烟.png");
-        var application = new Application
-        {
-            ShutdownMode = ShutdownMode.OnExplicitShutdown
-        };
+        Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
         Exception? failure = null;
+        var completionFrame = new DispatcherFrame();
         var host = new VlcVideoHost();
         var window = new Window
         {
@@ -114,7 +120,7 @@ public sealed class PlaybackWindowVideoHostSmokeTests
         host.Visibility = Visibility.Hidden;
 
         Core.Initialize();
-        using var libVlc = new LibVLC("--no-video-title-show");
+        using var libVlc = PlaybackLibVlc.Create();
         using var player = new MediaPlayer(libVlc);
         using var media = new Media(libVlc, new Uri(videoPath));
         media.AddOption(":start-paused");
@@ -123,6 +129,8 @@ public sealed class PlaybackWindowVideoHostSmokeTests
         bool playbackUnpaused = false;
         bool snapshotRequested = false;
         Stopwatch? snapshotRequestWait = null;
+        bool replayStarted = false;
+        Stopwatch? replayWait = null;
         int snapshotTaken = 0;
         player.SnapshotTaken += (_, args) =>
         {
@@ -150,15 +158,14 @@ public sealed class PlaybackWindowVideoHostSmokeTests
                 }
                 player.Vout += (_, _) =>
                 {
-                    application.Dispatcher.BeginInvoke(RevealHost);
+                    dispatcher.BeginInvoke(RevealHost);
                 };
                 player.Paused += (_, _) =>
                 {
-                    application.Dispatcher.BeginInvoke(RevealHost);
+                    dispatcher.BeginInvoke(RevealHost);
                 };
                 Assert.True(player.Play(media));
 
-                // 隐藏的 HwndHost 可能收不到 Vout；生产窗口在 1.5 秒后兜底显示宿主。
                 revealFallback = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
                 revealFallback.Tick += (_, _) =>
                 {
@@ -170,7 +177,7 @@ public sealed class PlaybackWindowVideoHostSmokeTests
             catch (Exception ex)
             {
                 failure = ex;
-                application.Shutdown(1);
+                completionFrame.Continue = false;
                 return;
             }
 
@@ -195,7 +202,7 @@ public sealed class PlaybackWindowVideoHostSmokeTests
                     Assert.Contains(titles, title => title.Contains("PackingProof playback smoke", StringComparison.Ordinal));
                     Assert.DoesNotContain(titles, title => title.Contains("LibVLCSharp.WPF", StringComparison.Ordinal));
                     Assert.DoesNotContain(titles, title => title.Contains("VLC (Direct3D11 output)", StringComparison.Ordinal));
-
+                    Assert.DoesNotContain(titles, title => title.StartsWith("VLC (", StringComparison.OrdinalIgnoreCase));
                     if (!playbackUnpaused)
                     {
                         player.SetPause(false);
@@ -231,26 +238,48 @@ public sealed class PlaybackWindowVideoHostSmokeTests
                         Assert.Equal(360, decoder.Frames[0].PixelHeight);
                     }
 
+                    if (!replayStarted)
+                    {
+                        // 现场窗口通常只创建一次播放器、随后多次 Stop/Play。
+                        // 第二次起播仍必须复用内嵌 HWND，不能退回独立 VLC 窗口。
+                        player.Stop();
+                        host.Visibility = Visibility.Hidden;
+                        Assert.True(host.Attach(
+                            player,
+                            window.ActualWidth,
+                            window.ActualHeight));
+                        Assert.True(player.Play(media));
+                        replayStarted = true;
+                        replayWait = Stopwatch.StartNew();
+                        return;
+                    }
+                    if (replayWait!.Elapsed < TimeSpan.FromSeconds(1))
+                        return;
+
+                    string[] replayTitles = GetVisibleWindowTitlesForCurrentProcess();
+                    Assert.Contains(replayTitles, title => title.Contains("PackingProof playback smoke", StringComparison.Ordinal));
+                    Assert.DoesNotContain(replayTitles, title => title.StartsWith("VLC (", StringComparison.OrdinalIgnoreCase));
+
                     timer.Stop();
                     revealFallback?.Stop();
                     host.Detach(player);
                     window.Close();
                     Assert.False(window.IsVisible);
-                    application.Shutdown(0);
+                    completionFrame.Continue = false;
                 }
                 catch (Exception ex)
                 {
                     failure = ex;
-                    application.Shutdown(1);
+                    completionFrame.Continue = false;
                 }
             };
             timer.Start();
         };
 
-        int exitCode = application.Run(window);
+        window.Show();
+        Dispatcher.PushFrame(completionFrame);
         if (failure != null)
             throw new Xunit.Sdk.XunitException($"真实视频回放冒烟失败：{failure}");
-        Assert.Equal(0, exitCode);
     }
 
     private static string[] GetVisibleWindowTitlesForCurrentProcess()
@@ -275,26 +304,8 @@ public sealed class PlaybackWindowVideoHostSmokeTests
         return [.. titles];
     }
 
-    private static void RunOnStaThread(Action action)
-    {
-        Exception? failure = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception ex)
-            {
-                failure = ex;
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "真实视频回放冒烟超时");
-        if (failure != null)
-            throw new Xunit.Sdk.XunitException($"真实视频回放冒烟失败：{failure}");
-    }
+    private static void RunOnStaThread(Action action) =>
+        WpfTestHost.Run(action, TimeSpan.FromSeconds(30), "真实视频回放冒烟超时");
 
     private static string FindRepositoryRoot()
     {

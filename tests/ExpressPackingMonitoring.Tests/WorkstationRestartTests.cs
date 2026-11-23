@@ -72,4 +72,76 @@ public sealed class WorkstationRestartTests
         Assert.False(WorkstationNetwork.IsRestartPending);
         Assert.False(WorkstationNetwork.TryStartPendingRestart(_ => 12345));
     }
+
+    [Fact]
+    public void ReplacementProcessStartIsConfirmedBeforeShutdown()
+    {
+        WorkstationNetwork.CancelPendingRestart();
+        int startCount = 0;
+        try
+        {
+            bool started = WorkstationNetwork.TryStartReplacementProcess(
+                Environment.ProcessPath!,
+                AppContext.BaseDirectory,
+                "test",
+                out int? processId,
+                info =>
+                {
+                    startCount++;
+                    Assert.Equal(
+                        ["--wait-for-process-exit", Environment.ProcessId.ToString()],
+                        info.ArgumentList);
+                    return -1;
+                });
+
+            Assert.True(started);
+            Assert.Equal(1, startCount);
+            Assert.Equal(-1, processId);
+            Assert.True(WorkstationNetwork.IsRestartPending);
+        }
+        finally
+        {
+            WorkstationNetwork.CancelPendingRestart();
+        }
+    }
+
+    [Fact]
+    public void ReplacementProcessFailureIsReportedSynchronously()
+    {
+        bool started = WorkstationNetwork.TryStartReplacementProcess(
+            Environment.ProcessPath!,
+            AppContext.BaseDirectory,
+            "test",
+            out int? processId,
+            _ => null);
+
+        Assert.False(started);
+        Assert.Null(processId);
+    }
+
+    [Fact]
+    public void CancellingConfirmedReplacementRunsRollbackCallback()
+    {
+        WorkstationNetwork.CancelPendingRestart();
+        int cancelled = 0;
+        WorkstationNetwork.SetRestartCancellationCallback(() => cancelled++);
+        try
+        {
+            Assert.True(WorkstationNetwork.TryStartReplacementProcess(
+                Environment.ProcessPath!,
+                AppContext.BaseDirectory,
+                "test",
+                out _,
+                _ => -1));
+            WorkstationNetwork.CancelPendingRestart();
+
+            Assert.Equal(1, cancelled);
+            Assert.False(WorkstationNetwork.IsRestartPending);
+        }
+        finally
+        {
+            WorkstationNetwork.CancelPendingRestart();
+            WorkstationNetwork.SetRestartCancellationCallback(null);
+        }
+    }
 }

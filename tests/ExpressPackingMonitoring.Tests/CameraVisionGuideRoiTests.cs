@@ -301,26 +301,8 @@ public sealed class CameraVisionGuideRoiTests
         encoder.Save(stream);
     }
 
-    private static void RunOnStaThread(Action action)
-    {
-        Exception? failure = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception ex)
-            {
-                failure = ex;
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "WPF 渲染超时");
-        if (failure != null)
-            throw new Xunit.Sdk.XunitException($"WPF 渲染失败：{failure}");
-    }
+    private static void RunOnStaThread(Action action) =>
+        WpfTestHost.Run(action, TimeSpan.FromSeconds(30), "WPF 渲染超时");
 
     private static string SliceCornerPath(string xaml, int start, int end) =>
         xaml[start..end];

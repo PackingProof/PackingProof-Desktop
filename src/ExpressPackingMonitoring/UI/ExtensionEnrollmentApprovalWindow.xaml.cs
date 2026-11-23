@@ -23,6 +23,8 @@ public partial class ExtensionEnrollmentApprovalWindow : Window
         _request = request ?? throw new ArgumentNullException(nameof(request));
         _localOriginNodeId = localOriginNodeId?.Trim() ?? "";
         InitializeComponent();
+        ExecutionNoticeText.Text = AppLanguage.Get(
+            "PackingProof 不会执行此扩展的代码。允许后，扩展只能调用上面列出的接口；请仅批准你信任的来源");
 
         string source = string.IsNullOrWhiteSpace(request.Source)
             ? AppLanguage.Get("Extension.EnrollmentSourceUnknown")

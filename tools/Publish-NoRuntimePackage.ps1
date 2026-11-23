@@ -23,7 +23,7 @@ param(
     [switch]$SkipSetup,
     [switch]$IncludeZip,
     [switch]$UploadGitee,
-    [string]$GiteeRepository = "PackingProof/PackingProof-Desktop"
+    [string]$GiteeRepository = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,6 +33,11 @@ Set-Location $repoRoot
 . (Join-Path $PSScriptRoot "ReleaseVersion.Common.ps1")
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
 . (Join-Path $PSScriptRoot "VisionModelBaseline.Common.ps1")
+. (Join-Path $PSScriptRoot "Branding.Common.ps1")
+$brand = Get-BrandProfile -RepoRoot $repoRoot
+if ([string]::IsNullOrWhiteSpace($GiteeRepository)) {
+    $GiteeRepository = $brand.RepositorySlug
+}
 
 $releaseTag = if ([string]::IsNullOrWhiteSpace($Tag)) { (git describe --tags --exact-match 2>$null) } else { $Tag }
 if ([string]::IsNullOrWhiteSpace($releaseTag)) {
@@ -49,11 +54,11 @@ if (-not $IncludeZip -and (Test-Path -LiteralPath $standardSetupPath -PathType L
     $standardSetupSize = (Get-Item -LiteralPath $standardSetupPath).Length
     Write-Host ("==> 完整 Setup 已小于 100MB（{0:N1} MB），跳过 no-runtime 构建" -f ($standardSetupSize / 1MB))
     if ($UploadGitee -and -not $SkipSetup) {
-        if (-not (Import-GiteeReleaseBotToken)) {
-            throw "Gitee 远端写入必须使用 PackingProof-Release-Bot token 文件"
+        if (-not (Import-GiteeReleaseBotToken -Brand $brand)) {
+            throw "Gitee 远端写入必须使用软件配置指定的专用发布 token"
         }
         $setupName = Split-Path -Leaf $standardSetupPath
-        $noRuntimeName = "PackingProof_Setup_no-runtime_$releaseTag.exe"
+        $noRuntimeName = "$($brand.ArtifactPrefix)_Setup_no-runtime_v$normalizedVersion.exe"
         Remove-GiteeReleaseAttachmentsForTag `
             -Repository $GiteeRepository `
             -Tag $releaseTag `
@@ -68,7 +73,7 @@ if (-not $IncludeZip -and (Test-Path -LiteralPath $standardSetupPath -PathType L
     exit 0
 }
 
-$cleanPackageDir = Join-Path $packageRoot "PackingProof+$releaseTag"
+$cleanPackageDir = Join-Path $packageRoot ($brand.ArtifactPrefix + "+$releaseTag")
 $launcherExe = Join-Path $cleanPackageDir "ExpressPackingMonitoring.exe"
 $sourceAppDir = Join-Path $cleanPackageDir "app"
 if (-not (Test-Path -LiteralPath $launcherExe -PathType Leaf)) {
@@ -77,7 +82,7 @@ if (-not (Test-Path -LiteralPath $launcherExe -PathType Leaf)) {
 
 $workRoot = Join-Path $repoRoot "package\.no-runtime-work"
 $packageDir = Join-Path $workRoot "package"
-$zipName = "PackingProof_no-runtime_$releaseTag.zip"
+$zipName = "$($brand.ArtifactPrefix)_no-runtime_v$normalizedVersion.zip"
 $zipPath = Join-Path $packageRoot $zipName
 
 if (Test-Path -LiteralPath $workRoot) {
@@ -113,6 +118,7 @@ $publishArguments = @(
     "--nologo",
     "--self-contained", "false",
     "-p:PublishSingleFile=false",
+    "-p:BrandProfile=$($brand.ProfileId)",
     "-p:InformationalVersion=$normalizedVersion",
     "-p:IncludeSourceRevisionInInformationalVersion=false",
     "-o", $runtimePackageAppDir
@@ -190,14 +196,14 @@ if (Test-Path -LiteralPath $ttsCacheSource -PathType Container) {
 Write-Host "==> 组装清爽包（根启动器 + app\）"
 Copy-Item -LiteralPath $launcherExe -Destination (Join-Path $packageDir "ExpressPackingMonitoring.exe") -Force
 Set-Content -LiteralPath (Join-Path $packageDir "使用前必读.txt") -Encoding UTF8 -Value @"
-本包不包含 .NET 运行时，运行前请先安装：
+$($brand.DisplayName) 不包含 .NET 运行时。运行前请先安装：
   .NET 10 Desktop Runtime (x64)  https://dotnet.microsoft.com/download/dotnet/10.0
 
 安装后双击根目录的 ExpressPackingMonitoring.exe 启动。
 这份安装向导仅供 Gitee 下载（Gitee 单附件上限 100MB，自包含安装包放不下）。
 更新方式和标准包一致：启动器会自动下载并安装增量包（增量包只含应用文件，不含运行时）；
 也可以直接下载新版本的安装向导，覆盖安装到原目录。
-%LOCALAPPDATA%\ExpressPackingMonitoring 下的配置、数据库与录像不受影响。
+%LOCALAPPDATA%\$($brand.DataDirectoryName) 下的配置、数据库与录像不受影响。
 "@
 
 $zipPath = ""
@@ -227,8 +233,8 @@ if ($IncludeZip) {
 # 同样打一份安装向导：Gitee 用户和 GitHub 用户拿到的是同一种"双击安装"体验。
 $setupPath = ""
 if (-not $SkipSetup) {
-    # 命名与其它产物一致：版本号放最后（PackingProof_Setup_vX.Y.Z.exe / PackingProof_AppPatch_vX.Y.Z.zip）。
-    $setupName = "PackingProof_Setup_no-runtime_$releaseTag.exe"
+    # 命名与其它产物一致：版本号放最后。
+    $setupName = "$($brand.ArtifactPrefix)_Setup_no-runtime_v$normalizedVersion.exe"
     $installerBuilder = Join-Path $PSScriptRoot "Build-Installer.ps1"
     Write-Host "==> 生成安装向导（不含运行时）"
     & $installerBuilder `
@@ -249,8 +255,8 @@ if (-not $SkipSetup) {
 }
 
 if ($UploadGitee) {
-    if (-not (Import-GiteeReleaseBotToken)) {
-        throw "Gitee 远端写入必须使用 PackingProof-Release-Bot token 文件"
+    if (-not (Import-GiteeReleaseBotToken -Brand $brand)) {
+        throw "Gitee 远端写入必须使用软件配置指定的专用发布 token"
     }
     Write-Host "==> 上传到 Gitee Release $releaseTag"
     $uploadFiles = @()

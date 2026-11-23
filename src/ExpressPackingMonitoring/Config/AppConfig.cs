@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
+using ExpressPackingMonitoring.UpdateCore;
 using ExpressPackingMonitoring.Localization;
 
 namespace ExpressPackingMonitoring.Config
@@ -33,17 +34,69 @@ namespace ExpressPackingMonitoring.Config
         [ObservableProperty] private string _duration;
         [ObservableProperty] private string _dateStr;
         [ObservableProperty] private string _mode;
+        [ObservableProperty] private long _videoRecordId;
+        [ObservableProperty] private string _generatedName;
+        [ObservableProperty] private string _saveStatusText;
 
         // 新增活跃状态，用于前端变色
         [ObservableProperty] private bool _isActive;
 
-        public ScanRecord(string orderId, string duration, string dateStr, string mode, bool isActive = false)
+        public ScanRecord(
+            string orderId,
+            string duration,
+            string dateStr,
+            string mode,
+            bool isActive = false,
+            long videoRecordId = 0,
+            string generatedName = "",
+            string saveStatusText = "")
         { 
             OrderId = orderId; 
             Duration = duration; 
             DateStr = dateStr; 
             Mode = mode; 
-            IsActive = isActive; 
+            IsActive = isActive;
+            VideoRecordId = videoRecordId;
+            GeneratedName = generatedName;
+            SaveStatusText = saveStatusText;
+        }
+
+        internal static string FormatDuration(double durationSeconds)
+        {
+            int totalSeconds = Math.Max(0, (int)Math.Floor(durationSeconds));
+            return totalSeconds < 60
+                ? $"{totalSeconds}s"
+                : $"{totalSeconds / 60}m {totalSeconds % 60}s";
+        }
+
+        public bool CanPlay => !IsActive && VideoRecordId > 0;
+        public string CopyOrderNumberText =>
+            !string.IsNullOrWhiteSpace(OrderId)
+                ? OrderId.Trim()
+                : GeneratedName?.Trim() ?? "";
+        public bool CanCopyOrderNumber =>
+            !string.IsNullOrWhiteSpace(CopyOrderNumberText);
+        public bool HasSaveStatus => !string.IsNullOrWhiteSpace(SaveStatusText);
+
+        partial void OnIsActiveChanged(bool value) =>
+            OnPropertyChanged(nameof(CanPlay));
+
+        partial void OnVideoRecordIdChanged(long value) =>
+            OnPropertyChanged(nameof(CanPlay));
+
+        partial void OnOrderIdChanged(string value) =>
+            OnCopyOrderNumberChanged();
+
+        partial void OnGeneratedNameChanged(string value) =>
+            OnCopyOrderNumberChanged();
+
+        partial void OnSaveStatusTextChanged(string value) =>
+            OnPropertyChanged(nameof(HasSaveStatus));
+
+        private void OnCopyOrderNumberChanged()
+        {
+            OnPropertyChanged(nameof(CopyOrderNumberText));
+            OnPropertyChanged(nameof(CanCopyOrderNumber));
         }
     }
 
@@ -54,7 +107,7 @@ namespace ExpressPackingMonitoring.Config
 
         /// <summary>
         /// 下拉显示名按稳定的 Value 现算，不能直接使用配置缓存里的旧语言文本。
-        /// 品牌名保持原样，其余项走当前界面语言。
+        /// 软件名保持原样，其余项走当前界面语言。
         /// </summary>
         public static string BuildDisplayName(string value) =>
             value?.Trim().ToLowerInvariant() switch
@@ -74,7 +127,7 @@ namespace ExpressPackingMonitoring.Config
     // 存储节点模型
     public class StorageLocation
     {
-        public string Path { get; set; } = "D:\\PackingProofVideos";
+        public string Path { get; set; } = "D:\\" + BrandMetadata.ArtifactPrefix + "Videos";
         public double ReserveGB { get; set; } = 0.0;
         public int Priority { get; set; } = 1; // 数字越小越优先
         /// <summary>用户显式添加的备份目标；网盘挂载盘未挂载时仍据此保留备份角色。</summary>
@@ -90,8 +143,6 @@ namespace ExpressPackingMonitoring.Config
             set => ReserveGB = StorageSpacePolicy.NormalizeReserveGB(Path, value);
         }
     }
-
-    internal readonly record struct StorageDriveCandidate(string RootPath, bool IsReady, DriveType DriveType);
 
     // 摄像头独立配置模型
     public class CameraSettings
@@ -422,6 +473,7 @@ namespace ExpressPackingMonitoring.Config
         public string WindowCloseBehavior { get; set; } = WindowCloseBehaviors.Ask;
         public bool ShowAdvancedSettings { get; set; } = false;
         public bool ShowDeletedVideos { get; set; } = false;
+        public bool ShowPhotoCaptureButton { get; set; } = false;
         public bool AutoStartOnBoot { get; set; } = true;
         public bool EnableAutoCheckUpdate { get; set; } = true;
         // 仅用于显卡或虚拟显示驱动导致窗口全白/全黑的机器；进程级设置，改动后需重启程序。
@@ -464,7 +516,7 @@ namespace ExpressPackingMonitoring.Config
         public string LastExtensionAutoUpdateCheck { get; set; } = "";
 
         // 局域网 Web 服务
-        public int WebServerPort { get; set; } = 5280;
+        public int WebServerPort { get; set; } = BrandMetadata.WebServerPort;
         public int TranscodeCacheMaxMB { get; set; } = 1024;  // 转码缓存上限(MB)，超出后按时间清理最旧的
         public bool RequireWebAccessKey { get; set; } = true;
         public string WebAccessKey { get; set; } = "";
@@ -933,7 +985,8 @@ namespace ExpressPackingMonitoring.Config
                 // 旧版本的默认目录还在就继续用它，避免升级后突然“看不到旧录像”。
                 // 这是沿用，不是迁移：不移动、不改名任何文件。
                 string legacyDefault = Path.Combine(DefaultStorageRoot, LegacyStorageFolderName);
-                if (Directory.Exists(legacyDefault))
+                if (string.Equals(BrandMetadata.ProfileId, "packingproof", StringComparison.OrdinalIgnoreCase)
+                    && Directory.Exists(legacyDefault))
                     config.StorageLocations.Add(new StorageLocation { Path = legacyDefault, Priority = 0 });
                 else
                     config.StorageLocations.AddRange(CreateDefaultStorageLocations());
@@ -1657,201 +1710,50 @@ namespace ExpressPackingMonitoring.Config
                         StringComparison.Ordinal));
         }
 
-        /// <summary>
-        /// 只读系统卷根：macOS 的 "/" 既不允许建目录，也不是存录像的地方。
-        /// Windows 没有这种卷，返回 null 表示不做此限制。
-        /// </summary>
-        private static string? ReadOnlySystemRoot => OperatingSystem.IsMacOS() ? "/" : null;
+        /// <summary>旧版本的默认目录名，只用于判断要不要继续沿用，不再新建。</summary>
+        internal const string LegacyStorageFolderName =
+            AppConfigStoragePaths.LegacyStorageFolderName;
 
-        private static bool MigrateRecordingCacheDefaultPath(AppConfig config)
-        {
-            if (!OperatingSystem.IsWindows())
-                return false;
+        private static string? ReadOnlySystemRoot =>
+            AppConfigStoragePaths.ReadOnlySystemRoot;
 
-            string? legacyPath = LegacyRecordingCachePath;
-            if (legacyPath == null)
-                return false;
+        private static bool MigrateRecordingCacheDefaultPath(AppConfig config) =>
+            AppConfigStoragePaths.MigrateRecordingCacheDefaultPath(config);
 
-            StorageLocation? legacy = config.StorageLocations.FirstOrDefault(location =>
-                IsSamePath(location.Path, legacyPath));
-            if (legacy == null)
-                return false;
+        internal static string? LegacyRecordingCachePath =>
+            AppConfigStoragePaths.LegacyRecordingCachePath;
 
-            string preferredPath = DefaultStoragePath;
-            StorageLocation? preferred = config.StorageLocations.FirstOrDefault(location =>
-                IsSamePath(location.Path, preferredPath));
-            if (preferred != null && preferred.Priority < legacy.Priority)
-                return false;
-            if (preferred == null)
-            {
-                preferred = new StorageLocation
-                {
-                    Path = preferredPath,
-                    ReserveGB = StorageSpacePolicy.GetDefaultReserveGB(preferredPath),
-                    Priority = legacy.Priority
-                };
-                config.StorageLocations.Add(preferred);
-            }
-
-            int preferredPriority = preferred.Priority;
-            preferred.Priority = legacy.Priority;
-            legacy.Priority = Math.Max(preferredPriority, preferred.Priority + 1);
-            return true;
-        }
-
-        internal static string? LegacyRecordingCachePath
-        {
-            get
-            {
-                if (!OperatingSystem.IsWindows())
-                    return null;
-                string videosRoot = Environment.GetFolderPath(
-                    Environment.SpecialFolder.MyVideos);
-                return string.IsNullOrWhiteSpace(videosRoot)
-                    ? null
-                    : Path.Combine(videosRoot, DefaultStorageFolderName);
-            }
-        }
-
-        /// <summary>
-        /// 清掉落在只读系统卷根下的保存位置。旧版把 Windows 默认值（D:\快递打包视频 一类）
-        /// 在 macOS 上归一化成 /快递打包视频，而 "/" 是只读系统卷，这个目录永远建不出来，
-        /// 留着它会让备份主机每次启动都失败、菜单栏一直显示"启动中"。
-        /// 只是移除无效项，改由默认位置规则重建；其它平台的配置一律不动。
-        /// </summary>
         internal static bool RemoveUnusableStorageLocations(
             List<StorageLocation> locations,
-            string? readOnlySystemRoot)
-        {
-            if (string.IsNullOrWhiteSpace(readOnlySystemRoot)) return false;
+            string? readOnlySystemRoot) =>
+            AppConfigStoragePaths.RemoveUnusableStorageLocations(
+                locations,
+                readOnlySystemRoot);
 
-            return locations.RemoveAll(location =>
-                IsDirectChildOfRoot(location.Path, readOnlySystemRoot)) > 0;
-        }
-
-        /// <summary>
-        /// 是否直接挂在给定根下："/快递打包视频"挂在"/"下，
-        /// 外接盘上的"/Volumes/盘/快递打包视频"不算，避免误删真实保存位置。
-        /// </summary>
-        private static bool IsDirectChildOfRoot(string? path, string root)
-        {
-            if (string.IsNullOrWhiteSpace(path)) return false;
-
-            try
-            {
-                string parent = Path.GetDirectoryName(Path.GetFullPath(path.Trim())) ?? "";
-                return string.Equals(
-                    TrimTrailingSeparators(parent),
-                    TrimTrailingSeparators(Path.GetFullPath(root)),
-                    StringComparison.Ordinal);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        /// <summary>去掉结尾分隔符后再比较："/" 与 "/" 相等，"/Volumes/盘/" 与 "/Volumes/盘" 相等</summary>
-        private static string TrimTrailingSeparators(string path) =>
-            path.Length <= 1
-                ? path
-                : path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-        private static List<StorageLocation> CreateDefaultStorageLocations()
-        {
-            try
-            {
-                return CreateDefaultStorageLocations(
-                    DriveInfo.GetDrives().Select(drive =>
-                        new StorageDriveCandidate(drive.Name, drive.IsReady, drive.DriveType)),
-                    ReadOnlySystemRoot);
-            }
-            catch
-            {
-                return CreateDefaultStorageLocations(
-                    Array.Empty<StorageDriveCandidate>(),
-                    ReadOnlySystemRoot);
-            }
-        }
+        private static List<StorageLocation> CreateDefaultStorageLocations() =>
+            AppConfigStoragePaths.CreateDefaultStorageLocations();
 
         internal static List<StorageLocation> CreateDefaultStorageLocations(
             IEnumerable<StorageDriveCandidate> drives) =>
-            CreateDefaultStorageLocations(drives, ReadOnlySystemRoot);
+            AppConfigStoragePaths.CreateDefaultStorageLocations(drives);
 
-        /// <summary>
-        /// 每个可用本地盘一个"PackingProofVideos"目录。readOnlySystemRoot 非空时该根不参与默认位置
-        /// （macOS 传 "/"：默认值会变成一条永远建不出来的配置）；fallbackRoot 是测试注入用的
-        /// 兜底根，正常调用按平台取。
-        /// </summary>
         internal static List<StorageLocation> CreateDefaultStorageLocations(
             IEnumerable<StorageDriveCandidate> drives,
             string? readOnlySystemRoot,
-            string? fallbackRoot = null)
-        {
-            var roots = drives
-                .Where(drive => drive.IsReady && drive.DriveType == DriveType.Fixed)
-                .Select(drive => Path.GetPathRoot(drive.RootPath) ?? drive.RootPath)
-                .Where(root => !string.IsNullOrWhiteSpace(root))
-                .Where(root => !IsSamePath(root, readOnlySystemRoot))
-                .Select(root => root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderByDescending(root => root, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            string? fallbackRoot = null) =>
+            AppConfigStoragePaths.CreateDefaultStorageLocations(
+                drives,
+                readOnlySystemRoot,
+                fallbackRoot);
 
-            if (roots.Count == 0)
-                roots.Add(fallbackRoot ?? DefaultStorageRoot);
-
-            return roots
-                .Select((root, index) =>
-                {
-                    string path = Path.Combine(root, DefaultStorageFolderName);
-                    return new StorageLocation
-                    {
-                        Path = path,
-                        ReserveGB = StorageSpacePolicy.GetDefaultReserveGB(path),
-                        Priority = index
-                    };
-                })
-                .ToList();
-        }
-
-        /// <summary>没有可用本地盘时的默认根：Windows 用系统盘，其它平台用个人影片目录</summary>
         internal static string DefaultStorageRoot =>
-            OperatingSystem.IsWindows()
-                ? Path.GetPathRoot(Environment.SystemDirectory) ?? @"C:\"
-                : Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    "Movies") + Path.DirectorySeparatorChar;
+            AppConfigStoragePaths.DefaultStorageRoot;
 
-        /// <summary>保存位置统一用的文件夹名：每块盘都是"&lt;盘根&gt;\PackingProofVideos"，不分系统盘还是数据盘。</summary>
-        internal const string DefaultStorageFolderName = "PackingProofVideos";
+        internal static string DefaultStorageFolderName =>
+            AppConfigStoragePaths.DefaultStorageFolderName;
 
-        /// <summary>旧版本的默认目录名，只用于判断要不要继续沿用，不再新建。</summary>
-        internal const string LegacyStorageFolderName = "快递打包视频";
-
-        /// <summary>
-        /// 没有任何可用本地位置时的默认保存位置。与"添加磁盘"默认值同一套规则，
-        /// 也就是"哪块盘就放哪块盘的PackingProofVideos"；绝不落到程序安装目录下。
-        /// </summary>
         internal static string DefaultStoragePath =>
-            Path.Combine(DefaultStorageRoot, DefaultStorageFolderName);
-
-        private static bool IsSamePath(string left, string? right)
-        {
-            if (string.IsNullOrWhiteSpace(right)) return false;
-
-            try
-            {
-                return string.Equals(
-                    TrimTrailingSeparators(Path.GetFullPath(left)),
-                    TrimTrailingSeparators(Path.GetFullPath(right)),
-                    StringComparison.OrdinalIgnoreCase);
-            }
-            catch
-            {
-                return false;
-            }
-        }
+            AppConfigStoragePaths.DefaultStoragePath;
 
         internal bool IsCameraIdleNoSleepTime(DateTime now)
         {

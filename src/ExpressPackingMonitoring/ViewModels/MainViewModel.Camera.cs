@@ -1154,6 +1154,8 @@ namespace ExpressPackingMonitoring.ViewModels
                             catch { }
                         }
 
+                        TryFulfillPendingPhotoFrame(processedFrame);
+
                         if (previewPublishDue)
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.PreviewPublish, currentFrameSequence);

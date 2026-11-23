@@ -13,6 +13,7 @@
   <data name="上一步" xml:space="preserve"><value>上一步</value></data>
   <data name="完成" xml:space="preserve"><value>完成</value></data>
   <data name="播放" xml:space="preserve"><value>播放</value></data>
+  <data name="播放录像" xml:space="preserve"><value>播放录像</value></data>
   <data name="暂停" xml:space="preserve"><value>暂停</value></data>
   <data name="下载" xml:space="preserve"><value>下载</value></data>
   <data name="剪辑" xml:space="preserve"><value>剪辑</value></data>
@@ -47,10 +48,74 @@
   <data name="语音提醒" xml:space="preserve"><value>语音提醒</value></data>
   <data name="播报音量最大" xml:space="preserve"><value>播报音量最大</value></data>
   <data name="录像列表" xml:space="preserve"><value>录像列表</value></data>
+  <data name="拍照" xml:space="preserve"><value>拍照</value></data>
+  <data name="照片库" xml:space="preserve"><value>照片库</value></data>
+  <data name="照片取证" xml:space="preserve"><value>照片取证</value></data>
+  <data name="照片列表" xml:space="preserve"><value>照片列表</value></data>
+  <data name="按单号搜索" xml:space="preserve"><value>按单号搜索</value></data>
+  <data name="搜索" xml:space="preserve"><value>搜索</value></data>
+  <data name="拍摄时间" xml:space="preserve"><value>拍摄时间</value></data>
+  <data name="尺寸" xml:space="preserve"><value>尺寸</value></data>
+  <data name="打开照片" xml:space="preserve"><value>打开照片</value></data>
+  <data name="未记录单号" xml:space="preserve"><value>未记录单号</value></data>
+  <data name="本机" xml:space="preserve"><value>本机</value></data>
+  <data name="照片已保存" xml:space="preserve"><value>照片已保存</value></data>
+  <data name="拍照按钮已显示" xml:space="preserve"><value>拍照按钮已显示</value></data>
+  <data name="拍照按钮已隐藏" xml:space="preserve"><value>拍照按钮已隐藏</value></data>
+  <data name="当前用途不支持拍照" xml:space="preserve"><value>当前用途不支持拍照</value></data>
+  <data name="照片已保存：{0}" xml:space="preserve"><value>照片已保存：{0}</value></data>
+  <data name="摄像头画面尚未就绪" xml:space="preserve"><value>摄像头画面尚未就绪</value></data>
+  <data name="正在切换用途，暂时不能拍照" xml:space="preserve"><value>正在切换用途，暂时不能拍照</value></data>
+  <data name="拍照失败：{0}" xml:space="preserve"><value>拍照失败：{0}</value></data>
+  <data name="读取照片失败：{0}" xml:space="preserve"><value>读取照片失败：{0}</value></data>
+  <data name="删除后将从照片库隐藏，并删除本机照片文件。确定删除吗？" xml:space="preserve"><value>删除后将从照片库隐藏，并删除本机照片文件。确定删除吗？</value></data>
+  <data name="删除照片" xml:space="preserve"><value>删除照片</value></data>
+  <data name="照片" xml:space="preserve"><value>照片</value></data>
+  <data name="录像" xml:space="preserve"><value>录像</value></data>
+  <data name="图片" xml:space="preserve"><value>图片</value></data>
+  <data name="照片预览" xml:space="preserve"><value>照片预览</value></data>
+  <data name="当前用途不能删除照片" xml:space="preserve"><value>当前用途不能删除照片</value></data>
+  <data name="确定删除这张照片吗？" xml:space="preserve"><value>确定删除这张照片吗？</value></data>
+  <data name="照片会从本地回放库隐藏并删除本机文件" xml:space="preserve"><value>照片会从本地回放库隐藏并删除本机文件</value></data>
+  <data name="已删除该照片" xml:space="preserve"><value>已删除该照片</value></data>
+  <data name="删除照片…" xml:space="preserve"><value>删除照片…</value></data>
+  <data name="删除照片失败：{0}" xml:space="preserve"><value>删除照片失败：{0}</value></data>
+  <data name="本地拍照取证" xml:space="preserve"><value>本地拍照取证</value></data>
+  <data name="拍照并保存到本机资料库" xml:space="preserve"><value>拍照并保存到本机资料库</value></data>
+  <data name="可使用摄像头拍照" xml:space="preserve"><value>可使用摄像头拍照</value></data>
+  <data name="照片与录像统一按单号检索" xml:space="preserve"><value>照片与录像统一按单号检索</value></data>
+  <data name="取消切换" xml:space="preserve"><value>取消切换</value></data>
+  <data name="等待剪辑完成" xml:space="preserve"><value>等待剪辑完成</value></data>
+  <data name="当前软件未开放本机录像" xml:space="preserve"><value>当前软件未开放本机录像</value></data>
+  <data name="当前软件未开放不录像模式" xml:space="preserve"><value>当前软件未开放不录像模式</value></data>
+  <data name="要，长期保存在这台电脑" xml:space="preserve"><value>要，长期保存在这台电脑</value></data>
+  <data name="这台电脑负责长期保存录像" xml:space="preserve"><value>这台电脑负责长期保存录像</value></data>
+  <data name="当前软件未开放录像从机或查看端" xml:space="preserve"><value>当前软件未开放录像从机或查看端</value></data>
+  <data name="正在取消用途切换" xml:space="preserve"><value>正在取消用途切换</value></data>
+  <data name="重启已取消，用途未切换" xml:space="preserve"><value>重启已取消，用途未切换</value></data>
+  <data name="正在切换用途，暂时不能开始录像" xml:space="preserve"><value>正在切换用途，暂时不能开始录像</value></data>
+  <data name="正在保存上一张照片" xml:space="preserve"><value>正在保存上一张照片</value></data>
+  <data name="保存照片失败：{0}" xml:space="preserve"><value>保存照片失败：{0}</value></data>
+  <data name="缩小" xml:space="preserve"><value>缩小</value></data>
+  <data name="放大" xml:space="preserve"><value>放大</value></data>
+  <data name="旋转" xml:space="preserve"><value>旋转</value></data>
+  <data name="重置" xml:space="preserve"><value>重置</value></data>
+  <data name="选择照片查看大图" xml:space="preserve"><value>选择照片查看大图</value></data>
+  <data name="备份" xml:space="preserve"><value>备份</value></data>
+  <data name="已备份" xml:space="preserve"><value>已备份</value></data>
+  <data name="等待备份" xml:space="preserve"><value>等待备份</value></data>
+  <data name="备份失败" xml:space="preserve"><value>备份失败</value></data>
+  <data name="不需要备份" xml:space="preserve"><value>不需要备份</value></data>
+  <data name="重试备份" xml:space="preserve"><value>重试备份</value></data>
+  <data name="重试备份失败：{0}" xml:space="preserve"><value>重试备份失败：{0}</value></data>
+  <data name="打开照片失败：{0}" xml:space="preserve"><value>打开照片失败：{0}</value></data>
+  <data name="拍照，不停止录像" xml:space="preserve"><value>拍照，不停止录像</value></data>
+  <data name="按单号检索本机照片与备份状态" xml:space="preserve"><value>按单号检索本机照片与备份状态</value></data>
   <data name="开始日期" xml:space="preserve"><value>开始日期</value></data>
   <data name="结束日期" xml:space="preserve"><value>结束日期</value></data>
   <data name="订单号或文件名" xml:space="preserve"><value>订单号或文件名</value></data>
   <data name="加载中" xml:space="preserve"><value>加载中</value></data>
+  <data name="正在加载" xml:space="preserve"><value>正在加载</value></data>
   <data name="正在搜索..." xml:space="preserve"><value>正在搜索...</value></data>
   <data name="连接失败" xml:space="preserve"><value>连接失败</value></data>
   <data name="开始录制" xml:space="preserve"><value>开始录制</value></data>
@@ -399,6 +464,7 @@
   <data name="请选择这台电脑的用途" xml:space="preserve"><value>请选择这台电脑的用途</value></data>
   <data name="请用扫码枪扫描一个快递面单条码。检测到自动回车时可后台扫码；没有自动回车时会切到窗口内识别" xml:space="preserve"><value>请用扫码枪扫描一个快递面单条码。检测到自动回车时可后台扫码；没有自动回车时会切到窗口内识别</value></data>
   <data name="全部" xml:space="preserve"><value>全部</value></data>
+  <data name="显示内容" xml:space="preserve"><value>显示内容</value></data>
   <data name="扫码动态" xml:space="preserve"><value>扫码动态</value></data>
   <data name="本机录制动态" xml:space="preserve"><value>本机录制动态</value></data>
   <data name="摄像头识别面单条码开始录制，再次识别同一条码停止录制" xml:space="preserve"><value>摄像头识别面单条码开始录制，再次识别同一条码停止录制</value></data>
@@ -620,7 +686,7 @@
   <data name="在电脑打开录像网页" xml:space="preserve"><value>在电脑打开录像网页</value></data>
   <data name="暂时无法生成连接二维码" xml:space="preserve"><value>暂时无法生成连接二维码</value></data>
   <data name="下载手机 App" xml:space="preserve"><value>下载手机 App</value></data>
-  <data name="使用 Android 手机扫码，下载 PackingProof 手机录像 App" xml:space="preserve"><value>使用 Android 手机扫码，下载 PackingProof 手机录像 App</value></data>
+  <data name="使用 Android 手机扫码，下载 PackingProof 手机录像 App" xml:space="preserve"><value>使用 Android 手机扫码，下载手机录像 App</value></data>
   <data name="手机 App 下载二维码" xml:space="preserve"><value>手机 App 下载二维码</value></data>
   <data name="Android 版 · 扫码打开下载页" xml:space="preserve"><value>Android 版 · 扫码打开下载页</value></data>
   <data name="Android 最新版 v{0}" xml:space="preserve"><value>Android 最新版 v{0}</value></data>
@@ -679,13 +745,13 @@
   <data name="录像方式" xml:space="preserve"><value>录像方式</value></data>
   <data name="部署场景" xml:space="preserve"><value>部署场景</value></data>
   <data name="电脑用途" xml:space="preserve"><value>电脑用途</value></data>
-  <data name="选择这台电脑在 PackingProof 中承担的职责" xml:space="preserve"><value>选择这台电脑在 PackingProof 中承担的职责</value></data>
+  <data name="选择这台电脑在 PackingProof 中承担的职责" xml:space="preserve"><value>选择这台电脑承担的职责</value></data>
   <data name="使用这台电脑录像" xml:space="preserve"><value>使用这台电脑录像</value></data>
   <data name="连接已有主机" xml:space="preserve"><value>连接已有主机</value></data>
   <data name="接收手机录像" xml:space="preserve"><value>接收手机录像</value></data>
   <data name="PackingProof 查看客户端" xml:space="preserve"><value>PackingProof 查看客户端</value></data>
   <data name="查看客户端" xml:space="preserve"><value>查看客户端</value></data>
-  <data name="连接局域网中的 PackingProof 主机，不在本机录制或保存录像" xml:space="preserve"><value>连接局域网中的 PackingProof 主机，不在本机录制或保存录像</value></data>
+  <data name="连接局域网中的 PackingProof 主机，不在本机录制或保存录像" xml:space="preserve"><value>连接局域网中的备份主机，不在本机录制或保存录像</value></data>
   <data name="当前绑定主机" xml:space="preserve"><value>当前绑定主机</value></data>
   <data name="尚未绑定" xml:space="preserve"><value>尚未绑定</value></data>
   <data name="主机地址" xml:space="preserve"><value>主机地址</value></data>
@@ -697,7 +763,7 @@
   <data name="重新选择这台电脑的用途" xml:space="preserve"><value>重新选择这台电脑的用途</value></data>
   <data name="在浏览器中打开主机网页回放" xml:space="preserve"><value>在浏览器中打开主机网页回放</value></data>
   <data name="打开网页回放" xml:space="preserve"><value>打开网页回放</value></data>
-  <data name="重新扫描局域网中的 PackingProof 主机" xml:space="preserve"><value>重新扫描局域网中的 PackingProof 主机</value></data>
+  <data name="重新扫描局域网中的 PackingProof 主机" xml:space="preserve"><value>重新扫描局域网中的备份主机</value></data>
   <data name="解除当前显示并选择另一台主机" xml:space="preserve"><value>解除当前显示并选择另一台主机</value></data>
   <data name="保存并连接列表中选中的主机" xml:space="preserve"><value>保存并连接列表中选中的主机</value></data>
   <data name="连接输入的主机地址" xml:space="preserve"><value>连接输入的主机地址</value></data>
@@ -716,9 +782,9 @@
   <data name="选择电脑用途" xml:space="preserve"><value>选择电脑用途</value></data>
   <data name="这台电脑主要用来做什么？" xml:space="preserve"><value>这台电脑主要用来做什么？</value></data>
   <data name="选择后将只启动这个场景需要的设备、存储和网络服务" xml:space="preserve"><value>选择后将只启动这个场景需要的设备、存储和网络服务</value></data>
-  <data name="使用电脑摄像头和麦克风录制打包过程，优先由摄像头识别面单条码，也可选用扫码枪。本机会成为 PackingProof 主机，也可以接收手机或其他电脑上传的录像" xml:space="preserve"><value>使用电脑摄像头和麦克风录制打包过程，优先由摄像头识别面单条码，也可选用扫码枪。本机会成为 PackingProof 主机，也可以接收手机或其他电脑上传的录像</value></data>
-  <data name="不在本机录制或保存视频，连接局域网中的 PackingProof 主机查看录像，也可以安装快递助手联动脚本" xml:space="preserve"><value>不在本机录制或保存视频，连接局域网中的 PackingProof 主机查看录像，也可以安装快递助手联动脚本</value></data>
-  <data name="不使用电脑摄像头，集中保存手机或其他电脑上传的录像。本机会成为 PackingProof 主机" xml:space="preserve"><value>不使用电脑摄像头，集中保存手机或其他电脑上传的录像。本机会成为 PackingProof 主机</value></data>
+  <data name="使用电脑摄像头和麦克风录制打包过程，优先由摄像头识别面单条码，也可选用扫码枪。本机会成为 PackingProof 主机，也可以接收手机或其他电脑上传的录像" xml:space="preserve"><value>使用电脑摄像头和麦克风录制打包过程，优先由摄像头识别面单条码，也可选用扫码枪。本机会成为备份主机，也可以接收手机或其他电脑上传的录像</value></data>
+  <data name="不在本机录制或保存视频，连接局域网中的 PackingProof 主机查看录像，也可以安装快递助手联动脚本" xml:space="preserve"><value>不在本机录制或保存视频，连接局域网中的备份主机查看录像，也可以安装快递助手联动脚本</value></data>
+  <data name="不使用电脑摄像头，集中保存手机或其他电脑上传的录像。本机会成为 PackingProof 主机" xml:space="preserve"><value>不使用电脑摄像头，集中保存手机或其他电脑上传的录像。本机会成为备份主机</value></data>
   <data name="安装或重新生成快递助手联动脚本" xml:space="preserve"><value>安装或重新生成快递助手联动脚本</value></data>
   <data name="快递助手联动" xml:space="preserve"><value>快递助手联动</value></data>
   <data name="PackingProof 录像文件备份主机" xml:space="preserve"><value>PackingProof 录像文件备份主机</value></data>
@@ -914,6 +980,7 @@
   <data name="确认用途" xml:space="preserve"><value>确认用途</value></data>
   <data name="当前用途" xml:space="preserve"><value>当前用途</value></data>
   <data name="将切换到" xml:space="preserve"><value>将切换到</value></data>
+  <data name="将使用" xml:space="preserve"><value>将使用</value></data>
   <data name="电脑录像并保存在本机" xml:space="preserve"><value>电脑录像并保存在本机</value></data>
   <data name="这台电脑既负责录像，也作为备份主机长期保管录像" xml:space="preserve"><value>这台电脑既负责录像，也作为备份主机长期保管录像</value></data>
   <data name="使用完整电脑录像能力" xml:space="preserve"><value>使用完整电脑录像能力</value></data>
@@ -969,6 +1036,7 @@
   <data name="正在准备视频..." xml:space="preserve"><value>正在准备视频...</value></data>
   <data name="正在转码，完成后会自动播放" xml:space="preserve"><value>正在转码，完成后会自动播放</value></data>
   <data name="主机正在准备兼容版本，完成后会自动播放" xml:space="preserve"><value>主机正在准备兼容版本，完成后会自动播放</value></data>
+  <data name="这条录像暂时无法播放" xml:space="preserve"><value>这条录像暂时无法播放</value></data>
   <data name="录像暂时无法播放，请稍后重试" xml:space="preserve"><value>录像暂时无法播放，请稍后重试</value></data>
   <data name="录像仍在准备中，请稍后重新选择" xml:space="preserve"><value>录像仍在准备中，请稍后重新选择</value></data>
   <data name="视频播放失败" xml:space="preserve"><value>视频播放失败</value></data>
@@ -1059,7 +1127,7 @@
   <data name="允许称重等第三方程序把数据显示到录像水印中" xml:space="preserve"><value>允许称重等第三方程序把数据显示到录像水印中</value></data>
   <data name="允许第三方扩展连接？" xml:space="preserve"><value>允许第三方扩展连接？</value></data>
   <data name="申请访问范围" xml:space="preserve"><value>申请访问范围</value></data>
-  <data name="PackingProof 不会执行此扩展的代码。允许后，扩展只能调用上面列出的接口；请仅批准你信任的来源" xml:space="preserve"><value>PackingProof 不会执行此扩展的代码。允许后，扩展只能调用上面列出的接口；请仅批准你信任的来源</value></data>
+  <data name="PackingProof 不会执行此扩展的代码。允许后，扩展只能调用上面列出的接口；请仅批准你信任的来源" xml:space="preserve"><value>本软件不会执行此扩展的代码。允许后，扩展只能调用上面列出的接口；请仅批准你信任的来源</value></data>
   <data name="允许扩展" xml:space="preserve"><value>允许扩展</value></data>
   <data name="Extension.EnrollmentSourceUnknown" xml:space="preserve"><value>来源未提供</value></data>
   <data name="Extension.EnrollmentAddressUnknown" xml:space="preserve"><value>地址未知</value></data>
@@ -1114,6 +1182,7 @@
   <data name="录像从机" xml:space="preserve"><value>录像从机</value></data>
   <data name="备份主机" xml:space="preserve"><value>备份主机</value></data>
   <data name="录像查看端" xml:space="preserve"><value>录像查看端</value></data>
+  <data name="尚未配置" xml:space="preserve"><value>尚未配置</value></data>
   <data name="本机录像并长期保存，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>本机录像并长期保存，支持备份到 NAS／网络共享文件夹</value></data>
   <data name="接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹</value></data>
   <data name="本机录像，自动上传到备份主机" xml:space="preserve"><value>本机录像，自动上传到备份主机</value></data>
@@ -1321,7 +1390,7 @@
   <data name="打开完整更新页面" xml:space="preserve"><value>打开完整更新页面</value></data>
   <data name="打开主机录像失败" xml:space="preserve"><value>打开主机录像失败</value></data>
   <data name="单号不一致：{upperResult}" xml:space="preserve"><value>单号不一致：{upperResult}</value></data>
-  <data name="当前 PackingProof 版本过低" xml:space="preserve"><value>当前 PackingProof 版本过低</value></data>
+  <data name="当前 PackingProof 版本过低" xml:space="preserve"><value>当前版本过低</value></data>
   <data name="当前日期范围内没有可导出的单号" xml:space="preserve"><value>当前日期范围内没有可导出的单号</value></data>
   <data name="当前识别：{status.Code}" xml:space="preserve"><value>当前识别：{status.Code}</value></data>
   <data name="当前选择未通过编码器检测" xml:space="preserve"><value>当前选择未通过编码器检测</value></data>
@@ -1400,7 +1469,7 @@
   <data name="请输入大于 0 的 GB 数值" xml:space="preserve"><value>请输入大于 0 的 GB 数值</value></data>
   <data name="请输入网络摄像头地址，然后点击测试连接" xml:space="preserve"><value>请输入网络摄像头地址，然后点击测试连接</value></data>
   <data name="请输入预览文本" xml:space="preserve"><value>请输入预览文本</value></data>
-  <data name="请先搜索并绑定 PackingProof 主机" xml:space="preserve"><value>请先搜索并绑定 PackingProof 主机</value></data>
+  <data name="请先搜索并绑定 PackingProof 主机" xml:space="preserve"><value>请先搜索并绑定备份主机</value></data>
   <data name="请先搜索并连接一台主机" xml:space="preserve"><value>请先搜索并连接一台主机</value></data>
   <data name="请先填写网络摄像头地址" xml:space="preserve"><value>请先填写网络摄像头地址</value></data>
   <data name="请先选择可用摄像头" xml:space="preserve"><value>请先选择可用摄像头</value></data>
@@ -1731,7 +1800,7 @@
   <data name="共 0 条" xml:space="preserve"><value>共 0 条</value></data>
   <data name="第 {0} / {1} 页，共 {2} 条" xml:space="preserve"><value>第 {0} / {1} 页，共 {2} 条</value></data>
   <data name="（已安装）" xml:space="preserve"><value>（已安装）</value></data>
-  <data name="{0}{1}  ·  需要 PackingProof {2}+" xml:space="preserve"><value>{0}{1}  ·  需要 PackingProof {2}+</value></data>
+  <data name="{0}{1}  ·  需要 PackingProof {2}+" xml:space="preserve"><value>{0}{1}  ·  需要版本 {2} 或更高</value></data>
   <data name="安装扩展失败：{0}" xml:space="preserve"><value>安装扩展失败：{0}</value></data>
   <data name="此磁盘当前建议最多 {0}，实际使用会随磁盘剩余空间动态调整" xml:space="preserve"><value>此磁盘当前建议最多 {0}，实际使用会随磁盘剩余空间动态调整</value></data>
   <data name="读取扩展详情失败：{0}" xml:space="preserve"><value>读取扩展详情失败：{0}</value></data>
@@ -1744,15 +1813,15 @@
   <data name="{0}，请改用完整版本更新" xml:space="preserve"><value>{0}，请改用完整版本更新</value></data>
   <data name="最新版本：暂无" xml:space="preserve"><value>最新版本：暂无</value></data>
   <data name="最新版本：{0}" xml:space="preserve"><value>最新版本：{0}</value></data>
-  <data name="⚠ 闭源外部程序。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>⚠ 闭源外部程序。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源</value></data>
-  <data name="⚠ 外部程序由用户手动运行。PackingProof 不会自动启动，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>⚠ 外部程序由用户手动运行。PackingProof 不会自动启动，也无法限制它访问网络、文件或其他系统资源</value></data>
+  <data name="⚠ 闭源外部程序。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>⚠ 闭源外部程序。本软件无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源</value></data>
+  <data name="⚠ 外部程序由用户手动运行。PackingProof 不会自动启动，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>⚠ 外部程序由用户手动运行，不会自动启动；本软件也无法限制它访问网络、文件或其他系统资源</value></data>
   <data name="重新安装" xml:space="preserve"><value>重新安装</value></data>
   <data name="更新" xml:space="preserve"><value>更新</value></data>
   <data name="尚未安装" xml:space="preserve"><value>尚未安装</value></data>
   <data name="已安装：{0}" xml:space="preserve"><value>已安装：{0}</value></data>
   <data name="没有可安装版本" xml:space="preserve"><value>没有可安装版本</value></data>
-  <data name="需要 PackingProof {0} 或更高版本" xml:space="preserve"><value>需要 PackingProof {0} 或更高版本</value></data>
-  <data name="需要 PackingProof {0} 或更高版本，当前版本无法安装" xml:space="preserve"><value>需要 PackingProof {0} 或更高版本，当前版本无法安装</value></data>
+  <data name="需要 PackingProof {0} 或更高版本" xml:space="preserve"><value>需要版本 {0} 或更高</value></data>
+  <data name="需要 PackingProof {0} 或更高版本，当前版本无法安装" xml:space="preserve"><value>需要版本 {0} 或更高，当前版本无法安装</value></data>
   <data name="没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪，作为摄像头识别的后备方案" xml:space="preserve"><value>没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪，作为摄像头识别的后备方案</value></data>
   <data name="没有扫码枪也可手动输入面单号；如需使用，可在这里测试扫码枪" xml:space="preserve"><value>没有扫码枪也可手动输入面单号；如需使用，可在这里测试扫码枪</value></data>
   <data name="已旋转 {0}°" xml:space="preserve"><value>已旋转 {0}°</value></data>
@@ -1801,15 +1870,14 @@
   <data name="NAS 副本已循环清理" xml:space="preserve"><value>NAS 副本已循环清理</value></data>
   <data name="检测到 exe 版数据。商店版与 exe 版使用独立数据目录，更新和卸载互不覆盖；exe 版的设置和录像不会自动迁移" xml:space="preserve"><value>检测到 exe 版数据。商店版与 exe 版使用独立数据目录，更新和卸载互不覆盖；exe 版的设置和录像不会自动迁移</value></data>
   <data name="检测到 Microsoft Store 版数据。Setup 版与商店版使用独立数据目录，更新和卸载互不覆盖；商店版请从 Microsoft Store 更新" xml:space="preserve"><value>检测到 Microsoft Store 版数据。Setup 版与商店版使用独立数据目录，更新和卸载互不覆盖；商店版请从 Microsoft Store 更新</value></data>
-  <data name="另一个 PackingProof 实例已经把当前电脑作为备份主机。两个版本可以同时运行，但同一时间只能有一个备份主机；请关闭其中一个，或把当前版本改为查看端/录像从机" xml:space="preserve"><value>另一个 PackingProof 实例已经把当前电脑作为备份主机。两个版本可以同时运行，但同一时间只能有一个备份主机；请关闭其中一个，或把当前版本改为查看端/录像从机</value></data>
+  <data name="另一个 PackingProof 实例已经把当前电脑作为备份主机。两个版本可以同时运行，但同一时间只能有一个备份主机；请关闭其中一个，或把当前版本改为查看端/录像从机" xml:space="preserve"><value>另一个实例已经把当前电脑作为备份主机。两个版本可以同时运行，但同一时间只能有一个备份主机；请关闭其中一个，或把当前版本改为查看端/录像从机</value></data>
   <data name="不能同时作为备份主机" xml:space="preserve"><value>不能同时作为备份主机</value></data>
   <data name="另一个版本正在作为备份主机。这台电脑只能选择查看端或录像从机，不能再次作为备份主机" xml:space="preserve"><value>另一个版本正在作为备份主机。这台电脑只能选择查看端或录像从机，不能再次作为备份主机</value></data>
   <data name="商店版更新由 Microsoft Store 统一管理，请打开 Microsoft Store 的“库”页面检查更新" xml:space="preserve"><value>商店版更新由 Microsoft Store 统一管理，请打开 Microsoft Store 的“库”页面检查更新</value></data>
   <data name="请先关闭旧版本" xml:space="preserve"><value>请先关闭旧版本</value></data>
   <data name="检测到旧版本仍在运行。请先关闭旧版本，再打开新版本，避免两个进程同时写入同一份配置和录像数据库" xml:space="preserve"><value>检测到旧版本仍在运行。请先关闭旧版本，再打开新版本，避免两个进程同时写入同一份配置和录像数据库</value></data>
-  <data name="提示：" xml:space="preserve"><value>提示：</value></data>
   <data name="扩展脚本已导入，可在安装订单联动中选择" xml:space="preserve"><value>扩展脚本已导入，可在安装订单联动中选择</value></data>
-  <data name="外部扩展已安装。PackingProof 不会自动运行它，关闭此提示后将打开安装目录" xml:space="preserve"><value>外部扩展已安装。PackingProof 不会自动运行它，关闭此提示后将打开安装目录</value></data>
+  <data name="外部扩展已安装。PackingProof 不会自动运行它，关闭此提示后将打开安装目录" xml:space="preserve"><value>外部扩展已安装。本软件不会自动运行它，关闭此提示后将打开安装目录</value></data>
   <data name="安装完成" xml:space="preserve"><value>安装完成</value></data>
   <data name="已打开表格所在文件夹，但系统未能自动选中导出文件" xml:space="preserve"><value>已打开表格所在文件夹，但系统未能自动选中导出文件</value></data>
   <data name="定位导出文件" xml:space="preserve"><value>定位导出文件</value></data>
@@ -1828,11 +1896,11 @@
   <data name="本地版本：{0}" xml:space="preserve"><value>本地版本：{0}</value></data>
   <data name="该扩展从本地 PPEXT 安装，未提供简介" xml:space="preserve"><value>该扩展从本地 PPEXT 安装，未提供简介</value></data>
   <data name="该扩展从本地 PPEXT 安装，不会从市场自动更新" xml:space="preserve"><value>该扩展从本地 PPEXT 安装，不会从市场自动更新</value></data>
-  <data name="本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源</value></data>
+  <data name="本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>本地扩展未经市场审核。本软件无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源</value></data>
   <data name="改进面单识别与放大" xml:space="preserve"><value>改进面单识别与放大</value></data>
   <data name="截取录像开头和结尾画面，改进面单识别与放大" xml:space="preserve"><value>截取录像开头和结尾画面，改进面单识别与放大</value></data>
   <data name="导出样本包" xml:space="preserve"><value>导出样本包</value></data>
-  <data name="帮助 PackingProof 变得更好" xml:space="preserve"><value>帮助 PackingProof 变得更好</value></data>
+  <data name="帮助 PackingProof 变得更好" xml:space="preserve"><value>帮助改进本软件</value></data>
   <data name="面单识别不可靠？" xml:space="preserve"><value>面单识别不可靠？</value></data>
   <data name="本机性能检测通过，已自动开启倾斜面单识别" xml:space="preserve"><value>本机性能检测通过，已自动开启倾斜面单识别</value></data>
   <data name="本机性能检测完成，倾斜面单识别保持关闭" xml:space="preserve"><value>本机性能检测完成，倾斜面单识别保持关闭</value></data>
@@ -1845,7 +1913,7 @@
   <data name="包内不含录像、订单数据库、配置和日志，但会附带匿名设备标识和录像来源指纹，画面也可能包含面单和人物" xml:space="preserve"><value>包内不含录像、订单数据库、配置和日志，但会附带匿名设备标识和录像来源指纹，画面也可能包含面单和人物</value></data>
   <data name="贡献样本" xml:space="preserve"><value>贡献样本</value></data>
   <data name="暂不" xml:space="preserve"><value>暂不</value></data>
-  <data name="请检查画面内容后，通过微信发送给 PackingProof 维护者，或发送到邮箱 {0}" xml:space="preserve"><value>请检查画面内容后，通过微信发送给 PackingProof 维护者，或发送到邮箱 {0}</value></data>
+  <data name="请检查画面内容后，通过微信发送给 PackingProof 维护者，或发送到邮箱 {0}" xml:space="preserve"><value>请检查画面内容后，通过微信发送给维护者，或发送到邮箱 {0}</value></data>
   <data name="将只读取本机录像并抽取少量画面，生成 ZIP 样本包。包内不含录像、数据库、配置或日志，但画面可能包含面单和人物信息，请确认后再发送" xml:space="preserve"><value>只读取本机录像并抽取少量画面。样本包不含录像、数据库、配置或日志，但会附带匿名设备标识；画面可能包含面单或人物，请确认后再发送</value></data>
   <data name="开始抓取" xml:space="preserve"><value>开始抓取</value></data>
   <data name="正在生成样本包" xml:space="preserve"><value>正在生成样本包</value></data>
@@ -1863,6 +1931,12 @@
   <data name="知道了" xml:space="preserve"><value>知道了</value></data>
   <data name="已复制反馈邮箱：{0}" xml:space="preserve"><value>已复制反馈邮箱：{0}</value></data>
   <data name="请把刚生成的样本包作为附件发送" xml:space="preserve"><value>请把刚生成的样本包作为附件发送</value></data>
+  <data name="开始打包" xml:space="preserve"><value>开始打包</value></data>
+  <data name="诊断包已生成：{0}" xml:space="preserve"><value>诊断包已生成：{0}</value></data>
+  <data name="点击“复制邮箱地址”会复制反馈邮箱 {0}，把刚生成的压缩包作为附件发过去即可" xml:space="preserve"><value>点击“复制邮箱地址”会复制反馈邮箱 {0}，把刚生成的压缩包作为附件发过去即可</value></data>
+  <data name="提示：" xml:space="preserve"><value>提示：</value></data>
+  <data name="请把刚生成的压缩包作为附件发送：{0}" xml:space="preserve"><value>请把刚生成的压缩包作为附件发送：{0}</value></data>
+  <data name="打包失败：{0}" xml:space="preserve"><value>打包失败：{0}</value></data>
   <data name="没能写入剪贴板，请手动记录反馈邮箱：{0}" xml:space="preserve"><value>没能写入剪贴板，请手动记录反馈邮箱：{0}</value></data>
   <data name="样本包生成失败：{0}" xml:space="preserve"><value>样本包生成失败：{0}</value></data>
   <data name="播放（空格）" xml:space="preserve"><value>播放（空格）</value></data>
@@ -1983,9 +2057,9 @@
   <data name="WindowsDevicePermission.DialogTitle" xml:space="preserve"><value>摄像头或麦克风权限未开启</value></data>
   <data name="WindowsDevicePermission.CameraTitle" xml:space="preserve"><value>摄像头权限</value></data>
   <data name="WindowsDevicePermission.MicrophoneTitle" xml:space="preserve"><value>麦克风权限</value></data>
-  <data name="WindowsDevicePermission.CameraBlocked" xml:space="preserve"><value>摄像头访问权限被关闭，请在 Windows 设置中重新允许，然后重新打开 PackingProof</value></data>
-  <data name="WindowsDevicePermission.MicrophoneBlocked" xml:space="preserve"><value>麦克风访问权限被关闭，请在 Windows 设置中重新允许，然后重新打开 PackingProof</value></data>
-  <data name="WindowsDevicePermission.BothBlocked" xml:space="preserve"><value>摄像头和麦克风访问权限都被关闭，请在 Windows 设置中重新允许，然后重新打开 PackingProof</value></data>
+  <data name="WindowsDevicePermission.CameraBlocked" xml:space="preserve"><value>摄像头访问权限被关闭，请在 Windows 设置中重新允许，然后重新打开本软件</value></data>
+  <data name="WindowsDevicePermission.MicrophoneBlocked" xml:space="preserve"><value>麦克风访问权限被关闭，请在 Windows 设置中重新允许，然后重新打开本软件</value></data>
+  <data name="WindowsDevicePermission.BothBlocked" xml:space="preserve"><value>摄像头和麦克风访问权限都被关闭，请在 Windows 设置中重新允许，然后重新打开本软件</value></data>
   <data name="WindowsDevicePermission.OpenSettings" xml:space="preserve"><value>打开 Windows 设置</value></data>
   <data name="WindowsDevicePermission.CameraOpenSettings" xml:space="preserve"><value>打开摄像头权限设置</value></data>
   <data name="WindowsDevicePermission.MicrophoneOpenSettings" xml:space="preserve"><value>打开麦克风权限设置</value></data>
@@ -2042,4 +2116,5 @@
   <data name="当前录像无法导出" xml:space="preserve"><value>当前录像无法导出</value></data>
   <data name="已生成导出压缩版本：{0}" xml:space="preserve"><value>已生成导出压缩版本：{0}</value></data>
   <data name="无法导出" xml:space="preserve"><value>无法导出</value></data>
+  <data name="PackingProof 主机离线或无法访问" xml:space="preserve"><value>备份主机离线或无法访问</value></data>
 </root>

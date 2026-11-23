@@ -13,6 +13,7 @@ public partial class PlaybackWindow
 {
     private async void PlaySelectedVideo(VideoItem video)
     {
+        HidePhotoPreview();
         _secondaryActionState.BeginVideoSelection();
 
         int requestVersion = Interlocked.Increment(
@@ -82,6 +83,9 @@ public partial class PlaybackWindow
                 await FitWindowToVideoBeforePlaybackAsync(playbackPath);
                 if (!IsPlaybackRequestCurrent(requestVersion, video))
                     return;
+                await System.Windows.Threading.Dispatcher.Yield(
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+                PlayerView.UpdateLayout();
 
                 await Task.Run(() =>
                 {
@@ -91,6 +95,33 @@ public partial class PlaybackWindow
                     return;
 
                 DisposeCurrentMediaSource();
+                // 窗口尺寸刚校正过，上面的 Loaded 让 WPF 先完成布局；
+                // 这里传的是 DIP，VlcVideoHost 会按当前 DPI 转成物理像素。
+                if (!PlayerView.Attach(
+                        _mediaPlayer!,
+                        PlayerView.ActualWidth > 0
+                            ? PlayerView.ActualWidth
+                            : VideoArea.ActualWidth,
+                        PlayerView.ActualHeight > 0
+                            ? PlayerView.ActualHeight
+                            : VideoArea.ActualHeight))
+                {
+                    await System.Windows.Threading.Dispatcher.Yield(
+                        System.Windows.Threading.DispatcherPriority.Loaded);
+                    PlayerView.UpdateLayout();
+                }
+                if (!PlayerView.Attach(
+                        _mediaPlayer!,
+                        PlayerView.ActualWidth > 0
+                            ? PlayerView.ActualWidth
+                            : VideoArea.ActualWidth,
+                        PlayerView.ActualHeight > 0
+                            ? PlayerView.ActualHeight
+                            : VideoArea.ActualHeight))
+                {
+                    throw new InvalidOperationException("播放器未能连接到内嵌视频窗口");
+                }
+
                 mediaSource = await Task.Run(
                     () => PlaybackMediaSource.Create(
                         _libVLC!,

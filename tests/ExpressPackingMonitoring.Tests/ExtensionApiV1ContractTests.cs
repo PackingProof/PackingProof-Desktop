@@ -4,6 +4,7 @@ using System.Text.Json;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UpdateCore;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -27,7 +28,7 @@ public sealed class ExtensionApiV1ContractTests
                 await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
             JsonElement root = payload.RootElement;
             Assert.Equal("v1", root.GetProperty("apiVersion").GetString());
-            Assert.Equal("PackingProof", root.GetProperty("product").GetString());
+            Assert.Equal(BrandMetadata.CompatibilityId, root.GetProperty("product").GetString());
             Assert.True(root.GetProperty("accessKeyRequired").GetBoolean());
 
             JsonElement features = root.GetProperty("features");

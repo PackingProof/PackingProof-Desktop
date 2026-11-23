@@ -1,14 +1,21 @@
 param(
     [string]$Configuration = "Debug",
-    [ValidateSet("include", "exclude")]
-    [string]$VisionObb = "include"
+    [ValidateSet("auto", "include", "exclude")]
+    [string]$VisionObb = "auto"
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 try {
-    $includeVisionObb = $VisionObb -eq "include"
+    . (Join-Path $PSScriptRoot "Branding.Common.ps1")
+    . (Join-Path $PSScriptRoot "BrandResourcePolicy.Common.ps1")
+    $brand = Get-BrandProfile -RepoRoot $repoRoot
+    $resourcePolicy = Get-BrandResourcePolicy -Brand $brand
+    $includeVisionObb = Resolve-BrandOptionalResource `
+        -Requested $VisionObb `
+        -Enabled $resourcePolicy.VisionObb `
+        -ResourceName "inputs.visionObb"
     $visionArguments = @(
         "-p:IncludeVisionObb=$($includeVisionObb.ToString().ToLowerInvariant())"
     )

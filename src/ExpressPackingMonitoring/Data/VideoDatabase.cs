@@ -1852,7 +1852,7 @@ namespace ExpressPackingMonitoring.Data
                 var results = new List<VideoRecord>();
                 using var cmd = _connection.CreateCommand();
                 cmd.CommandText = @"
-                    SELECT Id, OrderId, Mode, StartTime
+                    SELECT Id, OrderId, Mode, StartTime, DurationSeconds, FilePath
                     FROM VideoRecords
                     WHERE IsDeleted = 0
                       AND EndTime IS NOT NULL
@@ -1874,7 +1874,9 @@ namespace ExpressPackingMonitoring.Data
                         Id = reader.GetInt64(0),
                         OrderId = reader.GetString(1),
                         Mode = reader.GetString(2),
-                        StartTime = DateTime.Parse(reader.GetString(3))
+                        StartTime = DateTime.Parse(reader.GetString(3)),
+                        DurationSeconds = reader.GetDouble(4),
+                        FilePath = reader.GetString(5)
                     });
                 }
 

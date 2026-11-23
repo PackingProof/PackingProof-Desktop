@@ -4,6 +4,7 @@ using ExpressPackingMonitoring.Input;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UpdateCore;
 using ExpressPackingMonitoring.ViewModels;
 using System.Text.Json;
 using Xunit;
@@ -632,7 +633,7 @@ public sealed class ConfigurationAndScannerTests
             {
                 Assert.Equal(WebServer.UdpFirewallRuleName, udp.Name);
                 Assert.Equal(17, udp.Protocol);
-                Assert.Equal(5281, udp.Port);
+                Assert.Equal(BrandMetadata.DiscoveryPort, udp.Port);
             });
     }
 

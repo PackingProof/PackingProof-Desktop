@@ -1,7 +1,7 @@
 param(
     [string]$Version = "",
-    [ValidateSet("include", "exclude")]
-    [string]$VisionObb = "include",
+    [ValidateSet("auto", "include", "exclude")]
+    [string]$VisionObb = "auto",
     [string]$PatchBaselineVersion = "0.0.100",
     [string]$BaselineAppDir = "",
     [ValidateSet("gitee", "github", "auto")]
@@ -22,7 +22,7 @@ if (git status --porcelain --untracked-files=all) {
 }
 
 $versionFile = Join-Path $repoRoot "Directory.Build.props"
-$versionMatch = Select-String -LiteralPath $versionFile -Pattern "<Version>([^<]+)</Version>" |
+$versionMatch = Select-String -LiteralPath $versionFile -Pattern "<Version(?:\s+[^>]*)?>\s*([^<]+?)\s*</Version>" |
     Select-Object -First 1
 if (-not $versionMatch) {
     throw "读不到 Directory.Build.props 里的 <Version>"

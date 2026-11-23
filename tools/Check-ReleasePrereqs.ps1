@@ -14,9 +14,14 @@ Set-Location $repoRoot
 . (Join-Path $PSScriptRoot "ReleaseAuth.Common.ps1")
 . (Join-Path $PSScriptRoot "ReleaseNotes.Common.ps1")
 . (Join-Path $PSScriptRoot "LauncherBaseline.Common.ps1")
+. (Join-Path $PSScriptRoot "Branding.Common.ps1")
+$brand = Get-BrandProfile -RepoRoot $repoRoot
 
 $blockers = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
+if ($brand.ExtensionMarketPublicKeyIsPlaceholder) {
+    $blockers.Add("当前软件配置仍使用扩展市场公钥占位值；发布前必须替换 BrandExtensionMarketPublicKeyId 与 BrandExtensionMarketPublicKeySpki")
+}
 
 function Write-Ok    { param([string]$Message) Write-Host "  [OK]   $Message" }
 function Write-Fail  { param([string]$Message) Write-Host "  [缺失] $Message"; $blockers.Add($Message) }
@@ -66,7 +71,7 @@ else {
 $versionFilePath = Join-Path $repoRoot "Directory.Build.props"
 $projectVersion = ""
 if (Test-Path -LiteralPath $versionFilePath) {
-    $match = Select-String -Path $versionFilePath -Pattern "<Version>([^<]+)</Version>" | Select-Object -First 1
+    $match = Select-String -Path $versionFilePath -Pattern "<Version(?:\s+[^>]*)?>\s*([^<]+?)\s*</Version>" | Select-Object -First 1
     if ($match) { $projectVersion = $match.Matches[0].Groups[1].Value.Trim() }
 }
 if ([string]::IsNullOrWhiteSpace($projectVersion)) {
@@ -100,18 +105,22 @@ Write-Host "== 启动器基线 =="
 # 这条校验原本只写在 Publish-CleanPackage.ps1 里，而且要等构建、全量测试、FFmpeg 往返全部跑完
 # 才拦下来 —— 白等十几分钟才发现要返工。这里用同一套指纹算法提前核对。
 $launcherRuntime = "win-x64"
-$launcherUpdateCheckUrl = $env:UPDATE_CHECK_URL
-if ([string]::IsNullOrWhiteSpace($launcherUpdateCheckUrl)) {
+$profileKey = "BRAND_" + (($brand.ProfileId -replace "[^A-Za-z0-9]", "_").ToUpperInvariant()) + "_UPDATE_CHECK_URL"
+$launcherUpdateCheckUrl = [Environment]::GetEnvironmentVariable($profileKey)
+if ([string]::IsNullOrWhiteSpace($launcherUpdateCheckUrl) -and $brand.ProfileId -eq "packingproof") {
+    $launcherUpdateCheckUrl = $env:UPDATE_CHECK_URL
+}
+if ([string]::IsNullOrWhiteSpace($launcherUpdateCheckUrl) -and $brand.ProfileId -eq "packingproof") {
     $launcherUpdateCheckUrl = Read-DotEnvValue -Key "UPDATE_CHECK_URL"
 }
 if ([string]::IsNullOrWhiteSpace($launcherUpdateCheckUrl)) {
-    $launcherUpdateCheckUrl = "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest"
+    $launcherUpdateCheckUrl = $brand.UpdateGiteeCheckUrl
 }
 
 $launcherBaseline = $null
 $launcherBaselineError = ""
 try {
-    $launcherBaseline = Read-LauncherBaselineManifest -ManifestPath (Join-Path $PSScriptRoot "launcher-baseline.json")
+    $launcherBaseline = Read-LauncherBaselineManifest -ManifestPath $brand.LauncherBaselinePath
 }
 catch {
     $launcherBaselineError = $_.Exception.Message
@@ -125,7 +134,9 @@ else {
     $launcherFingerprint = Get-LauncherLogicalFingerprint `
         -RepositoryRoot $repoRoot `
         -Runtime $launcherRuntime `
-        -UpdateCheckUrl $launcherUpdateCheckUrl
+        -UpdateCheckUrl $launcherUpdateCheckUrl `
+        -BrandProfileId $brand.ProfileId `
+        -BrandProfileContentSha256 $brand.ContentSha256
 
     if (-not [string]::Equals(
             $launcherFingerprint,
@@ -143,7 +154,11 @@ else {
             Write-Fail "启动器组件标签 $launcherTag 还不存在：提交新的 launcher-baseline.json 后创建该标签"
         }
         else {
-            if (-not (Test-LauncherBaselineSourceUnchanged -RepositoryRoot $repoRoot -Tag $launcherTag -Baseline $launcherBaseline)) {
+            if (-not (Test-LauncherBaselineSourceUnchanged `
+                    -RepositoryRoot $repoRoot `
+                    -Tag $launcherTag `
+                    -Baseline $launcherBaseline `
+                    -BrandProfileContentSha256 $brand.ContentSha256)) {
                 Write-Fail "组件标签 $launcherTag 之后启动器指纹文件又改过，需要重建基线并重打该标签"
             }
             else {
@@ -159,17 +174,23 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot ".env")) {
     Write-Ok ".env 存在"
 }
 else {
-    Write-Warn ".env 不存在；Gitee 发布仍只读取 PackingProof-Release-Bot token 文件"
+    Write-Warn ".env 不存在；发布凭据按软件配置和专用 token 文件解析"
 }
 
 Write-Host ""
 Write-Host "== 发布渠道登录态 =="
 if (Get-Command gh -ErrorAction SilentlyContinue) {
-    $githubTokenSource = Import-GitHubReleaseAppInstallationToken
-    if (-not $githubTokenSource) {
-        Write-Fail "GitHub 发布必须使用 PackingProof Release Bot GitHub App；个人 gh 登录态和普通令牌不会用于远端写入"
+    try {
+        $githubTokenSource = Import-GitHubReleaseAppInstallationToken -Brand $brand
     }
-    elseif (Test-GitHubReleaseAuthentication -Repository "PackingProof/PackingProof-Desktop" -RepoRoot $repoRoot) {
+    catch {
+        $githubTokenSource = ""
+        Write-Fail $_.Exception.Message
+    }
+    if (-not $githubTokenSource) {
+        Write-Fail "GitHub 发布必须使用软件配置指定的专用发布 token；个人 gh 登录态和普通令牌不会用于远端写入"
+    }
+    elseif (Test-GitHubReleaseAuthentication -Repository $brand.RepositorySlug -RepoRoot $repoRoot) {
         Write-Ok "GitHub 发布机器人令牌可用（来源：$githubTokenSource）"
     }
     else {
@@ -183,11 +204,17 @@ else {
 # Gitee 令牌固定来自机器人 token 文件；`gitee auth status` 在令牌失效时仍返回 0，
 # 所以这里做一次真实只读调用，避免到发布那一刻才发现认证不可用。
 if (Get-Command gitee -ErrorAction SilentlyContinue) {
-    $giteeTokenSource = Import-GiteeReleaseBotToken
-    if (-not $giteeTokenSource) {
-        Write-Fail "Gitee 发布必须使用 PackingProof-Release-Bot token 文件；个人 gitee 登录态不会用于远端写入"
+    try {
+        $giteeTokenSource = Import-GiteeReleaseBotToken -Brand $brand
     }
-    elseif (Test-GiteeAuthentication -Repository "PackingProof/PackingProof-Desktop" -RepoRoot $repoRoot) {
+    catch {
+        $giteeTokenSource = ""
+        Write-Fail $_.Exception.Message
+    }
+    if (-not $giteeTokenSource) {
+        Write-Fail "Gitee 发布必须使用软件配置指定的专用发布 token；个人 gitee 登录态不会用于远端写入"
+    }
+    elseif (Test-GiteeAuthentication -Repository $brand.RepositorySlug -RepoRoot $repoRoot -Brand $brand) {
         Write-Ok "Gitee 发布机器人令牌可用（来源：$giteeTokenSource）"
     }
     else {
@@ -245,6 +272,34 @@ else {
     Write-Fail "找不到 Inno Setup，执行 winget install --id JRSoftware.InnoSetup -e -s winget"
 }
 
+$ffmpegBaseline = Get-Content `
+    -LiteralPath (Join-Path $repoRoot "tools\ffmpeg-baseline.json") `
+    -Raw `
+    -Encoding UTF8 |
+    ConvertFrom-Json
+$smokeFfmpeg = Get-ChildItem `
+    -LiteralPath (Join-Path $repoRoot "package") `
+    -Filter "ffmpeg.exe" `
+    -File `
+    -Recurse `
+    -ErrorAction SilentlyContinue |
+    Where-Object {
+        $candidate = $_
+        $hash = (Get-FileHash -LiteralPath $candidate.FullName -Algorithm SHA256).Hash
+        $accepted = @($ffmpegBaseline.app_patch_compatible_executables | Where-Object {
+            [long]$_.size -eq $candidate.Length -and
+            [string]::Equals([string]$_.sha256, $hash, [System.StringComparison]::OrdinalIgnoreCase)
+        })
+        $accepted.Count -eq 1
+    } |
+    Select-Object -First 1
+if ($null -ne $smokeFfmpeg) {
+    Write-Ok "真实回放冒烟 FFmpeg 可用（$($smokeFfmpeg.FullName)）"
+}
+else {
+    Write-Fail "真实回放冒烟需要 package 下的 ffmpeg.exe；请恢复固定 FFmpeg 缓存或先运行打包准备"
+}
+
 Write-Host ""
 Write-Host "== Microsoft Store 发布 =="
 $storeConfigPath = Join-Path $PSScriptRoot "store-package.local.json"
@@ -258,7 +313,7 @@ else {
         $storePublisher = ([string]$storeConfig.publisher).Trim()
         if ([string]::IsNullOrWhiteSpace($storeIdentity) -or
             [string]::IsNullOrWhiteSpace($storePublisher) -or
-            [string]::Equals($storePublisher, "CN=PackingProof", [System.StringComparison]::OrdinalIgnoreCase)) {
+            [string]::Equals($storePublisher, $brand.StorePublisher, [System.StringComparison]::OrdinalIgnoreCase)) {
             Write-Fail "Store 身份仍是占位配置；请在 $storeConfigPath 填入 Partner Center 的真实 Identity Name 与 Publisher"
         }
         else {

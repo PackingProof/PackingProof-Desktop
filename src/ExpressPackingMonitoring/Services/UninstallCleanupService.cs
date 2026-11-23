@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.UpdateCore;
 using Microsoft.Data.Sqlite;
 using System.IO;
 using System.Text;
@@ -61,7 +62,8 @@ internal static class UninstallCleanupService
         {
             if (WorkstationInstanceCoordinator.IsRunning())
             {
-                throw new InvalidOperationException("快递打包监控仍在运行，请关闭所有程序窗口后重试");
+                throw new InvalidOperationException(
+                    BrandText.Apply("快递打包监控仍在运行，请关闭所有程序窗口后重试"));
             }
 
             UninstallCleanupResult result;
@@ -518,7 +520,7 @@ internal static class UninstallCleanupService
         string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (string.IsNullOrWhiteSpace(localAppData))
             throw new DirectoryNotFoundException("无法定位本机用户数据目录");
-        return Path.Combine(localAppData, "ExpressPackingMonitoring");
+        return Path.Combine(localAppData, BrandMetadata.DataDirectoryName);
     }
 
     private static string GetOptionValue(string[] args, string optionName)

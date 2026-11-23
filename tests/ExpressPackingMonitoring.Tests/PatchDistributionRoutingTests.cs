@@ -13,9 +13,9 @@ public sealed class PatchDistributionRoutingTests
             Path.Combine(repositoryRoot, "src", "ExpressPackingMonitoring.Launcher", "Program.cs"),
             Encoding.UTF8);
 
-        Assert.Contains("PackingProof_AppPatch_v*.zip", launcher);
+        Assert.Contains("BrandMetadata.ArtifactPrefix + \"_AppPatch_v*.zip\"", launcher);
         Assert.Contains("ExpressPackingMonitoring_AppPatch_v*.zip", launcher);
-        Assert.Contains("ExpressPackingMonitoring_AppPatch_v{descriptor.LatestVersion}.zip", launcher);
+        Assert.Contains("return $\"{BrandMetadata.ArtifactPrefix}_AppPatch_v", launcher);
         Assert.DoesNotContain("PackingProof_ManualUpdate_", launcher);
     }
 
@@ -62,7 +62,7 @@ public sealed class PatchDistributionRoutingTests
         Assert.True(installerCopyIndex >= 0);
         Assert.True(patchHashIndex > installerCopyIndex);
         Assert.Contains(
-            "$appPatchZipName = \"PackingProof_AppPatch_$artifactTag.zip\"",
+            "$appPatchZipName = \"$($brand.ArtifactPrefix)_AppPatch_$artifactTag.zip\"",
             publisher);
         Assert.DoesNotContain(
             "ExpressPackingMonitoring_AppPatch_",

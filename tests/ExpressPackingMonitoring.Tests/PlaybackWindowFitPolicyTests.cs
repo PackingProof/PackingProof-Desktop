@@ -95,4 +95,18 @@ public sealed class PlaybackWindowFitPolicyTests
         Assert.True(size!.Value.Width <= 1280);
         Assert.True(size.Value.Height <= 720);
     }
+
+    [Theory]
+    [InlineData(100, 1.0, 100)]
+    [InlineData(100, 1.25, 125)]
+    [InlineData(100, 1.5, 150)]
+    [InlineData(100.2, 1.25, 126)]
+    [InlineData(0, 1.5, 1)]
+    public void VlcVideoHost_ConvertsDipsToPhysicalPixels(
+        double value,
+        double scale,
+        int expected)
+    {
+        Assert.Equal(expected, VlcVideoHost.DipToPixels(value, scale));
+    }
 }

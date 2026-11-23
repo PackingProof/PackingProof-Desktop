@@ -35,6 +35,7 @@ namespace ExpressPackingMonitoring.UI
         private int _lastScanInputLength;
         private bool _testOrderSending;
         private const double TopModeButtonTextWidth = 130;
+        private const double TopPhotoButtonTextWidth = 160;
         private const double TopRecordButtonTextWidth = 160;
         private const double TopModeButtonRightMargin = 16;
         private const double TopColumnGap = 20;
@@ -68,6 +69,8 @@ namespace ExpressPackingMonitoring.UI
         public MainWindow(bool enableCloseBehaviorPrompt = true)
         {
             InitializeComponent();
+            if (DataContext is MainViewModel initialViewModel)
+                ApplyProductCapabilities(initialViewModel.Capabilities);
             StatsBarBorder.SizeChanged += (_, _) => UpdateStatsBarVisibility();
             TopBarBorder.SizeChanged += (_, _) => UpdateTopBarCompactState();
             Loaded += async (_, _) =>
@@ -76,6 +79,7 @@ namespace ExpressPackingMonitoring.UI
                 UpdateTopBarCompactState();
                 if (DataContext is MainViewModel runtimeViewModel)
                 {
+                    ApplyProductCapabilities(runtimeViewModel.Capabilities);
                     await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                     await runtimeViewModel.EnsureRuntimeInitializedAsync();
                     await ShowWindowsDevicePermissionRecoveryIfNeededAsync(runtimeViewModel);
@@ -268,6 +272,15 @@ namespace ExpressPackingMonitoring.UI
                 if (PresentationSource.FromVisual(this) is HwndSource source)
                     source.AddHook(WndProc);
             };
+        }
+
+        private void ApplyProductCapabilities(SettingsCapabilities capabilities)
+        {
+            ArgumentNullException.ThrowIfNull(capabilities);
+            ScanEntryHost.Visibility =
+                capabilities.CanOperateScanner || capabilities.CanOperateCameraBarcode
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
         }
 
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -714,15 +727,15 @@ namespace ExpressPackingMonitoring.UI
             if ((sender as FrameworkElement)?.DataContext is not ScanRecord record)
                 return;
 
-            string orderId = record.OrderId?.Trim() ?? "";
-            if (orderId.Length == 0)
+            string copyText = record.CopyOrderNumberText;
+            if (copyText.Length == 0)
             {
                 ShowRecentCopyToast(AppLanguage.Get("这条录像没有记录单号"), ToastSeverity.Warning);
                 return;
             }
 
             bool copiedNow = ClipboardHelper.TryCopyText(
-                orderId,
+                copyText,
                 onCopied: () => ShowRecentCopyToast(AppLanguage.Get("单号已复制"), ToastSeverity.Information),
                 onFailed: error =>
                 {
@@ -731,6 +744,23 @@ namespace ExpressPackingMonitoring.UI
                 });
             if (!copiedNow)
                 ShowRecentCopyToast(AppLanguage.Get("剪贴板被占用，正在重试复制"), ToastSeverity.Information);
+        }
+
+        private async void PlayRecentRecording_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is not ScanRecord record)
+                return;
+            if (DataContext is not MainViewModel viewModel)
+                return;
+            if (record.VideoRecordId <= 0)
+            {
+                ShowRecentCopyToast(
+                    AppLanguage.Get("这条录像暂时无法播放"),
+                    ToastSeverity.Warning);
+                return;
+            }
+
+            await viewModel.PlayRecentRecordingAsync(record.VideoRecordId);
         }
 
         /// <summary>复制结果的提示统一切回 UI 线程：后台重试成功/失败时回调来自后台线程。</summary>
@@ -861,6 +891,19 @@ namespace ExpressPackingMonitoring.UI
         private void BtnSettings_Click(object sender, RoutedEventArgs e)
         {
             if (DataContext is MainViewModel viewModel) viewModel.OpenSettings();
+        }
+
+        private async void PhotoCaptureButton_Click(object sender, RoutedEventArgs e)
+        {
+            Logging.RuntimeLog.Info("Photo", "Capture button clicked");
+            if (DataContext is MainViewModel viewModel)
+                await viewModel.CapturePhotoAsync(this);
+        }
+
+        private void RecordButton_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            (DataContext as MainViewModel)?.TogglePhotoCaptureButtonVisibility();
         }
 
         private void BtnExtensionMarket_Click(object sender, RoutedEventArgs e)
@@ -1279,7 +1322,12 @@ namespace ExpressPackingMonitoring.UI
                 AverageTimeGroup.Visibility = Visibility.Visible;
                 TotalTimeGroup.Visibility = Visibility.Visible;
                 ApplyBottomButtonLayout(ActionButtonLayout.Text);
-                ExtensionButton.Visibility = Visibility.Visible;
+                SettingsCapabilities? capabilities =
+                    (DataContext as MainViewModel)?.Capabilities;
+                ExtensionButton.Visibility =
+                    capabilities?.CanUseExtensionMarket == true
+                        ? Visibility.Visible
+                        : Visibility.Collapsed;
 
                 double todayWidth = MeasureStatsGroupWidth(TodayCountGroup);
                 double averageWidth = MeasureStatsGroupWidth(AverageTimeGroup);
@@ -1287,9 +1335,11 @@ namespace ExpressPackingMonitoring.UI
                 double availableContentWidth = Math.Max(0, StatsBarBorder.ActualWidth - 40);
                 double buttonsTextWidth = ActionButtonsPanel.Children
                     .OfType<Button>()
+                    .Where(button => button.Visibility == Visibility.Visible)
                     .Sum(MeasureButtonOuterWidth);
                 double buttonsIconWidth = ActionButtonsPanel.Children
                     .OfType<Button>()
+                    .Where(button => button.Visibility == Visibility.Visible)
                     .Sum(button => IconButtonWidth + button.Margin.Left + button.Margin.Right);
 
                 BottomBarLayout layout = ResolveBottomBarLayout(
@@ -1329,10 +1379,6 @@ namespace ExpressPackingMonitoring.UI
             TotalTimeGroup.Visibility =
                 totalVisible ? Visibility.Visible : Visibility.Collapsed;
             ApplyBottomButtonLayout(buttons);
-            ExtensionButton.Visibility =
-                buttons == ActionButtonLayout.IconOnlyNoExtension
-                    ? Visibility.Collapsed
-                    : Visibility.Visible;
         }
 
         private void ApplyBottomButtonLayout(ActionButtonLayout layout)
@@ -1367,13 +1413,20 @@ namespace ExpressPackingMonitoring.UI
             double iconWidth,
             double modeRightMargin,
             double columnGap,
-            double minimumScanWidth)
+            double minimumScanWidth,
+            bool photoVisible = false,
+            double photoTextWidth = 0)
         {
             const double tolerance = 1.0;
-            if (modeTextWidth + modeRightMargin + columnGap + recordTextWidth + minimumScanWidth
+            double photoFootprint = photoVisible
+                ? photoTextWidth + 8
+                : 0;
+            if (modeTextWidth + modeRightMargin + columnGap + recordTextWidth
+                + photoFootprint + minimumScanWidth
                 <= availableWidth + tolerance)
                 return TopBarCompactState.BothText;
-            if (iconWidth + modeRightMargin + columnGap + recordTextWidth + minimumScanWidth
+            if (iconWidth + modeRightMargin + columnGap + recordTextWidth
+                + photoFootprint + minimumScanWidth
                 <= availableWidth + tolerance)
                 return TopBarCompactState.ModeIconOnly;
             return TopBarCompactState.BothIconOnly;
@@ -1395,7 +1448,11 @@ namespace ExpressPackingMonitoring.UI
                     IconButtonWidth,
                     TopModeButtonRightMargin,
                     TopColumnGap,
-                    MinimumScanInputWidth);
+                    MinimumScanInputWidth,
+                    photoVisible:
+                        (DataContext as MainViewModel)?.Capabilities.CanOperatePhoto
+                        == true,
+                    photoTextWidth: TopPhotoButtonTextWidth);
                 IsModeButtonCompact =
                     state is TopBarCompactState.ModeIconOnly or TopBarCompactState.BothIconOnly;
                 IsRecordButtonCompact = state == TopBarCompactState.BothIconOnly;

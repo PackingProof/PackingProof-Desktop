@@ -1,3 +1,5 @@
+using ExpressPackingMonitoring.Localization;
+
 namespace ExpressPackingMonitoring.Config;
 
 public static class DeploymentPresets
@@ -38,11 +40,11 @@ public static class DeploymentPresets
 
     public static string GetDisplayName(string? preset) => Normalize(preset) switch
     {
-        RecordingHost => "录像主机",
-        RecordingWorkstation => "录像从机",
-        ViewerClient => "录像查看端",
-        MobileBackupHost => "备份主机",
-        _ => "尚未配置"
+        RecordingHost => AppLanguage.Get("录像主机"),
+        RecordingWorkstation => AppLanguage.Get("录像从机"),
+        ViewerClient => AppLanguage.Get("录像查看端"),
+        MobileBackupHost => AppLanguage.Get("备份主机"),
+        _ => AppLanguage.Get("尚未配置")
     };
 }
 
@@ -233,6 +235,7 @@ public static class PackingProofCapabilities
             [
                 Host,
                 WebPlayback,
+                OrderReceiver,
                 MobileBackup
             ],
             DeploymentPresets.RecordingWorkstation =>

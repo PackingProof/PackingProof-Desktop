@@ -1,7 +1,7 @@
 # 发布笔记模板（每次发布前必须按此填写）
 
 > 发布前复制本模板并替换全部 `<...>` 占位符；完整笔记用于 GitHub/Gitee Release 页面，`update_vX.Y.Z.json` 的 `title` 必须与 Release 标题一致、`notes` 只放简洁摘要。
-> Release 标题与 `update_vX.Y.Z.json` 的 `title` 固定为：`v<X.Y.Z> <一句话内容>`（版本号开头，不加产品名或“发布”等前缀），例如 `v0.0.42 体验优化与兼容修复`。
+> Release 标题与 `update_vX.Y.Z.json` 的 `title` 固定为：`v<X.Y.Z> <一句话内容>`（版本号开头，不加软件名或“发布”等前缀），例如 `v0.0.42 体验优化与兼容修复`。
 > 标题必须一句话点出本版本最核心的变化（本版投入最大的功能或用户最痛的问题），不能只写版本号，也不能用“体验优化”这类没有信息量的词；发布脚本在没有 `-Title` 时会直接拒绝发布。
 > 正文条目按重要性从高到低排列：本版重点功能排最前，其次是重要修复，界面微调、提示文案这类小优化放最后；`notes` 同样按这个顺序。
 > 同一件事不要拆成多条：同一模块的默认值、迁移、提示、界面入口等合并成一条说明，避免出现内容重复的条目；一条里可以包含多句，但仍要能一眼看懂。
@@ -50,4 +50,4 @@
 - Gitee no-runtime（仅完整 Setup 达到 100MB 时保留）：PackingProof_Setup_no-runtime_v<X.Y.Z>.exe（不含 .NET 运行时，机器需已安装 .NET 10 桌面运行时；未生成时删除本行）
 - Microsoft Store：PackingProof_Store_v<X.Y.Z>.msixupload（内含 MSIX 与符号包，提交 Partner Center；不上传 GitHub/Gitee Release）
 - 已安装用户：启动器会自动下载 AppPatch；如需手动更新，可完整解压 AppPatch 后双击包内更新脚本
-- <仅新启动器基线时保留>：本版本建立新启动器基线 launcher-v<X.Y.Z>，升级后的主程序会自动应用 LauncherPatch
+- <仅新启动器基线时保留>：本版本建立新启动器基线，升级后的主程序会自动应用 LauncherPatch

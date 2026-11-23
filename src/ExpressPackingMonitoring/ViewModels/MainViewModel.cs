@@ -38,6 +38,7 @@ namespace ExpressPackingMonitoring.ViewModels
     public partial class MainViewModel : ObservableObject, IDisposable
     {
         private AppConfig _config;
+        private SettingsCapabilities _capabilityOverride;
         private readonly string _configFilePath = AppPaths.ConfigPath;
         private readonly string _dbFilePath = AppPaths.VideoDatabasePath;
         private VideoDatabase _db;
@@ -295,6 +296,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private long _recordingStartTimestamp;
         private bool _isDisposed = false; // 新增：防止销毁后操作 UI
         private WebServer _webServer;
+        private UdpDiscoveryResponder _udpDiscoveryResponder;
         private ExtensionAuthorizationStore _extensionAuthorizationStore;
         private ExtensionRuntime _extensionRuntime;
         private Task<bool> _webServerStartupTask;
@@ -446,6 +448,10 @@ namespace ExpressPackingMonitoring.ViewModels
         private string _monitorAccessAddress = "";
         private int _workstationAddressRefreshVersion;
         private bool _purposeSwitchPending;
+        private readonly ModeTransitionGate _modeTransitionGate = new();
+        private int _recordingStartInProgress;
+        private int _recordingStopInProgress;
+        private CancellationTokenSource _activePurposeSwitchCts;
         private string _switchWorkstationButtonText = "切换用途";
         private readonly CancellationTokenSource _purposeSwitchCts = new();
 
@@ -703,6 +709,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     OnPropertyChanged(nameof(ScanInputPlaceholder));
                     OnPropertyChanged(nameof(IsPreRecordBufferVisible));
                     OnPropertyChanged(nameof(IsOverlayVisible));
+                    OnPropertyChanged(nameof(Capabilities));
+                    OnPropertyChanged(nameof(IsPhotoCaptureButtonVisible));
                     OnPropertyChanged(nameof(IsBarcodeGuideVisible));
                     OnPropertyChanged(nameof(IsCameraBarcodeGuideLockVisible));
                     // 换了配置就可能换了旋转角度，而框的几何要继续按新角度换算。
@@ -711,6 +719,26 @@ namespace ExpressPackingMonitoring.ViewModels
                     OnPropertyChanged(nameof(CameraFrameSize));
                     PublishPreRecordBufferStatus(force: true);
                 }
+            }
+        }
+
+        public SettingsCapabilities Capabilities =>
+            _capabilityOverride
+            ?? SettingsCapabilities.ForPreset(
+                Config?.DeploymentPreset,
+                RuntimeCapabilityEnvironment.FromConfig(Config));
+
+        internal SettingsCapabilities CapabilityOverride
+        {
+            get => _capabilityOverride;
+            set
+            {
+                _capabilityOverride = value;
+                OnPropertyChanged(nameof(Capabilities));
+                OnPropertyChanged(nameof(IsPhotoCaptureButtonVisible));
+                OnPropertyChanged(nameof(IsMainConnectionVisible));
+                OnPropertyChanged(nameof(MainConnectionButtonText));
+                OnPropertyChanged(nameof(MainConnectionButtonToolTip));
             }
         }
         public string ScanInputPlaceholder =>
@@ -1078,9 +1106,12 @@ namespace ExpressPackingMonitoring.ViewModels
             _speechService?.Dispose();
             _speechService = null;
             _purposeSwitchCts.Cancel();
+            try { _activePurposeSwitchCts?.Cancel(); } catch { }
+            try { _activePurposeSwitchCts?.Dispose(); } catch { }
             _purposeSwitchCts.Dispose();
             try { _globalKeyboardRuntime?.Dispose(); } catch { }
             try { _webServer?.Dispose(); } catch { }
+            try { _udpDiscoveryResponder?.Dispose(); } catch { }
             try { _extensionRuntime?.Dispose(); } catch { }
             try { _scanAudit?.Dispose(); } catch { }
             _extensionRuntime = null;

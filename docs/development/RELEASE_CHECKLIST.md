@@ -27,6 +27,7 @@
 - 确认 Release 全量测试全部通过
 - 确认 Web JavaScript 语法检查通过
 - 确认完整解决方案 Release 构建为 0 警告、0 错误
+- UI 改动必须附真实渲染截图并完成人工视觉确认：C# 使用 WPF 渲染/截图测试，HTML 使用 `tools\Test-WebUi.ps1` 或 Playwright 覆盖相关桌面、中屏和手机断点。没有截图证据和用户视觉确认不得正式发布；构建、单元测试和 DOM 几何断言不能替代人工视觉检查
 - 默认发布必须确认应用负载包含 `ExpressPackingMonitoring.Vision.Obb.dll`、`DirectML.dll`、`onnxruntime_providers_shared.dll` 和 `models\vision-obb.onnx`，并确认 `tools\vision-model-baseline.json` 指向 `PackingProof/PackingProof-Vision`、对应模型 Release 已先于 Desktop 发布，且 GitHub/Gitee 两个地址都能下载相同 SHA256 的 `vision-obb.onnx`；只有显式使用 `-VisionObb exclude` 的本地验证包才允许缺少这些文件
 
 ## 产物与发布校验
@@ -58,7 +59,7 @@
 - 兼容基线生成的 AppPatch 不得包含 `tools/ffmpeg.exe`、任何 `libvlc/` 文件或 VLC 删除记录；无法证明兼容时不得生成大型补丁，更新 JSON 必须关闭 Patch、清空补丁信息并引导用户下载完整版本
 - AppPatch 包含 `patch_manifest.json`、`files/`、`双击更新主程序.cmd`、`apply_app_patch.ps1` 和主程序更新说明，不再生成或嵌套 ManualUpdate 包
 - Store MSIX 必须与 Setup 来自同一次 `app\` 负载；核对 `package\store\PackingProof_Store_v<X.Y.Z>\PackingProof_Store_v<X.Y.Z>.msixupload` 只包含同目录的 MSIX 与 `.appxsym`，并核对 `store_package_v<X.Y.Z>.json` 的身份/版本/SHA256、`app_payload_sha256` 与本次 Setup `app\` 一致，以及包内 `PackingProof.PackageEdition.json`、AppxManifest 身份/版本和“无 AppPatch/LauncherPatch 脚本”守卫；同时核对 `package_integrity_v<X.Y.Z>.json` 的 Setup SHA256/大小和 exact `app\` 指纹
-- 使用 Git 比较当前启动器逻辑输入与 `tools/launcher-baseline.json` 对应的 `launcher-vX.Y.Z` 组件标签；组件标签只推送普通 Git 标签，不创建独立 Release
+- 使用 Git 比较当前启动器逻辑输入与当前软件配置 `BrandLauncherBaselineRelativePath` 对应的组件标签；默认版本使用 `launcher-vX.Y.Z`，独立软件配置使用 `launcher-<BrandArtifactPrefix>-vX.Y.Z`。组件标签只推送普通 Git 标签，不创建独立 Release
 - 启动器未变化时不执行 Native AOT 重编译、不生成或上传本版本 LauncherPatch；完整包根启动器必须与锁定基线 EXE 的大小和 SHA256 完全一致
 - 启动器变化时先运行 `tools/Publish-LauncherBaseline.ps1` 建立不可变基线；LauncherPatch 只包含根启动器、`launcher_patch_manifest.json`、`双击更新启动器.cmd`、`apply_launcher_patch.ps1` 和启动器更新说明
 - 双机发布时启动器基线只由 Windows 发布机生成一次；Mac 不参与，另一台机器不得忽略基线或重建 AOT，而是 rebase 后复用同一份锁与 LauncherPatch 字节

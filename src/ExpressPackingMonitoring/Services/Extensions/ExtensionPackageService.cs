@@ -2,6 +2,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services.Extensions;
 
@@ -59,7 +60,7 @@ internal sealed class ExtensionPackageService
         string extension = Path.GetExtension(packagePath);
         if (!extension.Equals(".ppext", StringComparison.OrdinalIgnoreCase)
             && !extension.Equals(".partial", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("仅支持 PackingProof .ppext 扩展包");
+            throw new InvalidDataException(BrandText.Apply("仅支持 PackingProof .ppext 扩展包"));
 
         FileInfo package = new(packagePath);
         if (!package.Exists || package.Length <= 0 || package.Length > MaxPackageBytes)
@@ -160,7 +161,7 @@ internal sealed class ExtensionPackageService
             || manifest.Type == "external-adapter" && !SemverPattern.IsMatch(manifest.Version))
             throw new InvalidDataException("PPEXT 扩展 ID 或版本格式无效");
         if (!SemverPattern.IsMatch(manifest.Compatibility.MinPackingProofVersion))
-            throw new InvalidDataException("PPEXT 最低 PackingProof 版本格式无效");
+            throw new InvalidDataException(BrandText.Apply("PPEXT 最低 PackingProof 版本格式无效"));
         if (manifest.Type is not ("userscript" or "external-adapter"))
             throw new InvalidDataException("PPEXT 扩展类型不受支持");
         if (manifest.Name.Length > 100

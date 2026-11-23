@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.UpdateCore;
 using System.Globalization;
 using System.Resources;
 
@@ -57,9 +58,12 @@ public static class AppLanguage
         Thread.CurrentThread.CurrentUICulture = culture;
     }
 
-    public static string Get(string key) => Get(key, CultureInfo.CurrentUICulture);
+    public static string Get(string key) => BrandText.Apply(GetRaw(key, CultureInfo.CurrentUICulture));
 
-    internal static string Get(string key, CultureInfo culture) => Resources.GetString(key, culture) ?? key;
+    internal static string Get(string key, CultureInfo culture) => BrandText.Apply(GetRaw(key, culture));
+
+    private static string GetRaw(string key, CultureInfo culture) =>
+        Resources.GetString(key, culture) ?? key;
 
     public static string Format(string key, params object[] args) =>
         string.Format(CultureInfo.CurrentCulture, Get(key), args);
@@ -69,19 +73,19 @@ public static class AppLanguage
         if (string.IsNullOrWhiteSpace(value)) return value;
         CultureInfo culture = CultureInfo.CurrentUICulture;
         string? exact = Resources.GetString(value, culture);
-        if (exact != null) return exact;
+        if (exact != null) return BrandText.Apply(exact);
         // 中文界面下原文就是中文，直接返回；这里按当前文化判断，避免受全局语言状态影响。
         if (string.Equals(culture.TwoLetterISOLanguageName, "zh", StringComparison.OrdinalIgnoreCase))
-            return value;
+            return BrandText.Apply(value);
 
         PhraseTable table = GetPhraseTable(culture);
 
         string templated = TranslateTemplate(value, table, culture);
-        if (!ReferenceEquals(templated, value)) return templated;
+        if (!ReferenceEquals(templated, value)) return BrandText.Apply(templated);
 
         // “快递单号：SF001”这类“标签＋冒号＋内容”的拼接串，只翻标签，内容保持原样。
         string translated = TranslateLabel(value, table, culture);
-        if (!ReferenceEquals(translated, value)) return translated;
+        if (!ReferenceEquals(translated, value)) return BrandText.Apply(translated);
 
         translated = value;
         translated = System.Text.RegularExpressions.Regex.Replace(translated, @"(?<=\d)\s*分钟$", Get("分钟"));
@@ -90,7 +94,7 @@ public static class AppLanguage
         translated = System.Text.RegularExpressions.Regex.Replace(translated, @"(?<=\d)\s*位$", Get("位"));
         if (translated.StartsWith("版本 ", StringComparison.Ordinal))
             translated = Get("版本") + translated[2..];
-        return translated;
+        return BrandText.Apply(translated);
     }
 
     /// <summary>
@@ -102,10 +106,10 @@ public static class AppLanguage
         if (string.IsNullOrWhiteSpace(value)) return value;
         CultureInfo culture = CultureInfo.CurrentUICulture;
         string? exact = Resources.GetString(value, culture);
-        if (exact != null) return exact;
+        if (exact != null) return BrandText.Apply(exact);
         if (string.Equals(culture.TwoLetterISOLanguageName, "zh", StringComparison.OrdinalIgnoreCase))
-            return value;
-        return TranslateTemplate(value, GetPhraseTable(culture), culture);
+            return BrandText.Apply(value);
+        return BrandText.Apply(TranslateTemplate(value, GetPhraseTable(culture), culture));
     }
 
     private sealed record PhraseTable(

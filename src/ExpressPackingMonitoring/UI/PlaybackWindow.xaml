@@ -217,8 +217,8 @@
                     <Setter Property="TextElement.Foreground" Value="{DynamicResource BadgeErrorText}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding RowBadgeTone}" Value="success">
-                    <Setter Property="Background" Value="{DynamicResource BadgePackBg}"/>
-                    <Setter Property="TextElement.Foreground" Value="{DynamicResource BadgePackText}"/>
+                    <Setter Property="Background" Value="{DynamicResource AccentGreen}"/>
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource TextOnAccent}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding RowBadgeTone}" Value="muted">
                     <Setter Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
@@ -266,10 +266,14 @@
                     <Setter Property="Opacity" Value="1"/>
                     <Setter Property="IsHitTestVisible" Value="True"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding IsKeyboardFocused, RelativeSource={RelativeSource Self}}" Value="True">
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsKeyboardFocused, RelativeSource={RelativeSource Self}}" Value="True"/>
+                        <Condition Binding="{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
                     <Setter Property="Opacity" Value="1"/>
                     <Setter Property="IsHitTestVisible" Value="True"/>
-                </DataTrigger>
+                </MultiDataTrigger>
             </Style.Triggers>
         </Style>
 
@@ -310,7 +314,7 @@
                       ToolTip="{Binding CompressBlockedHint}"
                       ToolTipService.ShowOnDisabled="True"/>
             <Separator Style="{StaticResource AppSeparatorStyle}"/>
-            <MenuItem Header="{loc:Localized 删除录像…}"
+            <MenuItem Header="{Binding DeleteMenuText}"
                       Style="{StaticResource AppMenuItemStyle}"
                       Click="DeleteVideo_Click"
                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
@@ -478,6 +482,39 @@
                                 <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.15"/>
                             </Border.Effect>
                             <StackPanel>
+                                <TextBlock Text="{loc:Localized 显示内容}" FontWeight="Bold" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
+                                <StackPanel x:Name="MediaKindSection"
+                                            Orientation="Horizontal"
+                                            Margin="0,0,0,14">
+                                    <Button x:Name="AllMediaTabButton"
+                                            Content="{loc:Localized 全部}"
+                                            MinWidth="72"
+                                            Height="32"
+                                            Margin="0,0,6,0"
+                                            FontSize="14"
+                                            FontWeight="SemiBold"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Click="AllMediaTabButton_Click"/>
+                                    <Button x:Name="VideoMediaTabButton"
+                                            Content="{loc:Localized 录像}"
+                                            MinWidth="72"
+                                            Height="32"
+                                            Margin="0,0,6,0"
+                                            FontSize="14"
+                                            FontWeight="SemiBold"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Click="VideoMediaTabButton_Click"/>
+                                    <Button x:Name="PhotoMediaTabButton"
+                                            Content="{loc:Localized 照片}"
+                                            MinWidth="72"
+                                            Height="32"
+                                            FontSize="14"
+                                            FontWeight="SemiBold"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Click="PhotoMediaTabButton_Click"/>
+                                </StackPanel>
+
                                 <TextBlock Text="录像日期范围" FontWeight="Bold" FontSize="12"
                                            Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
                                 <Grid Margin="0,0,0,14">
@@ -565,7 +602,7 @@
                 </ScrollViewer>
 
                 <Grid Grid.Row="1">
-                <ListView x:Name="VideoList" FontSize="14" SelectionChanged="VideoList_SelectionChanged" BorderThickness="0" Background="{StaticResource TransparentBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ListView x:Name="VideoList" FontSize="14" SelectionChanged="VideoList_SelectionChanged" PreviewMouseLeftButtonDown="VideoList_PreviewMouseLeftButtonDown" BorderThickness="0" Background="{StaticResource TransparentBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListView.GroupStyle>
                         <GroupStyle>
                             <GroupStyle.HeaderTemplate>
@@ -835,6 +872,28 @@
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
+                    <Grid x:Name="PhotoPreviewViewport"
+                          Panel.ZIndex="2"
+                          ClipToBounds="True"
+                          Background="{DynamicResource VideoPlaceholder}"
+                          Visibility="Collapsed"
+                          MouseWheel="PhotoPreviewViewport_MouseWheel"
+                          MouseLeftButtonDown="PhotoPreviewViewport_MouseLeftButtonDown"
+                          MouseLeftButtonUp="PhotoPreviewViewport_MouseLeftButtonUp"
+                          MouseMove="PhotoPreviewViewport_MouseMove"
+                          LostMouseCapture="PhotoPreviewViewport_LostMouseCapture">
+                        <Image x:Name="PhotoPreviewImage"
+                               Stretch="Uniform"
+                               IsHitTestVisible="False"
+                               RenderTransformOrigin="0.5,0.5">
+                            <Image.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="PhotoPreviewScale"/>
+                                    <TranslateTransform x:Name="PhotoPreviewTranslate"/>
+                                </TransformGroup>
+                            </Image.RenderTransform>
+                        </Image>
+                    </Grid>
                 </Grid>
 
                 <!-- 2. 控制条放在第 1 行 -->

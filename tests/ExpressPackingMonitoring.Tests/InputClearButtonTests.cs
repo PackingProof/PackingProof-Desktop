@@ -92,8 +92,6 @@ public sealed class InputClearButtonRenderTests
     {
         RunOnStaThread(() =>
         {
-            LoadAppResources();
-
             var box = new TextBox { Text = "SF1234567890" };
             var button = new InputClearButton
             {
@@ -146,28 +144,6 @@ public sealed class InputClearButtonRenderTests
     }
 
     /// <summary>WPF 控件必须在 STA 线程上创建，测试宿主默认 MTA。</summary>
-    private static void RunOnStaThread(Action action)
-    {
-        Exception? failure = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                if (Application.Current == null)
-                    _ = new Application();
-                action();
-            }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA 线程执行超时");
-        if (failure != null)
-        {
-            var detail = new System.Text.StringBuilder();
-            for (Exception? current = failure; current != null; current = current.InnerException)
-                detail.AppendLine($"{current.GetType().Name}: {current.Message}");
-            throw new Xunit.Sdk.XunitException($"清除叉号渲染失败：{detail}");
-        }
-    }
+    private static void RunOnStaThread(Action action) =>
+        WpfTestHost.Run(action, TimeSpan.FromSeconds(60), "STA 线程执行超时");
 }

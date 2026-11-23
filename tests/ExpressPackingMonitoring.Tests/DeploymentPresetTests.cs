@@ -280,7 +280,7 @@ public sealed class DeploymentPresetTests
     [InlineData(true, true, "录像主机", "可接收并备份手机录像")]
     [InlineData(true, false, "录像从机", "录像先安全保存在本地缓存")]
     [InlineData(false, true, "备份主机", "接收并长期保存手机录像")]
-    [InlineData(false, false, "录像查看端", "保留订单联动和测试订单能力")]
+    [InlineData(false, false, "录像查看端", "连接现有主机查看录像")]
     public void PurposeResultShowsTheExpectedNameAndCapabilities(
         bool record,
         bool store,
@@ -389,6 +389,26 @@ public sealed class DeploymentPresetTests
             WebServerModePolicy.Resolve(config.DeploymentPreset));
         Assert.Equal(activatedAt, config.RecordingWorkstationActivatedAtUtc);
         Assert.Equal(existingCache, Assert.Single(config.StorageLocations).Path);
+    }
+
+    [Fact]
+    public void UnavailablePurposeIsNotPersisted()
+    {
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+            DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion,
+            WorkstationRole = WorkstationRoles.CameraMonitor
+        };
+
+        SettingsWindow.ApplyDeploymentPurposeBeforeSave(
+            config,
+            DeploymentPresets.RecordingHost,
+            new DateTime(2026, 11, 23, 0, 0, 0, DateTimeKind.Utc),
+            [DeploymentPresets.RecordingHost]);
+
+        Assert.Equal(DeploymentPresets.RecordingHost, config.DeploymentPreset);
+        Assert.Equal(WorkstationRoles.CameraMonitor, config.WorkstationRole);
     }
 
     [Fact]

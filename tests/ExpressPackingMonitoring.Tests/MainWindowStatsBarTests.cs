@@ -90,6 +90,29 @@ public sealed class MainWindowStatsBarTests
                 minimumScanWidth));
     }
 
+    [Theory]
+    [InlineData(814, 0)]
+    [InlineData(812, 1)]
+    [InlineData(736, 1)]
+    [InlineData(734, 2)]
+    public void ResolveTopBarCompactState_AccountsForPhotoButtonWidth(
+        double availableWidth,
+        int expected)
+    {
+        Assert.Equal(
+            (MainWindow.TopBarCompactState)expected,
+            MainWindow.ResolveTopBarCompactState(
+                availableWidth,
+                modeTextWidth: 130,
+                recordTextWidth: 160,
+                iconWidth: 52,
+                modeRightMargin: 16,
+                columnGap: 20,
+                minimumScanWidth: 320,
+                photoVisible: true,
+                photoTextWidth: 160));
+    }
+
     [Fact]
     public void TopActionButtonWidths_UseStyleSettersSoCompactTriggerCanOverride()
     {

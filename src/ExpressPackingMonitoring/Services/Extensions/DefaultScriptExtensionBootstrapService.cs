@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.UpdateCore;
 using System.IO;
 using System.Text.Json;
 
@@ -250,7 +251,7 @@ internal sealed class DefaultScriptExtensionBootstrapService
                             release.Compatibility.MinPackingProofVersion,
                             _appVersion))
                     {
-                        failures.Add($"{extensionId}: 需要更高版本的 PackingProof");
+                        failures.Add($"{extensionId}: " + BrandText.Apply("需要更高版本的 PackingProof"));
                         continue;
                     }
 

@@ -1,11 +1,12 @@
 using System.Text.Json.Serialization;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services;
 
 public sealed class PackingProofNodeInfo
 {
-    public const string ExpectedProtocol = "packingproof";
+    public static string ExpectedProtocol => BrandMetadata.CompatibilityId.ToLowerInvariant();
     public const int SupportedProtocolVersion = 1;
 
     [JsonPropertyName("protocol")]
@@ -25,6 +26,19 @@ public sealed class PackingProofNodeInfo
 
     [JsonPropertyName("capabilities")]
     public List<string> Capabilities { get; set; } = [];
+
+    [JsonPropertyName("capabilitySchemaVersion")]
+    public int CapabilitySchemaVersion { get; set; }
+
+    [JsonPropertyName("webHostEnabled")]
+    public bool WebHostEnabled { get; set; }
+
+    [JsonPropertyName("webRouteGroups")]
+    public List<string> WebRouteGroups { get; set; } = [];
+
+    [JsonPropertyName("features")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public object? Features { get; set; }
 
     [JsonPropertyName("httpPort")]
     public int HttpPort { get; set; }
@@ -55,6 +69,14 @@ public sealed class PackingProofNodeInfo
         && DeploymentPresets.IsKnown(Preset)
         && Capabilities.Contains(PackingProofCapabilities.Host, StringComparer.OrdinalIgnoreCase)
         && HttpPort is > 0 and <= 65535;
+
+    [JsonIgnore]
+    public bool IsDiscoveryOnly =>
+        !WebHostEnabled
+        && HttpPort == 0
+        && string.Equals(Protocol, ExpectedProtocol, StringComparison.Ordinal)
+        && Guid.TryParse(NodeId, out Guid nodeId)
+        && nodeId != Guid.Empty;
 }
 
 public sealed class BackupCompatibilityInfo

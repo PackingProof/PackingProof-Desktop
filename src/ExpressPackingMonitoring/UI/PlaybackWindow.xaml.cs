@@ -17,6 +17,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using LibVLCSharp.Shared;
 using Microsoft.Win32;
@@ -50,197 +51,6 @@ namespace ExpressPackingMonitoring.UI
         }
     }
 
-    public class VideoItem
-    {
-        public string DisplayName { get; set; } = "";
-        public string FullPath { get; set; } = "";
-        public string OrderId { get; set; } = "";
-        public string Mode { get; set; } = "";
-        public string Duration { get; set; } = "";
-        public double DurationSeconds { get; set; }
-        public string FileSize { get; set; } = "";
-        public long FileSizeBytes { get; set; }
-        public string StopReason { get; set; } = "";
-        public string VideoCodec { get; set; } = "";
-        public string VideoEncoder { get; set; } = "";
-        public string SourceDisplay { get; set; } = "";
-        public string SourceDeviceId { get; set; } = "";
-        public bool IsStoredOnHost { get; set; }
-        public bool IsMissing { get; set; }
-        public bool IsDeleted { get; set; }
-        public bool IsArchiveWarning { get; set; }
-        public string ArchiveStatusText { get; set; } = "";
-        public string DeleteReason { get; set; } = "";
-        public DateTime? DeletedAt { get; set; }
-        public FileInfo? File { get; set; }
-
-        /// <summary>数据库记录 ID：右键删除要知道删的是哪一条。</summary>
-        public long RecordId { get; set; }
-
-        // 悬浮提示与右键菜单需要的明细，与 Web 端 buildVideoTooltip 的字段保持一致。
-        public string TrackingNumber { get; set; } = "";
-        public string SourceOrderId { get; set; } = "";
-        public string BuyerMessage { get; set; } = "";
-        public string SellerMemo { get; set; } = "";
-        public string ProductInfo { get; set; } = "";
-        public string OrderInfoPushTime { get; set; } = "";
-        public DateTime StartTime { get; set; }
-        public string FileName { get; set; } = "";
-
-        /// <summary>右键复制单号时优先取快递单号，与列表显示口径一致。</summary>
-        public string CopyableOrderId =>
-            !string.IsNullOrWhiteSpace(TrackingNumber) ? TrackingNumber
-            : !string.IsNullOrWhiteSpace(OrderId) ? OrderId
-            : "";
-
-        /// <summary>只有本地真实存在的文件才能在资源管理器里定位。</summary>
-        public bool CanLocateFile =>
-            !string.IsNullOrWhiteSpace(FullPath) && !IsDeleted && !IsStoredOnHost && !IsMissing;
-
-        /// <summary>能不能删掉这条录像（右键“删除录像”，服务端还会在锁内复查一次）。</summary>
-        public bool CanDelete { get; set; }
-
-        /// <summary>不能删除的原因，作为禁用菜单项的悬浮提示。</summary>
-        public string DeleteBlockedHint { get; set; } = "";
-
-        /// <summary>压缩副本需要原始文件、可计算时长，而且确实还有缩小空间。</summary>
-        public bool CanCompress =>
-            !IsUnavailable
-            && !string.IsNullOrWhiteSpace(FullPath)
-            && DurationSeconds > 0
-            && FileSizeBytes > VideoCompressionPolicy.Mebibyte;
-
-        public string CompressBlockedHint
-        {
-            get
-            {
-                if (CanCompress)
-                    return "";
-                if (IsUnavailable || string.IsNullOrWhiteSpace(FullPath))
-                    return AppLanguage.Get("录像文件不存在或当前不可访问");
-                if (DurationSeconds <= 0)
-                    return AppLanguage.Get("无法读取录像时长");
-                if (FileSizeBytes <= VideoCompressionPolicy.Mebibyte)
-                    return AppLanguage.Get("当前文件已很小，无需压缩");
-                return AppLanguage.Get("当前录像无法导出");
-            }
-        }
-
-        public bool CanWebClip => !IsUnavailable && RecordId > 0;
-
-        /// <summary>这条录像在备份位置上还有归档副本：删除会保留它，确认框要说明。</summary>
-        public bool HasArchiveCopy { get; set; }
-
-        /// <summary>悬浮提示内容：短信息并排一行、长文本单独一行（Web 端同款排版）。</summary>
-        public FrameworkElement ToolTipContent => PlaybackTooltipPresenter.Build(this);
-
-        public string EncoderDisplay
-        {
-            get
-            {
-                if (!string.IsNullOrWhiteSpace(VideoEncoder))
-                    return EncodingHelper.GetEncoderLabel(VideoEncoder);
-                if (!string.IsNullOrWhiteSpace(VideoCodec))
-                    return EncodingHelper.GetCodecLabel(VideoCodec);
-                return "";
-            }
-        }
-
-        public string StatusText
-        {
-            get
-            {
-                if (IsDeleted)
-                {
-                    return PlaybackReasonText.CleanupStatus(DeleteReason, DeletedAt);
-                }
-
-                if (IsStoredOnHost)
-                    return "已备份到主机";
-                if (IsArchiveWarning)
-                    return ArchiveStatusText;
-                return IsMissing ? "文件已丢失" : "";
-            }
-        }
-
-        public bool IsUnavailable => IsDeleted || IsMissing || IsStoredOnHost;
-
-        public string RowBadgeText => PlaybackRowBadgePolicy.GetText(StatusText, StopReason);
-
-        public bool HasRowBadge => !string.IsNullOrWhiteSpace(RowBadgeText);
-
-        public string SourceTagText => string.IsNullOrWhiteSpace(SourceDisplay) ? "—" : SourceDisplay;
-
-        public int SourceColorIndex
-        {
-            get
-            {
-                string key = string.IsNullOrWhiteSpace(SourceDeviceId)
-                    ? SourceDisplay
-                    : SourceDeviceId;
-                uint hash = 2166136261;
-                foreach (char value in key)
-                {
-                    hash ^= value;
-                    hash *= 16777619;
-                }
-                return (int)(hash % 6) + 1;
-            }
-        }
-
-        public string DateGroupKey
-        {
-            get
-            {
-                DateTime date = StartTime > DateTime.MinValue
-                    ? StartTime
-                    : File?.CreationTime ?? DateTime.MinValue;
-                if (date == DateTime.MinValue)
-                    return "—";
-
-                CultureInfo culture = CultureInfo.CurrentUICulture;
-                return string.Equals(
-                    culture.TwoLetterISOLanguageName,
-                    "en",
-                    StringComparison.OrdinalIgnoreCase)
-                    ? date.ToString("MMM d, yyyy", culture)
-                    : date.ToString("yyyy年M月d日", culture);
-            }
-        }
-
-        public string CaptureTimeText
-        {
-            get => StartTime > DateTime.MinValue
-                ? StartTime.ToString("HH:mm:ss")
-                : "—";
-        }
-
-        public string PrimaryMetaText
-        {
-            get
-            {
-                string duration = string.IsNullOrWhiteSpace(Duration) ? "—" : Duration;
-                string size = string.IsNullOrWhiteSpace(FileSize) ? "—" : FileSize;
-                return $"{duration} · {size}";
-            }
-        }
-
-        public string RowBadgeTone
-        {
-            get
-            {
-                if (IsDeleted)
-                    return "muted";
-                if (IsStoredOnHost)
-                    return "success";
-                if (IsMissing || IsArchiveWarning)
-                    return "error";
-                return "reason";
-            }
-        }
-
-    }
-
     public partial class PlaybackWindow : Window
     {
         private readonly string _folderPath;
@@ -249,6 +59,8 @@ namespace ExpressPackingMonitoring.UI
         private readonly IReadOnlyDictionary<string, string>? _currentSourceDeviceNames;
         private readonly Func<IReadOnlySet<string>>? _removedSourceDeviceIdsProvider;
         private readonly VideoDatabase? _db;
+        private readonly PhotoStore? _photoStore;
+        private readonly Func<long, Task>? _deletePhotoHandler;
         private readonly bool _showDeletedVideos;
         /// <summary>当前工位能不能删除录像（纯查看端不给这个入口）。</summary>
         private readonly bool _canDeleteRecords;
@@ -305,6 +117,7 @@ namespace ExpressPackingMonitoring.UI
         private readonly RecordingFilterState _filterState = new();
         private bool _suppressFilterEvents;
         private readonly SemaphoreSlim _playerSemaphore = new SemaphoreSlim(1, 1);
+        private string _mediaKind = "all";
 
         public PlaybackWindow(
             string folderPath,
@@ -313,7 +126,9 @@ namespace ExpressPackingMonitoring.UI
             string localComputerName = "",
             bool canDeleteRecords = false,
             Func<VideoItem, Task<string?>>? webClipUrlProvider = null,
-            IReadOnlyCollection<string>? validatedEncoders = null)
+            IReadOnlyCollection<string>? validatedEncoders = null,
+            PhotoStore? photoStore = null,
+            Func<long, Task>? deletePhotoHandler = null)
             : this(
                 folderPath,
                 db,
@@ -322,7 +137,9 @@ namespace ExpressPackingMonitoring.UI
                 localComputerName: localComputerName,
                 canDeleteRecords: canDeleteRecords,
                 webClipUrlProvider: webClipUrlProvider,
-                validatedEncoders: validatedEncoders)
+                validatedEncoders: validatedEncoders,
+                photoStore: photoStore,
+                deletePhotoHandler: deletePhotoHandler)
         {
         }
 
@@ -344,7 +161,9 @@ namespace ExpressPackingMonitoring.UI
                 CancellationToken,
                 Task<MkvConversionResult>>? prepareMkvForPlayback = null,
             Func<VideoItem, Task<string?>>? webClipUrlProvider = null,
-            IReadOnlyCollection<string>? validatedEncoders = null)
+            IReadOnlyCollection<string>? validatedEncoders = null,
+            PhotoStore? photoStore = null,
+            Func<long, Task>? deletePhotoHandler = null)
         {
             InitializeComponent();
             _folderPath = folderPath;
@@ -352,6 +171,9 @@ namespace ExpressPackingMonitoring.UI
             _currentSourceDeviceNames = currentSourceDeviceNames;
             _removedSourceDeviceIdsProvider = removedSourceDeviceIdsProvider;
             _db = db;
+            _photoStore = photoStore;
+            _mediaKind = _photoStore == null ? "video" : "all";
+            _deletePhotoHandler = deletePhotoHandler;
             _showDeletedVideos = showDeletedVideos;
             _canDeleteRecords = canDeleteRecords;
             _videoImportService = videoImportService;
@@ -364,6 +186,16 @@ namespace ExpressPackingMonitoring.UI
             BtnWebClip.Visibility = _webClipUrlProvider == null
                 ? Visibility.Collapsed
                 : Visibility.Visible;
+            PhotoMediaTabButton.Visibility = _photoStore == null
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            AllMediaTabButton.Visibility = _photoStore == null
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            MediaKindSection.Visibility = _photoStore == null
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            UpdateMediaKindButtons();
 
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
             _timer.Tick += Timer_Tick;
@@ -386,9 +218,6 @@ namespace ExpressPackingMonitoring.UI
                 new ScrollChangedEventHandler((_, _) => UpdateStickyDateHeader()),
                 handledEventsToo: true);
             VideoList.SizeChanged += (_, _) => UpdateStickyDateHeader();
-            BtnImportVideos.Visibility = _videoImportService == null
-                ? Visibility.Collapsed
-                : Visibility.Visible;
             UpdateExportOrderNumbersButtonState();
             _ = LoadSourceFilterOptionsAsync();
             UpdateLocateButtonState();
@@ -586,7 +415,22 @@ namespace ExpressPackingMonitoring.UI
             if (FindContextMenuRow(placementTarget) is Border row)
                 ToolTipService.SetIsEnabled(row, true);
             if (placementTarget is Button moreButton)
+            {
                 ToolTipService.SetIsEnabled(moreButton, true);
+                ClearListActionFocus();
+            }
+        }
+
+        private void ClearListActionFocus()
+        {
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.Input,
+                new Action(() =>
+                {
+                    FocusManager.SetFocusedElement(this, null);
+                    Keyboard.ClearFocus();
+                    VideoList.Focus();
+                }));
         }
 
         private static Border? FindContextMenuRow(DependencyObject? current)
@@ -877,7 +721,11 @@ namespace ExpressPackingMonitoring.UI
             HandlePlaybackShortcut(e);
         }
 
-        private void Window_Deactivated(object sender, EventArgs e) => FilterPopup.IsOpen = false;
+        private void Window_Deactivated(object sender, EventArgs e)
+        {
+            FilterPopup.IsOpen = false;
+            ClearListActionFocus();
+        }
 
         private void SourceFilterChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -922,6 +770,9 @@ namespace ExpressPackingMonitoring.UI
         private void ClearAllFilters_Click(object sender, RoutedEventArgs e)
         {
             ApplyFilterStateToControls(state => state.ClearAll());
+            _mediaKind = "all";
+            UpdateMediaKindButtons();
+            RefreshFilterIndicators();
             FilterPopup.IsOpen = false;
         }
 
@@ -929,6 +780,11 @@ namespace ExpressPackingMonitoring.UI
         private void RemoveFilterBadge_Click(object sender, RoutedEventArgs e)
         {
             if ((sender as FrameworkElement)?.Tag is not string key) return;
+            if (key == "media")
+            {
+                SetMediaKind("all");
+                return;
+            }
             ApplyFilterStateToControls(state => state.Clear(key));
         }
 
@@ -977,12 +833,20 @@ namespace ExpressPackingMonitoring.UI
         /// <summary>刷新筛选按钮角标与胶囊徽章。</summary>
         private void RefreshFilterIndicators()
         {
-            IReadOnlyList<RecordingFilterBadge> badges = _filterState.BuildBadges();
+            List<RecordingFilterBadge> badges = _filterState.BuildBadges().ToList();
+            if (_photoStore != null && _mediaKind != "all")
+            {
+                badges.Insert(
+                    0,
+                    new RecordingFilterBadge(
+                        "media",
+                        AppLanguage.Get(_mediaKind == "photo" ? "照片" : "录像")));
+            }
             FilterBadgeList.ItemsSource = badges;
             FilterBadgeList.Visibility = badges.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-            CountBadge.Visibility = _filterState.ActiveCount > 0 ? Visibility.Visible : Visibility.Collapsed;
-            FilterCountText.Text = _filterState.ActiveCount.ToString();
+            CountBadge.Visibility = badges.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            FilterCountText.Text = badges.Count.ToString();
         }
 
         /// <summary>
@@ -1164,6 +1028,7 @@ namespace ExpressPackingMonitoring.UI
                     _hasMoreVideoPages = result.HasMore;
                     _usingApproximatePaging = result.UsesApproximatePaging;
                     ShowCurrentPage();
+                        _ = TryPlayRequestedRecordingAsync();
                 }
             }
             finally
@@ -1196,8 +1061,36 @@ namespace ExpressPackingMonitoring.UI
             string sourceType = "",
             string sourceId = "",
             string sourceName = "",
-            IReadOnlyList<string>? sourceIds = null)
+            IReadOnlyList<string>? sourceIds = null,
+            bool forceVideoOnly = false)
         {
+            if (!forceVideoOnly && _mediaKind == "all")
+            {
+                return BuildCombinedPage(
+                    start,
+                    end,
+                    keyword,
+                    page,
+                    mode,
+                    sourceType,
+                    sourceId,
+                    sourceName,
+                    sourceIds);
+            }
+            if (!forceVideoOnly && _mediaKind == "photo")
+            {
+                return BuildPhotoPage(
+                    start,
+                    end,
+                    keyword,
+                    page,
+                    mode,
+                    sourceType,
+                    sourceId,
+                    sourceName,
+                    sourceIds);
+            }
+
             var videos = new List<VideoItem>();
             bool hasSearchKeyword = !string.IsNullOrWhiteSpace(keyword);
             string normalizedMode = RecordingModeFilter.Normalize(mode);
@@ -1736,9 +1629,13 @@ namespace ExpressPackingMonitoring.UI
         {
             if (VideoList.SelectedItem is not VideoItem video)
             {
+                RuntimeLog.Info("PlaybackPhoto", "Selection cleared");
                 UpdateLocateButtonState();
                 return;
             }
+            RuntimeLog.Info(
+                "PlaybackPhoto",
+                $"Selection changed isPhoto={video.IsPhoto}, display={video.DisplayName}");
 
             // 增加 100ms 的防抖，防止极速连点
             await Task.Delay(100);
@@ -1774,8 +1671,34 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
+            if (video.IsPhoto)
+            {
+                RuntimeLog.Info("PlaybackPhoto", "Starting photo preview");
+                await ShowPhotoPreviewAsync(video);
+                UpdateLocateButtonState(video);
+                return;
+            }
+
+            HidePhotoPreview();
             PlaySelectedVideo(video);
             UpdateLocateButtonState(video);
+        }
+
+        private void VideoList_PreviewMouseLeftButtonDown(
+            object sender,
+            MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Left
+                || e.OriginalSource is not DependencyObject source)
+                return;
+
+            if (ItemsControl.ContainerFromElement(VideoList, source)
+                is ListViewItem item
+                && item.DataContext is VideoItem video
+                && !ReferenceEquals(VideoList.SelectedItem, video))
+            {
+                VideoList.SelectedItem = video;
+            }
         }
 
         private void DisposeCurrentMediaSource()
@@ -1817,7 +1740,7 @@ namespace ExpressPackingMonitoring.UI
                 {
                     Core.Initialize();
                     // 开窗时解析分辨率那一步已经建过实例（进程级共享），这里直接复用。
-                    libVLC = sharedLibVLC ?? new LibVLC("--avcodec-hw=any");
+                    libVLC = sharedLibVLC ?? PlaybackLibVlc.Create();
                     mediaPlayer = new LibVLCSharp.Shared.MediaPlayer(libVLC);
                 });
 

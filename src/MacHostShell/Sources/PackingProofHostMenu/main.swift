@@ -5,6 +5,25 @@ import AppKit
 import Foundation
 import SwiftUI
 
+enum AppBranding {
+    static let displayName: String = {
+        let display = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+        let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
+        return [display, name]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty }) ?? "PackingProof"
+    }()
+
+    static let videosDirectoryName: String = {
+        let configured = Bundle.main.object(forInfoDictionaryKey: "BrandVideosDirectoryName") as? String
+        let trimmed = configured?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? "\(displayName)Videos" : trimmed
+    }()
+
+    static let updatePageUrl =
+        (Bundle.main.object(forInfoDictionaryKey: "BrandUpdatesUrl") as? String) ?? ""
+}
+
 /// 菜单栏壳：菜单里直接设置用途、保存位置与开机自启；
 /// 业务逻辑一律交给 .NET 主机，壳只做展示与转发。
 final class HostShell: NSObject, NSApplicationDelegate {
@@ -144,7 +163,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         if mainWindow == nil {
             let hosting = NSHostingController(rootView: MainWindowView(model: model))
             let window = NSWindow(contentViewController: hosting)
-            window.title = "PackingProof"
+            window.title = AppBranding.displayName
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             // 高度按 MacViewer 的窗口比例来：列表自己滚动，不要把窗口撑满屏
             window.setContentSize(NSSize(width: 560, height: 360))
@@ -173,7 +192,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     /// 常规窗口应用需要的应用菜单：没有它菜单栏上会是一片空白
     private func setUpApplicationMenu() {
-        let appName = "PackingProof"
+        let appName = AppBranding.displayName
         let mainMenu = NSMenu()
 
         let appMenuItem = NSMenuItem()
@@ -287,8 +306,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     /// 打开下载页：优先用发布页地址；没有就退到 GitHub 的 releases 页
     private func openUpdatePage() {
-        let fallback = "https://github.com/PackingProof/PackingProof-Desktop/releases/latest"
-        let target = updateDownloadUrl.isEmpty ? fallback : updateDownloadUrl
+        let target = updateDownloadUrl.isEmpty ? AppBranding.updatePageUrl : updateDownloadUrl
+        guard !target.isEmpty else { return }
         guard let url = URL(string: target) else { return }
         NSWorkspace.shared.open(url)
     }
@@ -379,7 +398,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
     /// 磁盘根 + 固定子目录名，与菜单栏"添加磁盘…"完全同一条路径
     private func addStorageDisk(root: String) {
         guard !root.isEmpty else { return }
-        let path = (root as NSString).appendingPathComponent("PackingProofVideos")
+        let path = (root as NSString).appendingPathComponent(AppBranding.videosDirectoryName)
         applySettings(addStoragePath: path, afterApply: { [weak self] in
             // 备份主机启动时只读一次录像根目录，新增磁盘后自动重启，不再问一遍
             self?.restartHost()
@@ -1261,8 +1280,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private func updateWindowTitle() {
         let role = isViewer ? "查看端" : "备份主机"
         mainWindow?.title = appVersion.isEmpty
-            ? "PackingProof \(role)"
-            : "PackingProof \(role) \(appVersion)"
+            ? "\(AppBranding.displayName) \(role)"
+            : "\(AppBranding.displayName) \(role) \(appVersion)"
     }
 
     /// 备份主机角色下列出连进来的录像设备（与电脑端"订单联动设备"同一份数据）

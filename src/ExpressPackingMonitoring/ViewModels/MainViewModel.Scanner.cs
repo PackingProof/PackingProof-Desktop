@@ -27,10 +27,12 @@ using OpenCvSharp;
 using AForge.Video;
 using AForge.Video.DirectShow;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UpdateCore;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using Microsoft.Win32;
 
 namespace ExpressPackingMonitoring.ViewModels
@@ -232,25 +234,40 @@ namespace ExpressPackingMonitoring.ViewModels
                     _isEncoderDetectRunning = false;
                 }
             });
-            _speechService = new SpeechService
+            if (Capabilities.CanUseTts)
             {
-                EnableSoundPrompt = Config.EnableSoundPrompt,
-                MaximizeVolumeForSpeech = Config.MaximizeVolumeForSpeech,
-                EnableAiTts = Config.EnableAiTts,
-                AiTtsSpeed = Config.AiTtsSpeed,
-                EdgeTtsVoice = Config.EdgeTtsVoice,
-                EdgeTtsWarningVoice = Config.EdgeTtsWarningVoice,
-                PlaybackDeviceId = Config.PlaybackDeviceMoniker,
-                PlaybackDeviceName = Config.PlaybackDeviceName
-            };
-            _speechService.UpdateBreakWords(Config.TtsBreakWords);
-            _alertService = new AlertService(
-                PresentAlert,
-                _speechService.PlayAlert,
-                interruptAudio: _speechService.Stop,
-                preGenerate: (text, style) => _speechService.PreGenerateCache(text, style == AlertVoiceStyle.Warning));
-            foreach (DefaultSpeechPrompt prompt in DefaultSpeechCatalog.Prompts)
-                _speechService.PreGenerateCache(prompt.Text, prompt.VoiceStyle == AlertVoiceStyle.Warning);
+                _speechService = new SpeechService
+                {
+                    EnableSoundPrompt = Config.EnableSoundPrompt,
+                    MaximizeVolumeForSpeech = Config.MaximizeVolumeForSpeech,
+                    EnableAiTts = Config.EnableAiTts,
+                    AiTtsSpeed = Config.AiTtsSpeed,
+                    EdgeTtsVoice = Config.EdgeTtsVoice,
+                    EdgeTtsWarningVoice = Config.EdgeTtsWarningVoice,
+                    PlaybackDeviceId = Config.PlaybackDeviceMoniker,
+                    PlaybackDeviceName = Config.PlaybackDeviceName
+                };
+                _speechService.UpdateBreakWords(Config.TtsBreakWords);
+                _alertService = new AlertService(
+                    PresentAlert,
+                    _speechService.PlayAlert,
+                    interruptAudio: _speechService.Stop,
+                    preGenerate: (text, style) => _speechService.PreGenerateCache(
+                        text,
+                        style == AlertVoiceStyle.Warning));
+                foreach (DefaultSpeechPrompt prompt in DefaultSpeechCatalog.Prompts)
+                {
+                    _speechService.PreGenerateCache(
+                        prompt.Text,
+                        prompt.VoiceStyle == AlertVoiceStyle.Warning);
+                }
+            }
+            else
+            {
+                _alertService = new AlertService(
+                    PresentAlert,
+                    _ => { });
+            }
             LogStartupStage("speech");
             ScanCommand = new AsyncRelayCommand<string>(
                 scanResult => HandleScanAsync(scanResult, ScanInputSource.ManualInput),
@@ -268,7 +285,7 @@ namespace ExpressPackingMonitoring.ViewModels
             RefreshBarcodes();
             PrimeCommandBarcodeImages();
             IsBusy = true;
-            BusyText = "正在加载后台数据";
+            BusyText = AppLanguage.Get("正在加载");
             LogStartupStage("shell-ready");
         }
 
@@ -288,10 +305,33 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             await Task.Yield();
             RuntimeLog.Info("StartupTrace", "runtime-background-start");
+            try
+            {
+                await Task.Run(ValidatePackagedCapabilities);
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error(
+                    "StartupTrace",
+                    "Packaged capability validation failed",
+                    ex);
+                await ApplyOnUiThreadAsync(() =>
+                {
+                    AppDialog.Error(
+                        null,
+                        $"安装包能力校验失败，程序无法安全启动：{ex.Message}",
+                        "启动失败");
+                    Application.Current?.Shutdown(1);
+                });
+                return;
+            }
+
             string databaseError = "";
             try
             {
                 databaseError = await Task.Run(InitDatabase);
+                if (!Capabilities.CanUseTts)
+                    await Task.Run(RemoveDisabledTtsCache);
                 RuntimeLog.Info("StartupTrace", "runtime-background-database-ready");
             }
             catch (Exception ex)
@@ -321,6 +361,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 RestoreRecentScanRecords();
                 InitializeSystem();
                 InitGlobalKeyboardHook();
+                PrimePhotoArchiveResume();
                 Volatile.Write(ref _runtimeInitialized, 1);
                 IsBusy = false;
                 BusyText = "";
@@ -337,6 +378,126 @@ namespace ExpressPackingMonitoring.ViewModels
 
         /// <summary>启动时预生成一次指令条码图片，用户点"打开所在位置"时目录里已经有文件</summary>
         private void PrimeCommandBarcodeImages() => _ = Task.Run(RefreshCommandBarcodeImageFiles);
+
+        private void PrimePhotoArchiveResume()
+        {
+            if (!Capabilities.CanOperatePhoto)
+                return;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await PhotoCaptureService.ResumePendingArchivesAsync();
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Error(
+                        "Photo",
+                        "Resuming pending photo archives failed",
+                        ex);
+                }
+            });
+        }
+
+        private static void RemoveDisabledTtsCache()
+        {
+            foreach (string path in new[]
+                     {
+                         AppPaths.TtsCacheDir,
+                         Path.Combine(AppContext.BaseDirectory, "tts_cache")
+                     })
+            {
+                try
+                {
+                    if (Directory.Exists(path))
+                        Directory.Delete(path, recursive: true);
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Error(
+                        "Speech",
+                        $"Removing disabled TTS cache failed: {path}",
+                        ex);
+                }
+            }
+        }
+
+        private static void ValidatePackagedCapabilities()
+        {
+            string manifestPath = Path.Combine(
+                AppContext.BaseDirectory,
+                "ProductCapabilities.json");
+            bool packagedDirectory = string.Equals(
+                    Path.GetFileName(Path.TrimEndingDirectorySeparator(
+                        AppContext.BaseDirectory)),
+                    "app",
+                    StringComparison.OrdinalIgnoreCase)
+                || File.Exists(Path.Combine(
+                    AppContext.BaseDirectory,
+                    BrandMetadata.PackageEditionMarker))
+                || File.Exists(Path.Combine(
+                    AppContext.BaseDirectory,
+                    "AppxManifest.xml"));
+            if (!File.Exists(manifestPath))
+            {
+                if (packagedDirectory)
+                    throw new InvalidDataException("安装包缺少 ProductCapabilities.json");
+                return;
+            }
+
+            byte[] jsonBytes = File.ReadAllBytes(manifestPath);
+            ProductFeatures packaged = ProductFeaturesJson.Parse(jsonBytes);
+            ProductFeatures embedded = BrandMetadata.ProductFeatures;
+            if (packaged != embedded)
+            {
+                throw new InvalidDataException(
+                    "ProductCapabilities.json 与程序内置软件能力不一致");
+            }
+            string actualHash = Convert.ToHexString(
+                SHA256.HashData(jsonBytes)).ToLowerInvariant();
+            if (!string.Equals(
+                    actualHash,
+                    BrandMetadata.CapabilityIdentity.FeaturesSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "ProductCapabilities.json 的 SHA256 与内置软件能力不一致");
+            }
+
+            if (embedded.Inputs.VisionObb
+                && (!VisionObbHost.IsAvailable
+                    || (packagedDirectory
+                        && !new[]
+                        {
+                            "ExpressPackingMonitoring.Vision.Obb.dll",
+                            "onnxruntime.dll",
+                            "DirectML.dll",
+                            Path.Combine("models", "vision-obb.onnx")
+                        }.All(relative => File.Exists(Path.Combine(
+                            AppContext.BaseDirectory,
+                            relative))))))
+            {
+                throw new InvalidOperationException(
+                    "软件配置声明启用面单识别，但当前安装缺少 OBB/ONNX/DirectML 资源");
+            }
+            if (embedded.Tts
+                && packagedDirectory
+                && (!File.Exists(Path.Combine(
+                        AppContext.BaseDirectory,
+                        "ExpressPackingMonitoring.WinTts.dll"))
+                    || !File.Exists(Path.Combine(
+                        AppContext.BaseDirectory,
+                        "WinRT.Runtime.dll"))
+                    || !Directory.EnumerateFiles(
+                        AppContext.BaseDirectory,
+                        "EdgeTTS*.dll",
+                        SearchOption.TopDirectoryOnly).Any()))
+            {
+                throw new InvalidOperationException(
+                    "软件配置声明启用 TTS，但当前安装缺少 WinTts/EdgeTTS 运行时");
+            }
+        }
 
         /// <summary>
         /// 重新生成整套指令条码图片（固定目录、覆盖旧文件），返回生成的张数。
@@ -1011,6 +1172,11 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             await NotifyUserActivityAsync();
             if (!IsRuntimeInitialized || IsBusy || _isDisposed || _shutdownRequested) return;
+            if (_purposeSwitchPending && !IsRecording)
+            {
+                ShowToast("正在切换用途，暂时不能开始录像", ToastSeverity.Information);
+                return;
+            }
             if (!await _recorderLock.WaitAsync(0)) return;
 
             try
@@ -1665,6 +1831,9 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         public bool CanSwitchWorkstation => !IsRecording && !_purposeSwitchPending;
+        public bool IsPurposeSwitchPending => _purposeSwitchPending;
+        public bool CanInvokePurposeSwitch =>
+            _purposeSwitchPending || !IsRecording;
         public string SwitchWorkstationButtonText
         {
             get => _switchWorkstationButtonText;

@@ -28,11 +28,12 @@ param(
     [switch]$ReuseExistingLauncherBaseline,
     [switch]$DisablePatch,
     [switch]$SkipStorePackage,
-    [ValidateSet("include", "exclude")]
-    [string]$VisionObb = "include",
+    [ValidateSet("auto", "include", "exclude")]
+    [string]$VisionObb = "auto",
     [switch]$AllowExperimentalOpenCvStore,
     [string]$StoreIdentityConfigPath = "",
     [string]$OpenCvNativeDllPath = "",
+    [switch]$AllowPlaceholderBrandSecrets,
     # 只在“老装机升级到共享运行时布局”的那一版打开：增量包里额外带上整份 runtime\。
     [switch]$IncludeRuntimeInPatch
 )
@@ -48,6 +49,19 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "VisionModelBaseline.Common.ps1")
 . (Join-Path $PSScriptRoot "AppPatchRuntimeCompatibility.Common.ps1")
 . (Join-Path $PSScriptRoot "SharedRuntimeLayout.Common.ps1")
+. (Join-Path $PSScriptRoot "Branding.Common.ps1")
+. (Join-Path $PSScriptRoot "BrandResourcePolicy.Common.ps1")
+$brand = Get-BrandProfile -RepoRoot $repoRoot
+if ($brand.ExtensionMarketPublicKeyIsPlaceholder -and -not $AllowPlaceholderBrandSecrets) {
+    throw "当前软件配置仍使用扩展市场公钥占位值；正式打包前必须替换，或仅为模板本地验证显式传入 -AllowPlaceholderBrandSecrets"
+}
+$brandGithubUrl = "https://github.com/$($brand.RepositorySlug)"
+$brandGiteeUrl = "https://gitee.com/$($brand.RepositorySlug)"
+$resourcePolicy = Get-BrandResourcePolicy -Brand $brand
+$includeVisionObb = Resolve-BrandOptionalResource `
+    -Requested $VisionObb `
+    -Enabled $resourcePolicy.VisionObb `
+    -ResourceName "inputs.visionObb"
 $appProject = Join-Path $repoRoot "src\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj"
 $releaseValidationScript = Join-Path $repoRoot "tools\Test-Release.ps1"
 $installerBuildScript = Join-Path $repoRoot "tools\Build-Installer.ps1"
@@ -198,6 +212,19 @@ function Stop-StaleReleaseAppInstances {
             continue
         }
         if ([string]::IsNullOrWhiteSpace($processPath)) {
+            continue
+        }
+        $processProductName = ""
+        try {
+            $processProductName = [string](Get-Item -LiteralPath $processPath -ErrorAction Stop).VersionInfo.ProductName
+        }
+        catch {
+            continue
+        }
+        if (-not [string]::Equals(
+                $processProductName.Trim(),
+                ([string]$brand.ProductName).Trim(),
+                [System.StringComparison]::OrdinalIgnoreCase)) {
             continue
         }
 
@@ -469,7 +496,7 @@ $buildIdentitySuffix = Get-GitBuildSuffix -ReleaseTag $releaseTag -CommitId $git
 $artifactVersion = "$normalizedVersion$buildIdentitySuffix"
 $artifactTag = "v$artifactVersion"
 $informationalVersion = $artifactVersion
-$packageName = ConvertTo-SafePathName "PackingProof+v$artifactVersion"
+$packageName = ConvertTo-SafePathName "$($brand.ArtifactPrefix)+v$artifactVersion"
 $defaultPackageVersionRoot = Join-Path $repoRoot "package\$packageName"
 
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
@@ -977,6 +1004,15 @@ function Get-ConfiguredValue {
         [string]$DefaultValue
     )
 
+    $profileKey = "BRAND_" + (($brand.ProfileId -replace "[^A-Za-z0-9]", "_").ToUpperInvariant()) + "_" + $Key
+    $envValue = [Environment]::GetEnvironmentVariable($profileKey)
+    if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+        return $envValue.Trim()
+    }
+    if ($brand.ProfileId -ne "packingproof") {
+        return $DefaultValue
+    }
+
     $envValue = [Environment]::GetEnvironmentVariable($Key)
     if (-not [string]::IsNullOrWhiteSpace($envValue)) {
         return $envValue.Trim()
@@ -996,7 +1032,7 @@ function Get-ReleaseUrlBase {
         return $explicitBase.TrimEnd("/")
     }
 
-    $checkUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest"
+    $checkUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue $brand.UpdateGiteeCheckUrl
     if ($checkUrl -match "^https://api\.github\.com/repos/([^/]+/[^/]+)/releases/latest/?$") {
         return "https://github.com/$($Matches[1])/releases"
     }
@@ -1005,7 +1041,7 @@ function Get-ReleaseUrlBase {
         return "https://gitee.com/$($Matches[1])/releases"
     }
 
-    return "https://gitee.com/PackingProof/PackingProof-Desktop/releases"
+    return "$brandGiteeUrl/releases"
 }
 
 function Expand-ReleaseTemplate {
@@ -1320,6 +1356,16 @@ function New-AppPatchPackage {
     $patchManifest["type"] = "baseline_patch"
     $patchManifest["patch_baseline_version"] = $BaselineVersion
     $patchManifest["latest_version"] = $LatestVersion
+    $patchManifest["brand"] = [ordered]@{
+        profile_id = $brand.ProfileId
+        product_name = $brand.ProductName
+        display_name = $brand.DisplayName
+        artifact_prefix = $brand.ArtifactPrefix
+        compatibility_id = $brand.CompatibilityId
+        data_directory_name = $brand.DataDirectoryName
+        instance_name_prefix = $brand.InstanceNamePrefix
+        package_edition_marker = $brand.PackageEditionMarker
+    }
     $patchManifest["files"] = $changedFiles
     if ($deletedFiles.Count -gt 0) {
         $patchManifest["deletes"] = $deletedFiles
@@ -1331,11 +1377,12 @@ function New-AppPatchPackage {
 
     Copy-NormalizedCommandFile `
         -SourcePath $InstallerCmdPath `
-        -DestinationPath (Join-Path $patchWorkDir $appPatchInstallerCmdName)
+        -DestinationPath (Join-Path $patchWorkDir $appPatchInstallerCmdName) `
+        -ArtifactPrefix $brand.ArtifactPrefix
     Copy-Item -LiteralPath $InstallerScriptPath -Destination (Join-Path $patchWorkDir $appPatchInstallerScriptName) -Force
 
     $appPatchNotice = @(
-        "PackingProof 主程序增量更新"
+        "$($brand.DisplayName) 主程序增量更新"
         ""
         "正常情况下无需手动下载，启动器会自动校验并安装此 AppPatch。"
         "如需手动更新，请完整解压本 ZIP，再双击《$appPatchInstallerCmdName》。"
@@ -1362,17 +1409,24 @@ function New-AppPatchPackage {
 function Test-ZipContainsEntryPrefix {
     param(
         [string]$ZipFile,
-        [string]$EntryPrefix
+        [string]$EntryPrefix,
+        [string[]]$ExceptEntryNames = @()
     )
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $normalizedPrefix = $EntryPrefix.Replace('\', '/')
+    $exceptions = @{}
+    foreach ($entryName in $ExceptEntryNames) {
+        $exceptions[$entryName.Replace('\', '/')] = $true
+    }
     $zip = [System.IO.Compression.ZipFile]::OpenRead($ZipFile)
     try {
         foreach ($entry in $zip.Entries) {
-            if ($entry.FullName.Replace('\', '/').StartsWith(
+            $entryName = $entry.FullName.Replace('\', '/')
+            if ($entryName.StartsWith(
                     $normalizedPrefix,
-                    [System.StringComparison]::OrdinalIgnoreCase)) {
+                    [System.StringComparison]::OrdinalIgnoreCase) -and
+                -not $exceptions.ContainsKey($entryName)) {
                 return $true
             }
         }
@@ -1392,17 +1446,22 @@ function Resolve-LauncherBaselineExecutable {
     )
 
     $baselineVersion = [string]$Baseline.version
-    $cacheDirectory = Join-Path $repoRoot "package\launcher-baselines\v$baselineVersion"
+    $cacheDirectory = if ($brand.ProfileId -eq "packingproof") {
+        Join-Path $repoRoot "package\launcher-baselines\v$baselineVersion"
+    }
+    else {
+        Join-Path $repoRoot ("package\launcher-baselines\" + $brand.ArtifactPrefix + "\v$baselineVersion")
+    }
     $cachedLauncherPath = Join-Path $cacheDirectory "ExpressPackingMonitoring.exe"
     $cachedPackagePath = Join-Path $cacheDirectory ([string]$Baseline.package.file)
-    $legacyPackageRoot = Join-Path $repoRoot "package\PackingProof+v$baselineVersion"
+    $legacyPackageRoot = Join-Path $repoRoot ("package\" + $brand.ArtifactPrefix + "+v$baselineVersion")
     $launcherCandidates = @()
     if (-not [string]::IsNullOrWhiteSpace($BaselineLauncherPath)) {
         $launcherCandidates += [System.IO.Path]::GetFullPath($BaselineLauncherPath)
     }
     $launcherCandidates += @(
         $cachedLauncherPath,
-        (Join-Path $legacyPackageRoot "PackingProof+v$baselineVersion\ExpressPackingMonitoring.exe")
+        (Join-Path $legacyPackageRoot ($brand.ArtifactPrefix + "+v$baselineVersion\ExpressPackingMonitoring.exe"))
     )
 
     foreach ($candidate in $launcherCandidates | Select-Object -Unique) {
@@ -1446,7 +1505,7 @@ function Resolve-LauncherBaselineExecutable {
             Invoke-WebRequest `
                 -Uri $PackageUrl `
                 -OutFile $temporaryPackagePath `
-                -Headers @{ "User-Agent" = "PackingProof-ReleaseBuilder" } `
+                -Headers @{ "User-Agent" = "$($brand.ArtifactPrefix)-ReleaseBuilder" } `
                 -MaximumRedirection 5 `
                 -TimeoutSec 60
             Assert-LauncherPackage -PackagePath $temporaryPackagePath -Baseline $Baseline
@@ -1475,20 +1534,22 @@ $storeSymbolsDir = Join-Path $repoRoot "package\.store-symbols-tmp"
 if (Test-Path -LiteralPath $storeSymbolsDir) {
     Remove-Item -LiteralPath $storeSymbolsDir -Recurse -Force
 }
-$packageUpdateCheckUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest"
+$packageUpdateCheckUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue $brand.UpdateGiteeCheckUrl
 $launcherManifestFullPath = if (-not [string]::IsNullOrWhiteSpace($LauncherBaselineManifestPath)) {
     [System.IO.Path]::GetFullPath($LauncherBaselineManifestPath)
 } elseif (-not [string]::IsNullOrWhiteSpace($BaselineLauncherManifestPath)) {
     Write-Warning "BaselineLauncherManifestPath is deprecated; use LauncherBaselineManifestPath."
     [System.IO.Path]::GetFullPath($BaselineLauncherManifestPath)
 } else {
-    Join-Path $PSScriptRoot "launcher-baseline.json"
+    $brand.LauncherBaselinePath
 }
 $launcherBaseline = Read-LauncherBaselineManifest -ManifestPath $launcherManifestFullPath
 $launcherSourceFingerprint = Get-LauncherLogicalFingerprint `
     -RepositoryRoot $repoRoot `
     -Runtime $Runtime `
-    -UpdateCheckUrl $packageUpdateCheckUrl
+    -UpdateCheckUrl $packageUpdateCheckUrl `
+    -BrandProfileId $brand.ProfileId `
+    -BrandProfileContentSha256 $brand.ContentSha256
 if (-not [string]::Equals(
         $launcherSourceFingerprint,
         [string]$launcherBaseline.source_fingerprint,
@@ -1504,14 +1565,20 @@ $launcherTag = [string]$launcherBaseline.tag
 if ($LASTEXITCODE -ne 0) {
     throw "Launcher component tag is missing: $launcherTag"
 }
-if (-not (Test-LauncherBaselineSourceUnchanged -RepositoryRoot $repoRoot -Tag $launcherTag -Baseline $launcherBaseline)) {
+if (-not (Test-LauncherBaselineSourceUnchanged `
+        -RepositoryRoot $repoRoot `
+        -Tag $launcherTag `
+        -Baseline $launcherBaseline `
+        -BrandProfileContentSha256 $brand.ContentSha256)) {
     throw "Launcher tracked files changed after $launcherTag. Establish a new launcher baseline."
 }
 
-New-DefaultTtsCache
+$includeTtsCache = $resourcePolicy.Tts
+if ($includeTtsCache) {
+    New-DefaultTtsCache
+}
 
 Stop-StaleReleaseAppInstances
-$includeVisionObb = $VisionObb -eq "include"
 $visionModelBaseline = $null
 $visionModelCachePath = ""
 if ($includeVisionObb) {
@@ -1596,6 +1663,7 @@ Copy-VcRuntimeFiles -AppDir $appPublishDir
 
 # Win10/11 标准包附带 Windows 系统语音（WinRT）辅助程序集；
 # Win7 兼容变体在下方产物生成后剔除这些文件。
+if ($includeTtsCache) {
 $winttsProject = Join-Path $repoRoot "src\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj"
 $winttsPublishDir = Join-Path $repoRoot "package\.wintts-publish-tmp"
 Invoke-DotNetPublish -Arguments @(
@@ -1616,6 +1684,7 @@ if (Test-Path -LiteralPath $winttsPdb -PathType Leaf) {
     Copy-Item -LiteralPath $winttsPdb -Destination (Join-Path $storeSymbolsDir "ExpressPackingMonitoring.WinTts.pdb") -Force
 }
 Remove-Item -LiteralPath $winttsPublishDir -Recurse -Force
+}
 
 $ffmpegBaseline = Read-FFmpegBaselineManifest -ManifestPath $ffmpegBaselineManifestPath
 $ffmpegCacheDirectory = Join-Path $repoRoot "package\dependency-cache\ffmpeg\$($ffmpegBaseline.version)"
@@ -1677,16 +1746,57 @@ Get-ChildItem -LiteralPath $outputFullPath -File -ErrorAction SilentlyContinue |
     Remove-Item -Force
 
 Remove-PackageRuntimeState -AppDir $appPublishDir
-Copy-PackageTtsCache -AppDir $appPublishDir
-Copy-DefaultScriptPackages -AppDir $appPublishDir -AppVersion $normalizedVersion
+if ($includeTtsCache) {
+    Copy-PackageTtsCache -AppDir $appPublishDir
+}
+else {
+    foreach ($ttsFile in @(
+            "ExpressPackingMonitoring.WinTts.dll",
+            "Microsoft.Windows.SDK.NET.dll",
+            "WinRT.Runtime.dll")) {
+        Remove-Item -LiteralPath (Join-Path $appPublishDir $ttsFile) -Force -ErrorAction SilentlyContinue
+    }
+    Get-ChildItem -LiteralPath $appPublishDir -Filter "EdgeTTS*.dll" -File -ErrorAction SilentlyContinue |
+        Remove-Item -Force
+    $remainingTtsFiles = @(
+        "ExpressPackingMonitoring.WinTts.dll",
+        "Microsoft.Windows.SDK.NET.dll",
+        "WinRT.Runtime.dll"
+    ) | Where-Object { Test-Path -LiteralPath (Join-Path $appPublishDir $_) }
+    if ($remainingTtsFiles.Count -gt 0 -or
+        @(Get-ChildItem -LiteralPath $appPublishDir -Filter "EdgeTTS*.dll" -File -ErrorAction SilentlyContinue).Count -gt 0) {
+        throw "Clean package validation failed: TTS capability is disabled but TTS runtime files remain"
+    }
+}
+if ($resourcePolicy.DefaultScripts) {
+    Copy-DefaultScriptPackages -AppDir $appPublishDir -AppVersion $normalizedVersion
+}
+else {
+    Remove-Item -LiteralPath (Join-Path $appPublishDir "Resources\DefaultScriptExtensions.json") -Force -ErrorAction SilentlyContinue
+    $defaultScriptPackageDirectory = Join-Path $appPublishDir "Resources\DefaultScriptPackages"
+    if (Test-Path -LiteralPath $defaultScriptPackageDirectory) {
+        Remove-Item -LiteralPath $defaultScriptPackageDirectory -Recurse -Force
+    }
+}
+Copy-Item `
+    -LiteralPath $brand.FeaturesPath `
+    -Destination (Join-Path $appPublishDir "ProductCapabilities.json") `
+    -Force
 $publishedTtsCacheFiles = @(Get-ChildItem -LiteralPath (Join-Path $appPublishDir "tts_cache") -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Extension -in ".mp3", ".wav" })
-if (-not $SkipTtsCacheGeneration -and $publishedTtsCacheFiles.Count -eq 0) {
+if ($includeTtsCache -and -not $SkipTtsCacheGeneration -and $publishedTtsCacheFiles.Count -eq 0) {
     throw "Clean package validation failed: default TTS cache is empty"
+}
+if (-not $includeTtsCache -and $publishedTtsCacheFiles.Count -gt 0) {
+    throw "Clean package validation failed: TTS capability is disabled but tts_cache is present"
 }
 
 $launcherExe = Join-Path $outputFullPath "ExpressPackingMonitoring.exe"
 $appExe = Join-Path $appPublishDir "ExpressPackingMonitoring.exe"
+$drawableVoutPluginPath = Join-Path $appPublishDir "libvlc\win-x64\plugins\video_output\libdrawable_plugin.dll"
+if (-not (Test-Path -LiteralPath $drawableVoutPluginPath -PathType Leaf)) {
+    throw "播放 payload 缺少 LibVLC 内嵌窗口模块：$drawableVoutPluginPath"
+}
 $requiredAppRuntimeFiles = @(
     "zxing.dll",
     "OpenCvSharp.dll",
@@ -1752,10 +1862,10 @@ Write-Host ("运行时种子：布局 {0} 个文件，app\ 里已有同名同哈
 $packageRoot = $packageArtifactRoot
 $appPayloadManifestFiles = @(Get-AppPayloadManifestFiles -AppDir $appPublishDir)
 $appPayloadFingerprint = Get-AppPayloadFingerprint -AppDir $appPublishDir
-$legacyAppFullZipPath = Join-Path $packageRoot "ExpressPackingMonitoring_AppFull_$artifactTag.zip"
-$appPatchZipName = "PackingProof_AppPatch_$artifactTag.zip"
+$legacyAppFullZipPath = Join-Path $packageRoot "$($brand.ArtifactPrefix)_AppFull_$artifactTag.zip"
+$appPatchZipName = "$($brand.ArtifactPrefix)_AppPatch_$artifactTag.zip"
 $appPatchZipPath = Join-Path $packageRoot $appPatchZipName
-$legacyManualUpdateZipPath = Join-Path $packageRoot "PackingProof_ManualUpdate_$artifactTag.zip"
+$legacyManualUpdateZipPath = Join-Path $packageRoot "$($brand.ArtifactPrefix)_ManualUpdate_$artifactTag.zip"
 $launcherPackageName = [string]$launcherBaseline.package.file
 $launcherPackagePath = Join-Path $packageRoot $launcherPackageName
 $updateJsonName = "update_$artifactTag.json"
@@ -1766,16 +1876,16 @@ $releaseInfoName = "release_info_$artifactTag.txt"
 $releaseInfoPath = Join-Path $packageRoot $releaseInfoName
 $packageIntegrityName = "package_integrity_$artifactTag.json"
 $packageIntegrityPath = Join-Path $packageRoot $packageIntegrityName
-$setupFileName = "PackingProof_Setup_v$artifactVersion.exe"
+$setupFileName = "$($brand.ArtifactPrefix)_Setup_v$artifactVersion.exe"
 $setupPath = Join-Path $packageRoot $setupFileName
 $releaseUrlBase = Get-ReleaseUrlBase
 $releasePageTemplate = Get-ConfiguredValue -Key "RELEASE_PAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/tag/{tag}"
 $appPatchUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/download/{tag}/{file}"
-$appPatchGithubUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_GITHUB_URL_TEMPLATE" -DefaultValue "https://github.com/PackingProof/PackingProof-Desktop/releases/download/{tag}/{file}"
-$appPatchGiteeUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_GITEE_URL_TEMPLATE" -DefaultValue "https://gitee.com/PackingProof/PackingProof-Desktop/releases/download/{tag}/{file}"
+$appPatchGithubUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_GITHUB_URL_TEMPLATE" -DefaultValue "$brandGithubUrl/releases/download/{tag}/{file}"
+$appPatchGiteeUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_GITEE_URL_TEMPLATE" -DefaultValue "$brandGiteeUrl/releases/download/{tag}/{file}"
 $launcherPackageUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/download/{tag}/{file}"
-$launcherPackageGithubUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_GITHUB_URL_TEMPLATE" -DefaultValue "https://github.com/PackingProof/PackingProof-Desktop/releases/download/{tag}/{file}"
-$launcherPackageGiteeUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_GITEE_URL_TEMPLATE" -DefaultValue "https://gitee.com/PackingProof/PackingProof-Desktop/releases/download/{tag}/{file}"
+$launcherPackageGithubUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_GITHUB_URL_TEMPLATE" -DefaultValue "$brandGithubUrl/releases/download/{tag}/{file}"
+$launcherPackageGiteeUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_GITEE_URL_TEMPLATE" -DefaultValue "$brandGiteeUrl/releases/download/{tag}/{file}"
 $releasePage = Expand-ReleaseTemplate -Template $releasePageTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
 $appPatchPlaceholderUrl = Expand-ReleaseTemplate -Template $appPatchUrlTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
 $appPatchGithubUrl = Expand-ReleaseTemplate -Template $appPatchGithubUrlTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
@@ -1785,7 +1895,7 @@ $launcherPackageGithubUrl = Expand-ReleaseTemplate -Template $launcherPackageGit
 $launcherPackageGiteeUrl = Expand-ReleaseTemplate -Template $launcherPackageGiteeUrlTemplate -ReleaseTag ([string]$launcherBaseline.release_tag) -FileName $launcherPackageName
 $fullDownloadPageTemplate = Get-ConfiguredValue `
     -Key "FULL_DOWNLOAD_PRIMARY_PAGE_URL_TEMPLATE" `
-    -DefaultValue "https://github.com/PackingProof/PackingProof-Desktop/releases/tag/{tag}"
+    -DefaultValue "$brandGithubUrl/releases/tag/{tag}"
 $fullDownloadPage = Expand-ReleaseTemplate -Template $fullDownloadPageTemplate -ReleaseTag $releaseTag -FileName $setupFileName
 $fullDownloadFallbackPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_FALLBACK_PAGE_URL_TEMPLATE" -DefaultValue ""
 if ([string]::IsNullOrWhiteSpace($fullDownloadFallbackPageTemplate)) {
@@ -1830,7 +1940,13 @@ if ($ReuseExistingLauncherBaseline) {
     }
 }
 if ($launcherPublishedWithRelease) {
-    $cachedBaselinePackage = Join-Path $repoRoot "package\launcher-baselines\$releaseTag\$launcherPackageName"
+    $cachedBaselineRoot = if ($brand.ProfileId -eq "packingproof") {
+        Join-Path $repoRoot "package\launcher-baselines"
+    }
+    else {
+        Join-Path $repoRoot ("package\launcher-baselines\" + $brand.ArtifactPrefix)
+    }
+    $cachedBaselinePackage = Join-Path $cachedBaselineRoot "$releaseTag\$launcherPackageName"
     Assert-LauncherPackage -PackagePath $cachedBaselinePackage -Baseline $launcherBaseline
     if (-not [string]::Equals($cachedBaselinePackage, $launcherPackagePath, [System.StringComparison]::OrdinalIgnoreCase)) {
         Copy-Item -LiteralPath $cachedBaselinePackage -Destination $launcherPackagePath -Force
@@ -1951,8 +2067,20 @@ else {
         if (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName 'files/OpenCvSharpExtern.dll') {
             throw 'AppPatch package validation failed: OpenCV native DLL must not be included'
         }
-        if (Test-ZipContainsEntryPrefix -ZipFile $appPatchZipPath -EntryPrefix 'files/libvlc/') {
-            throw 'AppPatch package validation failed: compatible LibVLC was included'
+        $drawablePluginEntry =
+            'files/libvlc/win-x64/plugins/video_output/libdrawable_plugin.dll'
+        if (Test-ZipContainsEntryPrefix `
+                -ZipFile $appPatchZipPath `
+                -EntryPrefix 'files/libvlc/' `
+                -ExceptEntryNames @($drawablePluginEntry)) {
+            throw 'AppPatch package validation failed: unexpected LibVLC file was included'
+        }
+        $baselineDrawablePlugin = Join-Path `
+            $baselineAppFullPath `
+            'libvlc\win-x64\plugins\video_output\libdrawable_plugin.dll'
+        if (-not (Test-Path -LiteralPath $baselineDrawablePlugin -PathType Leaf) -and
+            -not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName $drawablePluginEntry)) {
+            throw 'AppPatch package validation failed: missing required libdrawable_plugin.dll addition'
         }
         if ($launcherChanged -and -not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName "files/ExpressPackingMonitoring.dll")) {
             throw "AppPatch bridge validation failed: launcher changed but updated app assembly is missing"
@@ -1989,7 +2117,7 @@ if ($SkipStorePackage) {
     }
 }
 elseif (-not [bool]$openCvBaseline.store_channel_allowed -and -not $AllowExperimentalOpenCvStore) {
-    throw "当前 OpenCV 精简库尚未完成现场验证，已禁止生成 Microsoft Store MSIX，避免整包更新覆盖存量 Store 用户。确认产品接受风险后使用 -AllowExperimentalOpenCvStore，或在验证前使用 -SkipStorePackage。"
+    throw "当前 OpenCV 精简库尚未完成现场验证，已禁止生成 Microsoft Store MSIX，避免整包更新覆盖存量 Store 用户。确认发布负责人接受风险后使用 -AllowExperimentalOpenCvStore，或在验证前使用 -SkipStorePackage。"
 }
 else {
     $storePackageScript = Join-Path $PSScriptRoot "Publish-StorePackage.ps1"
@@ -2020,10 +2148,10 @@ else {
         Remove-Item -LiteralPath $storeSymbolsDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    $storeProductDir = Join-Path $storeOutputRoot ("PackingProof_Store_v" + $normalizedVersion)
-    $storePackagePath = Join-Path $storeProductDir ("PackingProof_Store_v" + $normalizedVersion + ".msix")
-    $storeSymbolPath = Join-Path $storeProductDir ("PackingProof_Store_v" + $normalizedVersion + ".appxsym")
-    $storeUploadPath = Join-Path $storeProductDir ("PackingProof_Store_v" + $normalizedVersion + ".msixupload")
+    $storeProductDir = Join-Path $storeOutputRoot ($brand.ArtifactPrefix + "_Store_v" + $normalizedVersion)
+    $storePackagePath = Join-Path $storeProductDir ($brand.ArtifactPrefix + "_Store_v" + $normalizedVersion + ".msix")
+    $storeSymbolPath = Join-Path $storeProductDir ($brand.ArtifactPrefix + "_Store_v" + $normalizedVersion + ".appxsym")
+    $storeUploadPath = Join-Path $storeProductDir ($brand.ArtifactPrefix + "_Store_v" + $normalizedVersion + ".msixupload")
     if (-not (Test-Path -LiteralPath $storePackagePath -PathType Leaf)) {
         throw "Store MSIX validation failed: missing package $storePackagePath"
     }
@@ -2040,7 +2168,7 @@ else {
     $storeSymbolSize = (Get-Item -LiteralPath $storeSymbolPath).Length
     $storeUploadHash = (Get-FileHash -LiteralPath $storeUploadPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $storeUploadSize = (Get-Item -LiteralPath $storeUploadPath).Length
-    $storeMarkerPath = Join-Path $storeProductDir "payload\PackingProof.PackageEdition.json"
+    $storeMarkerPath = Join-Path $storeProductDir ("payload\" + $brand.PackageEditionMarker)
     if (-not (Test-Path -LiteralPath $storeMarkerPath -PathType Leaf)) {
         throw "Store MSIX validation failed: missing package edition marker $storeMarkerPath"
     }
@@ -2056,7 +2184,7 @@ else {
     $storeArchive = [System.IO.Compression.ZipFile]::OpenRead($storePackagePath)
     try {
         $storeEntries = @($storeArchive.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
-        if ($storeEntries -notcontains "PackingProof.PackageEdition.json") {
+        if ($storeEntries -notcontains $brand.PackageEditionMarker) {
             throw "Store MSIX validation failed: package edition marker is not embedded"
         }
         foreach ($forbiddenEntry in @(

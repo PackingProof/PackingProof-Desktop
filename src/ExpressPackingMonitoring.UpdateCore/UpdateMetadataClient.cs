@@ -64,7 +64,7 @@ public sealed class UpdateMetadataClient
     /// </param>
     public UpdateMetadataClient(
         HttpClient httpClient,
-        string userAgent = "ExpressPackingMonitoring",
+        string? userAgent = null,
         int attemptsPerSource = 1,
         TimeSpan? retryDelay = null,
         Action<string>? log = null,
@@ -72,7 +72,7 @@ public sealed class UpdateMetadataClient
         bool allowPrerelease = false)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _userAgent = string.IsNullOrWhiteSpace(userAgent) ? "ExpressPackingMonitoring" : userAgent.Trim();
+        _userAgent = string.IsNullOrWhiteSpace(userAgent) ? BrandMetadata.ArtifactPrefix : userAgent.Trim();
         _apiTokenProvider = apiTokenProvider ?? (_ => "");
         _attemptsPerSource = Math.Max(1, attemptsPerSource);
         _retryDelay = retryDelay ?? TimeSpan.FromMilliseconds(500);

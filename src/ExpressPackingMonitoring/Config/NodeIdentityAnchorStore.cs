@@ -2,6 +2,7 @@ using ExpressPackingMonitoring.Logging;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using ExpressPackingMonitoring.UpdateCore;
 using System.Text.Json;
 
 namespace ExpressPackingMonitoring.Config;
@@ -79,7 +80,7 @@ internal static class NodeIdentityAnchorStore
             return null;
 
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(
-            "PackingProof.NodeIdentity:" + normalizedSeed));
+            BrandMetadata.CompatibilityId + ".NodeIdentity:" + normalizedSeed));
         Span<byte> bytes = stackalloc byte[16];
         hash.AsSpan(0, bytes.Length).CopyTo(bytes);
         // RFC 4122 version 5 / variant bits，仍然是标准 GUID 文本。

@@ -7,6 +7,7 @@ using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Audio;
 using ExpressPackingMonitoring.Localization;
+using ExpressPackingMonitoring.UpdateCore;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -40,14 +41,32 @@ namespace ExpressPackingMonitoring.ViewModels
             bool allowAccessSetup,
             bool showFailureToast = true)
         {
+            if (_purposeSwitchPending)
+                return false;
             await _webServerLifecycleLock.WaitAsync();
+            if (_purposeSwitchPending)
+            {
+                _webServerLifecycleLock.Release();
+                return false;
+            }
             WebServer newServer = null;
             ExtensionRuntime newExtensionRuntime = null;
             try
             {
-                WebServerMode webServerMode =
-                    WebServerModePolicy.Resolve(Config.DeploymentPreset);
-                bool orderReceiverOnly = webServerMode == WebServerMode.OrderReceiverOnly;
+                Interlocked.Increment(ref _workstationAddressRefreshVersion);
+                try { _udpDiscoveryResponder?.Dispose(); } catch { }
+                _udpDiscoveryResponder = null;
+                EffectiveProductCapabilities effectiveCapabilities =
+                    ProductCapabilityRuntime.ForPreset(
+                        Config.DeploymentPreset,
+                        RuntimeCapabilityEnvironment.FromConfig(Config));
+                bool providesWebPlayback =
+                    effectiveCapabilities.WebHost.EnabledGroups.Any(group =>
+                        string.Equals(
+                            group.Name,
+                            "media-library",
+                            StringComparison.Ordinal));
+                bool orderReceiverOnly = !providesWebPlayback;
                 Interlocked.Increment(ref _workstationAddressRefreshVersion);
                 WebServer previousServer = _webServer;
                 _webServer = null;
@@ -56,12 +75,28 @@ namespace ExpressPackingMonitoring.ViewModels
                 _extensionRuntime = null;
                 try { previousExtensionRuntime?.Dispose(); } catch { }
 
-                if (!WebServerModePolicy.ShouldStart(webServerMode) || _db == null || _isDisposed)
+                if (!effectiveCapabilities.WebHostEnabled || _db == null || _isDisposed)
                 {
                     MonitorAccessAddress = "";
                     WorkstationPrintStatusText = "未连接";
                     WorkstationStatusToolTip = "开启局域网查看后，可点击手机/电脑连接查看二维码或复制网址";
                     SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceDisabled"), AppLanguage.Get("Main.ConnectionEmptyTip"));
+                    if (effectiveCapabilities.Features.LanCollaboration
+                        && effectiveCapabilities.IsHost
+                        && _db != null
+                        && !_isDisposed)
+                    {
+                        _udpDiscoveryResponder = new UdpDiscoveryResponder(
+                            Config.NodeId,
+                            httpPortProvider: () => 0,
+                            isHostProvider: () => true,
+                            webHostEnabledProvider: () => false,
+                            routeGroupsProvider: () => []);
+                        _udpDiscoveryResponder.Start();
+                        RuntimeLog.Info(
+                            "UdpDiscovery",
+                            "LAN collaboration active without WebHost; announce webPort=0");
+                    }
                     return true;
                 }
 
@@ -73,8 +108,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 int cacheMaxMb = Config.TranscodeCacheMaxMB;
                 bool enableOrderInfoLog = Config.EnableOrderInfoLog;
                 bool requireAccessKey =
-                    WebServerModePolicy.ProvidesWebPlayback(webServerMode)
-                    && Config.RequireWebAccessKey;
+                    providesWebPlayback && Config.RequireWebAccessKey;
                 string accessKey = Config.WebAccessKey;
 
                 newServer = await Task.Run(() =>
@@ -108,33 +142,45 @@ namespace ExpressPackingMonitoring.ViewModels
                         orderReceiverOnly: orderReceiverOnly,
                         nodeNameCustomized: Config.NodeNameCustomized,
                         backupDeviceEnrollmentApprover: ApproveBackupDeviceEnrollment,
-                        validatedEncodersProvider: () => Config.ValidatedEncodersCache)
+                        validatedEncodersProvider: () => Config.ValidatedEncodersCache,
+                        effectiveCapabilities: effectiveCapabilities,
+                        photoStore: effectiveCapabilities.Features.PhotoCapture
+                            ? PhotoStore
+                            : null,
+                        photoDeleteHandler: effectiveCapabilities.Features.PhotoCapture
+                            ? DeletePhotoAsync
+                            : null,
+                        photoArchiveRetryAsync: effectiveCapabilities.Features.PhotoCapture
+                            ? RetryPhotoArchiveAsync
+                            : null)
                     {
                         EnableOrderInfoLog = enableOrderInfoLog
                     };
-                    // 扩展 API 始终开启：连不连得上由每个扩展的授权决定，主机侧不再留开关。
-                    _extensionAuthorizationStore ??= new ExtensionAuthorizationStore(
-                        AppPaths.MobileBackupStateDir);
-                    string extensionNodeId = Config.NodeId;
-                    string extensionNodeName = Config.NodeName;
-                    server.ConfigureExtensionEnrollment(
-                        _extensionAuthorizationStore,
-                        request => ExtensionEnrollmentApprovalPrompt.Show(
-                            null,
-                            request,
-                            extensionNodeId,
-                            extensionNodeName));
-                    newExtensionRuntime = new ExtensionRuntime(
-                        _db,
-                        _dbFilePath,
-                        Config.NodeId,
-                        _extensionAuthorizationStore,
-                        OnRecordingExtensionDataChanged,
-                        OnExtensionOrderResolved);
-                    server.ConfigureExtensionTaskApi(
-                        newExtensionRuntime.Broker,
-                        newExtensionRuntime.Coordinator,
-                        newExtensionRuntime.ProcessAvailableResults);
+                    if (effectiveCapabilities.Features.ExtensionApi)
+                    {
+                        _extensionAuthorizationStore ??= new ExtensionAuthorizationStore(
+                            AppPaths.MobileBackupStateDir);
+                        string extensionNodeId = Config.NodeId;
+                        string extensionNodeName = Config.NodeName;
+                        server.ConfigureExtensionEnrollment(
+                            _extensionAuthorizationStore,
+                            request => ExtensionEnrollmentApprovalPrompt.Show(
+                                null,
+                                request,
+                                extensionNodeId,
+                                extensionNodeName));
+                        newExtensionRuntime = new ExtensionRuntime(
+                            _db,
+                            _dbFilePath,
+                            Config.NodeId,
+                            _extensionAuthorizationStore,
+                            OnRecordingExtensionDataChanged,
+                            OnExtensionOrderResolved);
+                        server.ConfigureExtensionTaskApi(
+                            newExtensionRuntime.Broker,
+                            newExtensionRuntime.Coordinator,
+                            newExtensionRuntime.ProcessAvailableResults);
+                    }
                     try
                     {
                         server.OrderInfoReceived += OnOrderInfoReceived;
@@ -458,8 +504,7 @@ namespace ExpressPackingMonitoring.ViewModels
         public async void ShowMobileConnection(System.Windows.Window owner = null)
         {
             if (_webServer == null
-                && WebServerModePolicy.ProvidesWebPlayback(
-                    WebServerModePolicy.Resolve(Config.DeploymentPreset)))
+                && Capabilities.CanRunWebServer)
             {
                 ShowToast("正在启动设备连接服务...", ToastSeverity.Information);
                 await RestartWebServerAsync(allowAccessSetup: true);
@@ -567,8 +612,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool TryGetMobileConnectionUrl(out string url)
         {
             url = "";
-            return WebServerModePolicy.ProvidesWebPlayback(
-                    WebServerModePolicy.Resolve(Config.DeploymentPreset))
+            return Capabilities.CanRunWebServer
                 && _webServer != null
                 && MobileConnectionService.TryBuildUsableAccessUrl(
                     MonitorAccessAddress,
@@ -579,8 +623,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private string GetMobileConnectionUnavailableMessage()
         {
-            if (!WebServerModePolicy.ProvidesWebPlayback(
-                    WebServerModePolicy.Resolve(Config.DeploymentPreset)))
+            if (!Capabilities.CanRunWebServer)
             {
                 return "当前工位用途不提供网页回放";
             }
@@ -603,21 +646,34 @@ namespace ExpressPackingMonitoring.ViewModels
 
         internal async Task SwitchWorkstationAsync(System.Windows.Window owner)
         {
+            if (_purposeSwitchPending)
+            {
+                CancelPurposeSwitch();
+                ShowToast("正在取消用途切换", ToastSeverity.Information);
+                return;
+            }
             if (!CanSwitchWorkstation)
                 return;
 
-            var selector = new WorkstationSelectionWindow(Config.DeploymentPreset)
+            string currentPreset = DeploymentPresets.Normalize(
+                Config.DeploymentPreset);
+            var selector = new WorkstationSelectionWindow(
+                currentPreset,
+                runtimeEnvironment:
+                    RuntimeCapabilityEnvironment.FromConfig(Config))
             {
                 Owner = owner
             };
             if (selector.ShowDialog() == true && !string.IsNullOrWhiteSpace(selector.SelectedPreset))
             {
                 if (string.Equals(
-                        Config.DeploymentPreset,
+                        currentPreset,
                         selector.SelectedPreset,
                         StringComparison.OrdinalIgnoreCase))
                 {
-                    ShowToast($"当前已经是{DeploymentPresets.GetDisplayName(Config.DeploymentPreset)}", ToastSeverity.Information);
+                    ShowToast(
+                        $"当前已经是{DeploymentPresets.GetDisplayName(currentPreset)}",
+                        ToastSeverity.Information);
                     return;
                 }
 
@@ -631,9 +687,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         nextConfig,
                         preserveExistingLocation: true);
                 }
-                nextConfig.WorkstationRole = DeploymentCapabilities
+                nextConfig.WorkstationRole = ProductCapabilityRuntime
                     .ForPreset(selector.SelectedPreset)
-                    .IsRecordingDevice
+                    .Features.VideoRecording
                         ? WorkstationRoles.CameraMonitor
                         : selector.SelectedPreset == DeploymentPresets.MobileBackupHost
                             ? WorkstationRoles.PrintStation
@@ -661,47 +717,210 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private async Task<bool> RunPurposeSwitchAsync(AppConfig nextConfig)
         {
-            if (_purposeSwitchPending || IsRecording)
+            if (_purposeSwitchPending || !_modeTransitionGate.TryEnter())
                 return false;
 
             _purposeSwitchPending = true;
+            using var transitionCts = CancellationTokenSource.CreateLinkedTokenSource(
+                _purposeSwitchCts.Token);
+            _activePurposeSwitchCts = transitionCts;
+            CancellationToken transitionToken = transitionCts.Token;
             OnPropertyChanged(nameof(CanSwitchWorkstation));
+            OnPropertyChanged(nameof(CanInvokePurposeSwitch));
+            OnPropertyChanged(nameof(IsPurposeSwitchPending));
             SwitchWorkstationButtonText = "正在切换";
+            DateTimeOffset startedAt = DateTimeOffset.UtcNow;
+            AppConfig originalConfig = Config;
+            string originalPreset = Config.DeploymentPreset;
+            var blockersSeen = new List<string>();
+            string outcome = "canceled";
+            bool admissionPaused = false;
+            bool lifecycleLockHeld = false;
+            int restartCancellationHandled = 0;
             try
             {
-                if (_webServer?.HasActiveMobileBackups == true)
+                await _webServerLifecycleLock.WaitAsync(transitionToken);
+                lifecycleLockHeld = true;
+                _webServer?.PauseRequestAdmission();
+                admissionPaused = _webServer != null;
+                if (_webServer != null
+                    && !await _webServer.WaitForAdmittedRequestsIdleAsync(
+                        TimeSpan.FromSeconds(30),
+                        transitionToken))
                 {
-                    SwitchWorkstationButtonText = "等待备份完成";
-                    ShowToast("设备录像正在备份，完成后将自动重启", ToastSeverity.Warning);
-                    await _webServer.WaitForMobileBackupsAsync(_purposeSwitchCts.Token);
+                    throw new TimeoutException("等待在途 Web 请求结束超时");
+                }
+                DateTimeOffset externalWorkDeadline =
+                    startedAt.AddMinutes(30);
+
+                while (true)
+                {
+                    ModeTransitionActivity activity =
+                        await CaptureModeTransitionActivityAsync(
+                            transitionToken);
+                    IReadOnlyList<string> blockers =
+                        ModeTransitionPolicy.FindBlockers(activity);
+                    foreach (string blocker in blockers)
+                    {
+                        if (!blockersSeen.Contains(blocker, StringComparer.Ordinal))
+                            blockersSeen.Add(blocker);
+                    }
+                    if (blockers.Count == 0)
+                        break;
+                    bool recordingHandoff = blockers.Contains(
+                            "recording",
+                            StringComparer.Ordinal)
+                        || blockers.Contains(
+                            "recording-start",
+                            StringComparer.Ordinal)
+                        || blockers.Contains(
+                            "recording-stop",
+                            StringComparer.Ordinal);
+                    if (!recordingHandoff
+                        && DateTimeOffset.UtcNow >= externalWorkDeadline)
+                    {
+                        throw new TimeoutException(
+                            "等待备份、上传、剪辑或文件收尾超时");
+                    }
+
+                    SwitchWorkstationButtonText =
+                        ModeTransitionPolicy.StatusText(blockers);
+                    if (activity.ActiveMobileBackups && _webServer != null)
+                    {
+                        await _webServer.WaitForMobileBackupsAsync(
+                        transitionToken);
+                    }
+                    else
+                    {
+                        await Task.Delay(250, transitionToken);
+                    }
                 }
 
-                while (IsRecording)
+                transitionToken.ThrowIfCancellationRequested();
+                IReadOnlyList<string> finalBlockers = ModeTransitionPolicy.FindBlockers(
+                    await CaptureModeTransitionActivityAsync(
+                        transitionToken));
+                if (finalBlockers.Count > 0)
                 {
-                    SwitchWorkstationButtonText = "等待录像完成";
-                    await Task.Delay(250, _purposeSwitchCts.Token);
+                    throw new InvalidOperationException(
+                        "切换用途前仍有未完成任务：" + string.Join("、", finalBlockers));
                 }
-
-                _purposeSwitchCts.Token.ThrowIfCancellationRequested();
                 if (!SaveConfig(nextConfig, notifyUser: true))
+                {
+                    outcome = "save-failed";
+                    ResumeModeTransitionAdmission(admissionPaused);
                     return false;
+                }
 
                 Config = nextConfig;
-                return ApplicationRestart.RestartAfterPurposeChange(Application.Current?.MainWindow);
+                outcome = "restart-requested";
+                WorkstationNetwork.SetRestartCancellationCallback(() =>
+                {
+                    if (Interlocked.Exchange(ref restartCancellationHandled, 1) != 0)
+                        return;
+                    Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        Config = originalConfig;
+                        SaveConfig(originalConfig, notifyUser: false);
+                        ResumeModeTransitionAdmission(admissionPaused);
+                        _purposeSwitchPending = false;
+                        SwitchWorkstationButtonText = "切换用途";
+                        OnPropertyChanged(nameof(CanSwitchWorkstation));
+                        _modeTransitionGate.Exit();
+                        ShowToast("重启已取消，用途未切换", ToastSeverity.Warning);
+                    }));
+                });
+                bool restarted = ApplicationRestart.RestartAfterPurposeChange(
+                    Application.Current?.MainWindow);
+                if (!restarted)
+                {
+                    outcome = "restart-failed";
+                    WorkstationNetwork.SetRestartCancellationCallback(null);
+                    Config = originalConfig;
+                    SaveConfig(originalConfig, notifyUser: false);
+                    ResumeModeTransitionAdmission(admissionPaused);
+                }
+                return restarted;
             }
             catch (OperationCanceledException)
             {
+                outcome = "canceled";
+                ResumeModeTransitionAdmission(admissionPaused);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                outcome = "failed";
+                ResumeModeTransitionAdmission(admissionPaused);
+                RuntimeLog.Error("ModeTransition", "Purpose transition failed", ex);
+                ShowToast($"切换用途失败：{ex.Message}", ToastSeverity.Error);
                 return false;
             }
             finally
             {
+                RuntimeLog.Info(
+                    "ModeTransition",
+                    $"from={originalPreset} to={nextConfig.DeploymentPreset} outcome={outcome} blockers={string.Join(",", blockersSeen)} durationMs={DateTimeOffset.UtcNow.Subtract(startedAt).TotalMilliseconds:F0}");
                 if (!WorkstationNetwork.IsRestartPending)
                 {
+                    WorkstationNetwork.SetRestartCancellationCallback(null);
                     _purposeSwitchPending = false;
                     SwitchWorkstationButtonText = "切换用途";
                     OnPropertyChanged(nameof(CanSwitchWorkstation));
+                    OnPropertyChanged(nameof(CanInvokePurposeSwitch));
+                    OnPropertyChanged(nameof(IsPurposeSwitchPending));
+                    _modeTransitionGate.Exit();
                 }
+                if (lifecycleLockHeld)
+                    _webServerLifecycleLock.Release();
+                if (ReferenceEquals(_activePurposeSwitchCts, transitionCts))
+                    _activePurposeSwitchCts = null;
             }
+        }
+
+        internal void CancelPurposeSwitch()
+        {
+            try { _activePurposeSwitchCts?.Cancel(); } catch { }
+        }
+
+        private async Task<ModeTransitionActivity> CaptureModeTransitionActivityAsync(
+            CancellationToken cancellationToken)
+        {
+            int pendingUploads = Math.Max(0, ActiveRecordingTransferCount);
+            if (_recordingTransferService != null)
+            {
+                pendingUploads = await Task.Run(
+                    () => _recordingTransferService.GetActiveWorkCount(),
+                    cancellationToken);
+            }
+            return new ModeTransitionActivity(
+                Recording: IsRecording,
+                ActiveMobileBackups: _webServer?.HasActiveMobileBackups == true,
+                PendingRecordingUploads: pendingUploads,
+                ActiveClipTasks: _webServer?.HasActiveClipTasks == true,
+                ActiveMediaFinalization:
+                    IsFinalizationTaskActive(_lastFinalizeTask)
+                    || IsFinalizationTaskActive(_postStopMuxTask)
+                    || IsFinalizationTaskActive(_mkvRecoveryTask),
+                PhotoCaptureInProgress: PhotoCaptureInProgress,
+                PhotoArchiveInProgress:
+                    Capabilities.CanOperatePhoto &&
+                    await PhotoCaptureService.HasOutstandingArchiveWorkAsync(
+                        cancellationToken),
+                RecordingStartInProgress:
+                    Volatile.Read(ref _recordingStartInProgress) != 0,
+                RecordingStopInProgress:
+                    Volatile.Read(ref _recordingStopInProgress) != 0);
+        }
+
+        private static bool IsFinalizationTaskActive(Task task) =>
+            task is not null && (!task.IsCompleted || task.IsFaulted);
+
+        private void ResumeModeTransitionAdmission(bool admissionPaused)
+        {
+            if (!admissionPaused)
+                return;
+            try { _webServer?.ResumeRequestAdmission(); } catch { }
         }
 
         /// <summary>收到油猴脚本推送的订单信息时，提前生成 TTS 缓存</summary>

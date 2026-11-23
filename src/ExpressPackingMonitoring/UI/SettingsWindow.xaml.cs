@@ -174,7 +174,7 @@ namespace ExpressPackingMonitoring.UI
         private readonly CoalescingBackgroundRefresh _integrationStatusRefresh = new();
         private readonly CoalescingBackgroundRefresh _recordingCacheSummaryRefresh = new();
         private int _recordingCacheSummaryRevision;
-        private const string FeedbackEmail = FeedbackContact.Email;
+        private static string FeedbackEmail => FeedbackContact.Email;
 
         public SettingsWindow(MainViewModel mainVM, AppConfig clonedConfig, double diskUsagePercent, string diskUsageText, bool isRecording = false)
             : this(SettingsContext.ForCameraWorkstation(mainVM), clonedConfig, diskUsagePercent, diskUsageText, isRecording)
@@ -204,6 +204,7 @@ namespace ExpressPackingMonitoring.UI
             CurrentDiskUsageText = diskUsageText;
 
             this.DataContext = this;
+            SettingsPurposeSelector.Apply(PurposeComboBox, Context.AvailablePurposes);
             RefreshCustomUserscripts();
             QueueIntegrationStatusRefresh();
             _integrationStatusTimer.Tick += IntegrationStatusTimer_Tick;
@@ -1092,7 +1093,7 @@ namespace ExpressPackingMonitoring.UI
         {
             var dialog = new StoragePathSelectionDialog(
                 title: "添加备份位置",
-                hint: "录像会异步备份到此位置；可输入网络共享路径（如 \\\\192.168.1.100\\共享目录\\PackingProofVideos），也可选择网盘挂载成的本地磁盘（如 Z:\\PackingProofVideos）")
+                hint: AppLanguage.Get("录像会异步备份到此位置；可输入网络共享路径（如 \\\\192.168.1.100\\共享目录\\PackingProofVideos），也可选择网盘挂载成的本地磁盘（如 Z:\\PackingProofVideos）"))
             {
                 Owner = this
             };
@@ -1137,7 +1138,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 AppDialog.Error(
                     this,
-                    "备份位置必须是网络共享路径或网盘挂载盘，例如 \\\\192.168.1.100\\共享目录\\PackingProofVideos；本地磁盘请添加到录像保存位置",
+                    AppLanguage.Get("备份位置必须是网络共享路径或网盘挂载盘，例如 \\\\192.168.1.100\\共享目录\\PackingProofVideos；本地磁盘请添加到录像保存位置"),
                     "备份位置无效");
                 return;
             }
@@ -1852,7 +1853,10 @@ namespace ExpressPackingMonitoring.UI
             ApplyDeploymentPurposeBeforeSave(
                 Config,
                 _originalDeploymentPreset,
-                DateTime.UtcNow);
+                DateTime.UtcNow,
+                Context.AvailablePurposes
+                    .Select(purpose => purpose.Preset)
+                    .ToArray());
             // 副摄下拉里选的是这台设备实际支持的档位，保存时写回配置（与主摄同一套口径）
             ApplySecondaryCameraFormatsToConfig();
             if (Config.EnableCameraBarcodeEnhancedRecognition
@@ -1912,25 +1916,46 @@ namespace ExpressPackingMonitoring.UI
         internal static void ApplyDeploymentPurposeBeforeSave(
             AppConfig config,
             string previousPreset,
-            DateTime activatedAtUtc)
+            DateTime activatedAtUtc,
+            IReadOnlyList<string> availablePresets = null)
         {
             ArgumentNullException.ThrowIfNull(config);
 
             string normalizedPreset = DeploymentPresets.Normalize(config.DeploymentPreset);
             if (!DeploymentPresets.IsKnown(normalizedPreset)
+                || (availablePresets != null
+                    && !availablePresets.Contains(
+                        normalizedPreset,
+                        StringComparer.OrdinalIgnoreCase))
                 || string.Equals(
                     normalizedPreset,
                     DeploymentPresets.Normalize(previousPreset),
                     StringComparison.OrdinalIgnoreCase))
             {
+                if (!DeploymentPresets.IsKnown(normalizedPreset))
+                    return;
+                string previous = DeploymentPresets.Normalize(previousPreset);
+                if (previous.Length > 0
+                    && (availablePresets == null
+                        || availablePresets.Contains(
+                            previous,
+                            StringComparer.OrdinalIgnoreCase)))
+                {
+                    config.DeploymentPreset = previous;
+                }
+                else if (availablePresets is { Count: > 0 })
+                {
+                    config.DeploymentPreset = DeploymentPresets.Normalize(
+                        availablePresets[0]);
+                }
                 return;
             }
 
-            DeploymentCapabilities capabilities =
-                DeploymentCapabilities.ForPreset(normalizedPreset);
+            EffectiveProductCapabilities capabilities =
+                ProductCapabilityRuntime.ForPreset(normalizedPreset);
             config.DeploymentPreset = normalizedPreset;
             config.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
-            config.WorkstationRole = capabilities.IsRecordingDevice
+            config.WorkstationRole = capabilities.Features.VideoRecording
                 ? WorkstationRoles.CameraMonitor
                 : normalizedPreset == DeploymentPresets.MobileBackupHost
                     ? WorkstationRoles.PrintStation
@@ -2540,7 +2565,7 @@ namespace ExpressPackingMonitoring.UI
 
         private void OpenRepository_Click(object sender, RoutedEventArgs e)
         {
-            OpenExternalUrl("https://github.com/PackingProof/PackingProof-Desktop");
+            OpenExternalUrl(BrandMetadata.WebsiteUrl);
         }
 
         private async void ExportDiagnosticLogs_Click(object sender, RoutedEventArgs e)
@@ -2549,12 +2574,13 @@ namespace ExpressPackingMonitoring.UI
             if (diagnosticButton != null) diagnosticButton.IsEnabled = false;
             try
             {
+                string dialogTitle = AppLanguage.Get("导出诊断日志");
                 bool confirmed = AppDialog.Confirm(
                     this,
                     AppLanguage.Format("导出诊断日志确认", FeedbackEmail),
-                    "导出诊断日志",
+                    dialogTitle,
                     AppDialogSeverity.Warning,
-                    confirmText: "开始打包");
+                    confirmText: AppLanguage.Get("开始打包"));
                 if (!confirmed) return;
 
                 IReadOnlyList<string> warnings = Array.Empty<string>();
@@ -2578,22 +2604,19 @@ namespace ExpressPackingMonitoring.UI
                 catch { }
 
                 var info = new FileInfo(zipPath);
-                string message =
-                    $"诊断包已生成：\n{zipPath}\n\n" +
-                    $"大小：{FormatBytes(info.Length)}\n" +
-                    "已复制路径并打开所在文件夹。\n\n" +
-                    $"点击“复制邮箱地址”会复制反馈邮箱 {FeedbackEmail}，把刚生成的压缩包作为附件发过去即可。\n\n" +
-                    AppLanguage.Get("诊断包隐私提示");
-                if (warnings.Count > 0)
-                    message += "\n\n提示：\n" + string.Join("\n", warnings.Take(10));
+                string message = DiagnosticExportText.BuildMessage(
+                    zipPath,
+                    info.Length,
+                    FeedbackEmail,
+                    warnings);
 
                 bool copyEmail = AppDialog.Confirm(
                     this,
                     message,
-                    "导出诊断日志",
+                    dialogTitle,
                     AppDialogSeverity.Information,
-                    confirmText: "复制邮箱地址",
-                    cancelText: "关闭",
+                    confirmText: AppLanguage.Get("复制邮箱地址"),
+                    cancelText: AppLanguage.Get("关闭"),
                     isDangerous: false);
                 if (copyEmail)
                 {
@@ -2604,26 +2627,32 @@ namespace ExpressPackingMonitoring.UI
                     {
                         AppDialog.Confirm(
                             this,
-                            $"已复制反馈邮箱：{emailText}\n\n请把刚生成的压缩包作为附件发送：\n{Path.GetFileName(zipPath)}",
-                            "导出诊断日志",
+                            AppLanguage.Format("已复制反馈邮箱：{0}", emailText) + "\n\n" +
+                            AppLanguage.Format(
+                                "请把刚生成的压缩包作为附件发送：{0}",
+                                Path.GetFileName(zipPath)),
+                            dialogTitle,
                             AppDialogSeverity.Information,
-                            confirmText: "知道了",
-                            cancelText: "关闭",
+                            confirmText: AppLanguage.Get("知道了"),
+                            cancelText: AppLanguage.Get("关闭"),
                             isDangerous: false);
                     }
                     else
                     {
                         AppDialog.Error(
                             this,
-                            $"没能写入剪贴板，请手动记录反馈邮箱：{emailText}",
-                            "导出诊断日志");
+                            AppLanguage.Format("没能写入剪贴板，请手动记录反馈邮箱：{0}", emailText),
+                            dialogTitle);
                     }
                 }
             }
             catch (Exception ex)
             {
                 if (!_isClosing)
-                    AppDialog.Error(this, $"打包失败：{ex.Message}", "导出诊断日志");
+                    AppDialog.Error(
+                        this,
+                        AppLanguage.Format("打包失败：{0}", ex.Message),
+                        AppLanguage.Get("导出诊断日志"));
             }
             finally
             {
@@ -2632,22 +2661,9 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
-        private static string FormatBytes(long bytes)
-        {
-            string[] units = { "B", "KB", "MB", "GB" };
-            double value = bytes;
-            int unit = 0;
-            while (value >= 1024 && unit < units.Length - 1)
-            {
-                value /= 1024;
-                unit++;
-            }
-            return $"{value:0.##} {units[unit]}";
-        }
-
         private void OpenLicense_Click(object sender, RoutedEventArgs e)
         {
-            OpenExternalUrl("https://github.com/PackingProof/PackingProof-Desktop/blob/main/LICENSE");
+            OpenExternalUrl(BrandMetadata.LicenseUrl);
         }
 
         private static string GetStorageRoot(string path)

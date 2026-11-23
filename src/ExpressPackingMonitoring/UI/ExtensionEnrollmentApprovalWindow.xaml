@@ -85,7 +85,8 @@
 
             <TextBlock Grid.Row="3"
                        Margin="0,12,0,0"
-                       Text="PackingProof 不会执行此扩展的代码。允许后，扩展只能调用上面列出的接口；请仅批准你信任的来源"
+                       x:Name="ExecutionNoticeText"
+                       Text=""
                        TextWrapping="Wrap"
                        FontSize="12"
                        Foreground="{DynamicResource TextSecondary}"/>

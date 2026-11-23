@@ -84,7 +84,6 @@ namespace ExpressPackingMonitoring.Config
             Directory.CreateDirectory(ClipPreviewDir);
             Directory.CreateDirectory(ClipsDir);
             Directory.CreateDirectory(TranscodeCacheDir);
-            Directory.CreateDirectory(TtsCacheDir);
             Directory.CreateDirectory(GuideCacheDir);
             Directory.CreateDirectory(FeedbackCacheDir);
             Directory.CreateDirectory(ExtensionMarketCacheDir);

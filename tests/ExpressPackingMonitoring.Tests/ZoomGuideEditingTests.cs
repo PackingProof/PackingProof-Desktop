@@ -174,7 +174,7 @@ public sealed class ZoomGuideEditingTests
         Assert.True(stop > 0, "没找到 InternalStopRecordingAsync");
         Assert.Contains(
             "ResetZoomState();",
-            recording[stop..Math.Min(recording.Length, stop + 1000)],
+            recording[stop..Math.Min(recording.Length, stop + 2500)],
             StringComparison.Ordinal);
 
         // 进"调放大位置"也走同一个复位
@@ -576,8 +576,6 @@ public sealed class ZoomGuideEditingRenderTests
     {
         RunOnStaThread(() =>
         {
-            LoadAppResources();
-
             var window = new MainWindow(enableCloseBehaviorPrompt: false);
             window.Measure(new Size(1400, 900));
             window.Arrange(new Rect(0, 0, 1400, 900));
@@ -615,8 +613,6 @@ public sealed class ZoomGuideEditingRenderTests
     {
         RunOnStaThread(() =>
         {
-            LoadAppResources();
-
             var window = new MainWindow(enableCloseBehaviorPrompt: false);
             var vm = Assert.IsType<MainViewModel>(window.DataContext);
             vm.Config.CameraRotationDegrees = 90;
@@ -650,8 +646,6 @@ public sealed class ZoomGuideEditingRenderTests
     {
         RunOnStaThread(() =>
         {
-            LoadAppResources();
-
             var window = new MainWindow(enableCloseBehaviorPrompt: false);
             var vm = Assert.IsType<MainViewModel>(window.DataContext);
             vm.Config.CameraRotationDegrees = 0;
@@ -689,8 +683,6 @@ public sealed class ZoomGuideEditingRenderTests
     {
         RunOnStaThread(() =>
         {
-            LoadAppResources();
-
             var withMainPreview = new SettingsWindow(
                 new MainViewModel(),
                 new AppConfig { DeploymentPreset = DeploymentPresets.RecordingWorkstation },
@@ -758,28 +750,6 @@ public sealed class ZoomGuideEditingRenderTests
             Application.Current.Resources = merged;
     }
 
-    private static void RunOnStaThread(Action action)
-    {
-        Exception? failure = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                if (Application.Current == null)
-                    _ = new Application();
-                action();
-            }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(120)), "STA 线程执行超时");
-        if (failure != null)
-        {
-            var detail = new System.Text.StringBuilder();
-            for (Exception? current = failure; current != null; current = current.InnerException)
-                detail.AppendLine($"{current.GetType().Name}: {current.Message}");
-            throw new Xunit.Sdk.XunitException($"放大取景框编辑态渲染失败：{detail}");
-        }
-    }
+    private static void RunOnStaThread(Action action) =>
+        WpfTestHost.Run(action, TimeSpan.FromSeconds(120), "STA 线程执行超时");
 }

@@ -5,7 +5,7 @@ ver | findstr /r /c:"6\.1\." >nul
 if errorlevel 1 (
     chcp 65001 >nul
 )
-title PackingProof Launcher Update
+title __BRAND_ARTIFACT_PREFIX__ Launcher Update
 cd /d "%~dp0"
 
 where powershell.exe >nul 2>nul

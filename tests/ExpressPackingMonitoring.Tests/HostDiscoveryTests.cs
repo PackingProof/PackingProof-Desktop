@@ -6,6 +6,7 @@ using System.Text.Json;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UpdateCore;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -28,7 +29,7 @@ public sealed class HostDiscoveryTests
     [InlineData("fe80::1", "[fe80::1]:5280")]
     public void NormalizeAddressPreservesIpv6LiteralAndPort(string input, string expected)
     {
-        Assert.Equal(expected, WorkstationNetwork.NormalizeAddress(input));
+        Assert.Equal(expected, WorkstationNetwork.NormalizeAddress(input, 5280));
     }
 
     [Fact]
@@ -318,8 +319,12 @@ public sealed class HostDiscoveryTests
     [Fact]
     public void DiscoveryUsesConfiguredAndDefaultHostPorts()
     {
-        Assert.Equal([5300, 5280], WorkstationNetwork.GetDiscoveryPorts(5300));
-        Assert.Equal([5280], WorkstationNetwork.GetDiscoveryPorts(5280));
+        Assert.Equal(
+            new[] { 5300, BrandMetadata.WebServerPort, 5280 }.Distinct(),
+            WorkstationNetwork.GetDiscoveryPorts(5300));
+        Assert.Equal(
+            new[] { BrandMetadata.WebServerPort, 5280 }.Distinct(),
+            WorkstationNetwork.GetDiscoveryPorts(BrandMetadata.WebServerPort));
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.UpdateCore;
 using ExpressPackingMonitoring.Logging;
 using System.IO;
 using System.Linq;
@@ -6,7 +7,6 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -34,7 +34,8 @@ internal sealed record AppPatchDownloadProgress(
 
 internal sealed class AppPatchDownloadService
 {
-    internal const string UpdateMutexName = @"Local\ExpressPackingMonitoring.Launcher.Update";
+    internal static readonly string UpdateMutexName =
+        $@"Local\{BrandMetadata.InstanceNamePrefix}.Launcher.Update";
     private const string PatchPackageType = "baseline_patch";
     // 增量包有 75MB：清单那 75 秒的总超时管不住它，慢网用户每次都正好卡在下到一半。
     // 换成按分钟给的预算 + 下载自身的停滞判据（60 秒没有新字节），断点文件保留，超时后重试从断点继续。
@@ -332,7 +333,7 @@ internal sealed class AppPatchDownloadService
         string partialDirectory = Path.Combine(_updatesDirectory, "partial");
         string stagingDirectory = Path.Combine(_updatesDirectory, $"staging-{operationId}");
         string backupDirectory = Path.Combine(_updatesDirectory, $"replaced-{operationId}");
-        string patchFileName = $"PackingProof_AppPatch_v{descriptor.LatestVersion}.zip";
+        string patchFileName = $"{BrandMetadata.ArtifactPrefix}_AppPatch_v{descriptor.LatestVersion}.zip";
         // 半截文件按版本留在这里，断线后重试（以及根启动器的那次后台下载）都从断点接着下。
         string partialPath = Path.Combine(
             partialDirectory,
@@ -781,7 +782,7 @@ internal sealed class AppPatchDownloadService
                 return false;
             string packagePath = Path.Combine(
                 pendingDirectory,
-                $"PackingProof_AppPatch_v{descriptor.LatestVersion}.zip");
+                $"{BrandMetadata.ArtifactPrefix}_AppPatch_v{descriptor.LatestVersion}.zip");
             if (!File.Exists(packagePath))
                 return false;
             ValidatePackage(packagePath, descriptor.PatchPackage);

@@ -62,7 +62,20 @@ public partial class PlaybackWindow
     private void CancelAwaitingFirstFrame()
     {
         _pendingStartUnpause = false;
-        _startUnpauseFallback?.Stop();
+        if (_startUnpauseFallback == null
+            || Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        if (Dispatcher.CheckAccess())
+        {
+            _startUnpauseFallback.Stop();
+        }
+        else
+        {
+            Dispatcher.BeginInvoke(() => _startUnpauseFallback?.Stop());
+        }
     }
 
     /// <summary>
@@ -184,6 +197,12 @@ public partial class PlaybackWindow
         await Dispatcher.Yield(DispatcherPriority.Input);
         if (_isClosing) return;
 
+        if (item.IsPhoto)
+        {
+            await DeletePhotoFromLibraryAsync(item);
+            return;
+        }
+
         if (_db == null)
         {
             AppDialog.Error(
@@ -299,6 +318,67 @@ public partial class PlaybackWindow
         }
     }
 
+    private async Task DeletePhotoFromLibraryAsync(VideoItem item)
+    {
+        if (_deletePhotoHandler == null || !item.CanDelete)
+        {
+            AppDialog.Warning(
+                this,
+                string.IsNullOrWhiteSpace(item.DeleteBlockedHint)
+                    ? AppLanguage.Get("当前用途不能删除照片")
+                    : item.DeleteBlockedHint,
+                AppLanguage.Get("删除照片"));
+            return;
+        }
+        string orderText = string.IsNullOrWhiteSpace(item.OrderId)
+            ? AppLanguage.Get("未记录单号")
+            : item.OrderId;
+        if (!AppDialog.Confirm(
+                this,
+                string.Join(
+                    Environment.NewLine,
+                    AppLanguage.Get("确定删除这张照片吗？"),
+                    "",
+                    AppLanguage.Format("单号: {0}", orderText),
+                    AppLanguage.Format(
+                        "时间: {0}",
+                        item.StartTime.ToString("yyyy-MM-dd HH:mm:ss")),
+                    AppLanguage.Get("照片会从本地回放库隐藏并删除本机文件")),
+                AppLanguage.Get("删除照片"),
+                AppDialogSeverity.Warning,
+                confirmText: AppLanguage.Get("删除"),
+                cancelText: AppLanguage.Get("取消"),
+                isDangerous: true))
+        {
+            return;
+        }
+
+        _deleteInProgress = true;
+        try
+        {
+            await _deletePhotoHandler(item.PhotoId);
+            if (ReferenceEquals(VideoList.SelectedItem, item))
+            {
+                VideoList.SelectedItem = null;
+                HidePhotoPreview();
+            }
+            ShowPlaybackToast(AppLanguage.Get("已删除该照片"));
+            RequestVideoLoad();
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("Playback", "删除照片失败", ex);
+            AppDialog.Error(
+                this,
+                AppLanguage.Format("删除照片失败：{0}", ex.Message),
+                AppLanguage.Get("删除照片"));
+        }
+        finally
+        {
+            _deleteInProgress = false;
+        }
+    }
+
     /// <summary>
     /// 删除正在播放的录像前，先彻底放开 LibVLC 对文件的占用。
     /// Stop/Media.Dispose 都可能等待原生事件，必须离开 UI 线程执行；删除入口会先持有
@@ -347,7 +427,10 @@ public partial class PlaybackWindow
         }
     }
 
-    private void MediaPlayer_Vout(object? sender, EventArgs e) => TryStartPlaybackAfterFirstFrame();
+    private void MediaPlayer_Vout(object? sender, EventArgs e)
+    {
+        TryStartPlaybackAfterFirstFrame();
+    }
 
     private void MediaPlayer_Paused(object? sender, EventArgs e) => TryStartPlaybackAfterFirstFrame();
 
@@ -362,10 +445,10 @@ public partial class PlaybackWindow
             _secondaryActionState.IsActive,
             _secondaryActionState.DeferAutoPlayUntilExplicitPlay);
         _pendingStartUnpause = false;
-        _startUnpauseFallback?.Stop();
 
         Dispatcher.BeginInvoke(() =>
         {
+            _startUnpauseFallback?.Stop();
             if (!IsLoaded || _mediaPlayer == null)
                 return;
 
@@ -511,7 +594,7 @@ public partial class PlaybackWindow
         try
         {
             Core.Initialize();
-            LibVLC? libVlc = _libVLC ??= new LibVLC("--avcodec-hw=any");
+            LibVLC? libVlc = _libVLC ??= PlaybackLibVlc.Create();
 
             using PlaybackMediaSource source = PlaybackMediaSource.Create(libVlc, path);
             Media media = source.Media;

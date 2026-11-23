@@ -37,6 +37,10 @@ namespace ExpressPackingMonitoring.Services
         private readonly CancellationTokenSource _disposeCts = new();
         private volatile bool _disposed;
 
+        internal bool HasActiveTasks =>
+            _tasks.Values.Any(task =>
+                task.Status is "queued" or "running");
+
         public VideoClipService(
             VideoDatabase db,
             Action<string> log,

@@ -74,6 +74,22 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
     }
 
     [Fact]
+    public void MissingDrawablePlugin_IsAllowedAsSafeAddition()
+    {
+        using var fixture = new Fixture();
+        fixture.AddCurrentVlcFile(
+            "plugins\\video_output\\libdrawable_plugin.dll",
+            "drawable");
+
+        CompatibilityResult result = fixture.Check();
+
+        Assert.True(result.Compatible, result.Reason);
+        Assert.Contains(
+            result.Warnings,
+            warning => warning.Contains("libdrawable_plugin.dll", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ChangedRequiredVlcFile_IsRejected()
     {
         using var fixture = new Fixture();
@@ -159,6 +175,7 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
     [InlineData("tools/ffmpeg.exe", true)]
     [InlineData("TOOLS\\FFMPEG.EXE", true)]
     [InlineData("libvlc/win-x64/libvlc.dll", true)]
+    [InlineData("libvlc/win-x64/plugins/video_output/libdrawable_plugin.dll", false)]
     [InlineData("libvlc2/libvlc.dll", false)]
     [InlineData("ExpressPackingMonitoring.dll", false)]
     public void ManagedRuntimePathClassification_IsExact(string path, bool expected)

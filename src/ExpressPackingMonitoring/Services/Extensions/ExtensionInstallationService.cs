@@ -327,7 +327,8 @@ internal sealed class ExtensionInstallationService : IExtensionInstallationTarge
             || !Version.TryParse(NormalizeVersion(AppVersion.Current), out Version? current)
             || current < minimum)
         {
-            throw new InvalidDataException($"此扩展需要 PackingProof {minimumVersion} 或更高版本");
+            throw new InvalidDataException(BrandText.Apply(
+                $"此扩展需要 PackingProof {minimumVersion} 或更高版本"));
         }
     }
 

@@ -1,13 +1,22 @@
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)branding\Brand.props" />
 
   <!--
-    产品版本号的唯一来源，发版只改这一处（与 vX.Y.Z 标签保持一致）。
+    软件版本号的唯一来源，发版只改这一处（与 vX.Y.Z 标签保持一致）。
     主程序、Core、启动器、保存主机、测试与工具工程属于同一次发布，版本必须一致；
     以前分散写在各个 csproj 里，Core 停在 0.0.78，界面、更新判断和 Mac 打包都读到了旧号。
     发布脚本仍会用 -p:InformationalVersion 全局覆盖正式产物的信息版本。
   -->
   <PropertyGroup>
-    <Version>0.0.107</Version>
+    <Version Condition="'$(Version)' == ''">0.0.108</Version>
+    <Product>$(BrandProductName)</Product>
+    <AssemblyTitle>$(BrandWindowTitle)</AssemblyTitle>
+    <Description>$(BrandDescription)</Description>
+    <_BrandProfileDefine>$([System.String]::Copy('$(BrandProfile)').Replace('-', '_').Replace('.', '_').ToUpperInvariant())</_BrandProfileDefine>
+    <DefineConstants>$(DefineConstants);BRAND_PROFILE_$(_BrandProfileDefine)</DefineConstants>
+    <BaseOutputPath Condition="'$(BrandProfile)' != '' and '$(BrandProfile)' != 'packingproof'">$(MSBuildProjectDirectory)\bin\profiles\$(_BrandProfileDefine)\</BaseOutputPath>
+    <BaseIntermediateOutputPath Condition="'$(BrandProfile)' != '' and '$(BrandProfile)' != 'packingproof'">$(MSBuildProjectDirectory)\obj\profiles\$(_BrandProfileDefine)\</BaseIntermediateOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\bin\**;$(MSBuildProjectDirectory)\obj\**</DefaultItemExcludes>
     <!-- 主程序和测试都必须使用同一份钉死的 FFmpeg 基线。 -->
     <FFmpegBaselineVersion>4.4.1-minimal</FFmpegBaselineVersion>
     <FFmpegBaselineExecutable>$(MSBuildThisFileDirectory)package\dependency-cache\ffmpeg\$(FFmpegBaselineVersion)\ffmpeg.exe</FFmpegBaselineExecutable>
@@ -17,6 +26,174 @@
     -->
     <NoWarn Condition="'$(CI)' != 'true'">$(NoWarn);NU1900</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.ProfileId</_Parameter1>
+      <_Parameter2>$(BrandProfileId)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.ProductName</_Parameter1>
+      <_Parameter2>$(BrandProductName)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.LegacyProductName</_Parameter1>
+      <_Parameter2>$(BrandLegacyProductName)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.WindowTitle</_Parameter1>
+      <_Parameter2>$(BrandWindowTitle)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.DisplayName</_Parameter1>
+      <_Parameter2>$(BrandDisplayName)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.Description</_Parameter1>
+      <_Parameter2>$(BrandDescription)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.ArtifactPrefix</_Parameter1>
+      <_Parameter2>$(BrandArtifactPrefix)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.WebsiteUrl</_Parameter1>
+      <_Parameter2>$(BrandWebsiteUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.SupportUrl</_Parameter1>
+      <_Parameter2>$(BrandSupportUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.UpdatesUrl</_Parameter1>
+      <_Parameter2>$(BrandUpdatesUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.PrivacyPolicyUrl</_Parameter1>
+      <_Parameter2>$(BrandPrivacyPolicyUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.LicenseUrl</_Parameter1>
+      <_Parameter2>$(BrandLicenseUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.SupportEmail</_Parameter1>
+      <_Parameter2>$(BrandSupportEmail)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.RepositorySlug</_Parameter1>
+      <_Parameter2>$(BrandRepositorySlug)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.UpdateGiteeCheckUrl</_Parameter1>
+      <_Parameter2>$(BrandUpdateGiteeCheckUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.UpdateGithubCheckUrl</_Parameter1>
+      <_Parameter2>$(BrandUpdateGithubCheckUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.PatchDownloadBaseUrl</_Parameter1>
+      <_Parameter2>$(BrandPatchDownloadBaseUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.MobileRepositoryUrl</_Parameter1>
+      <_Parameter2>$(BrandMobileRepositoryUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.MobileReleasesUrl</_Parameter1>
+      <_Parameter2>$(BrandMobileReleasesUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.MobileLatestReleaseApiUrl</_Parameter1>
+      <_Parameter2>$(BrandMobileLatestReleaseApiUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.MobileReleasesApiUrl</_Parameter1>
+      <_Parameter2>$(BrandMobileReleasesApiUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.MobileAppEnabled</_Parameter1>
+      <_Parameter2 Condition="'$(BrandMobileAppEnabled)' != ''">$(BrandMobileAppEnabled)</_Parameter2>
+      <_Parameter2 Condition="'$(BrandMobileAppEnabled)' == ''">true</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.ExtensionGiteeRegistryBase</_Parameter1>
+      <_Parameter2>$(BrandExtensionGiteeRegistryBase)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.ExtensionGithubRegistryBase</_Parameter1>
+      <_Parameter2>$(BrandExtensionGithubRegistryBase)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.ExtensionMarketPublicKeyId</_Parameter1>
+      <_Parameter2>$(BrandExtensionMarketPublicKeyId)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.ExtensionMarketPublicKeySpki</_Parameter1>
+      <_Parameter2>$(BrandExtensionMarketPublicKeySpki)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.CompatibilityId</_Parameter1>
+      <_Parameter2>$(BrandCompatibilityId)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.DataDirectoryName</_Parameter1>
+      <_Parameter2>$(BrandDataDirectoryName)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.InstanceNamePrefix</_Parameter1>
+      <_Parameter2>$(BrandInstanceNamePrefix)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.InstallDirectoryName</_Parameter1>
+      <_Parameter2>$(BrandInstallDirectoryName)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.AppUserModelId</_Parameter1>
+      <_Parameter2>$(BrandAppUserModelId)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.SetupAppId</_Parameter1>
+      <_Parameter2>$(BrandSetupAppId)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.StoreIdentityName</_Parameter1>
+      <_Parameter2>$(BrandStoreIdentityName)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.StorePublisher</_Parameter1>
+      <_Parameter2>$(BrandStorePublisher)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.StorePublisherDisplayName</_Parameter1>
+      <_Parameter2>$(BrandStorePublisherDisplayName)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.StoreShortName</_Parameter1>
+      <_Parameter2>$(BrandStoreShortName)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.StoreStartupTaskId</_Parameter1>
+      <_Parameter2>$(BrandStoreStartupTaskId)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.PackageEditionMarker</_Parameter1>
+      <_Parameter2>$(BrandPackageEditionMarker)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.WebServerPort</_Parameter1>
+      <_Parameter2>$(BrandWebServerPort)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.DiscoveryPort</_Parameter1>
+      <_Parameter2>$(BrandDiscoveryPort)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>Brand.MacBundleId</_Parameter1>
+      <_Parameter2>$(BrandMacBundleId)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
 
   <!--
     提交号要让**每个**程序集都带上：界面显示的 Commit 读的是 AppVersion 所在程序集，

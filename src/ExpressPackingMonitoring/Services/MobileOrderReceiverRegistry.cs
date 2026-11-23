@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.UpdateCore;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -10,7 +11,7 @@ namespace ExpressPackingMonitoring.Services;
 
 internal sealed class MobileOrderReceiverRegistry
 {
-    internal const int OrderReceiverPort = 5280;
+    internal static int OrderReceiverPort => BrandMetadata.WebServerPort;
     private static readonly TimeSpan Retention = TimeSpan.FromDays(30);
     private static readonly TimeSpan ActiveRetention = TimeSpan.FromSeconds(45);
     /// <summary>用户自定义昵称的保留条数上限：这类名字不随活跃时间清理，但也不能无限增长。</summary>

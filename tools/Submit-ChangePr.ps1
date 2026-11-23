@@ -24,8 +24,8 @@ param(
     [string]$BodyFile = "",
     [string]$Target = "",
     [string]$Base = "main",
-    [string]$GiteeRepository = "PackingProof/PackingProof-Desktop",
-    [string]$GithubRepository = "PackingProof/PackingProof-Desktop",
+    [string]$GiteeRepository = "",
+    [string]$GithubRepository = "",
     [string]$GiteeRemote = "Gitee",
     [string]$GithubRemote = "Github",
     [switch]$Merge,
@@ -43,6 +43,14 @@ Set-Location $repoRoot
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
 . (Join-Path $PSScriptRoot "ReleaseAuth.Common.ps1")
+. (Join-Path $PSScriptRoot "Branding.Common.ps1")
+$brand = Get-BrandProfile -RepoRoot $repoRoot
+if ([string]::IsNullOrWhiteSpace($GiteeRepository)) {
+    $GiteeRepository = $brand.RepositorySlug
+}
+if ([string]::IsNullOrWhiteSpace($GithubRepository)) {
+    $GithubRepository = $brand.RepositorySlug
+}
 
 $defaultTarget = "both"
 
@@ -367,7 +375,7 @@ if (-not $Confirmed -and -not $DryRun) {
 }
 
 if (-not $DryRun) {
-    Enable-ReleaseBotGitTransport -Platforms $targets
+    Enable-ReleaseBotGitTransport -Platforms $targets -Brand $brand
 }
 
 $created = @()

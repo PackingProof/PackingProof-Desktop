@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.UI;
 
@@ -31,15 +32,29 @@ public partial class MobileConnectionWindow : Window
         Func<Task<MobileConnectionRepairResult>>? repairLanAccessAsync = null)
     {
         InitializeComponent();
+        MobileAppDescriptionText.Text =
+            AppLanguage.Get("使用 Android 手机扫码，下载 PackingProof 手机录像 App");
         DialogWindowChrome.UseCloseButtonOnly(this);
         _url = "";
         _accessProtected = accessProtected;
         _repairLanAccessAsync = repairLanAccessAsync;
         ApplyConnectionState(url, accessProtected, unavailableMessage, canOpenSettings);
 
-        UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);
-        TestFlightQrCodeImage.Source = WpfQrCode.CreateBitmap(
-            MobileAppUpdatePolicyProvider.TestFlightJoinUrl);
+        if (ProductCapabilityRuntime.CurrentFeatures.MobileApp)
+        {
+            UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);
+            TestFlightQrCodeImage.Source = WpfQrCode.CreateBitmap(
+                MobileAppUpdatePolicyProvider.TestFlightJoinUrl);
+        }
+        else
+        {
+            Width = 520;
+            MobileAppCard.Visibility = Visibility.Collapsed;
+            IosAppCard.Visibility = Visibility.Collapsed;
+            ConnectionCardsGrid.ColumnDefinitions[2].Width = new GridLength(0);
+            ConnectionCardsGrid.ColumnDefinitions[3].Width = new GridLength(0);
+            ConnectionCardsGrid.ColumnDefinitions[4].Width = new GridLength(0);
+        }
         Loaded += MobileConnectionWindow_Loaded;
         Loaded += (_, _) => ResolveInitialFocus().Focus();
     }
@@ -90,11 +105,14 @@ public partial class MobileConnectionWindow : Window
             return RepairLanButton;
         if (OpenSettingsButton.Visibility == Visibility.Visible)
             return OpenSettingsButton;
-        return OpenMobileAppDownloadButton;
+        return OpenSettingsButton;
     }
 
     private async void MobileConnectionWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        if (!ProductCapabilityRuntime.CurrentFeatures.MobileApp)
+            return;
+
         try
         {
             MobileAppReleaseInfo release =

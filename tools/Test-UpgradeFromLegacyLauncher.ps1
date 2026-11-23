@@ -227,7 +227,7 @@ try {
         Assert-True (-not [string]::IsNullOrWhiteSpace($expectedLauncherSha256)) "拿到本次启动器基线的可执行文件哈希"
 
         # 注意目录口径：主程序把自己那份用户数据放在 <覆盖目录>\ExpressPackingMonitoring\ 下
-        # （AppPaths.UserDataDir = 覆盖目录 + 产品名），而启动器直接用 <覆盖目录>\ 本身
+        # （AppPaths.UserDataDir = 覆盖目录 + 软件名），而启动器直接用 <覆盖目录>\ 本身
         # （无覆盖时两者都是 %LOCALAPPDATA%\ExpressPackingMonitoring）。pending 启动器包是主程序读的，
         # 所以要放在主程序那一侧。
         $appUserDataDir = Join-Path $userDataDir "ExpressPackingMonitoring"

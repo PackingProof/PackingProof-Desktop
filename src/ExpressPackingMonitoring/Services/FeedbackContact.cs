@@ -1,6 +1,8 @@
+using ExpressPackingMonitoring.UpdateCore;
+
 namespace ExpressPackingMonitoring.Services;
 
 internal static class FeedbackContact
 {
-    internal const string Email = "PackingProof@outlook.com";
+    internal static string Email => BrandMetadata.SupportEmail;
 }

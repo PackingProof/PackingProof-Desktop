@@ -34,7 +34,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 lock (_audioLock)
                 {
                     try { _audioPipeServer?.Dispose(); } catch { }
-                    _currentAudioPipeName = $"PackingProof-audio-{Environment.ProcessId}-{Guid.NewGuid():N}";
+                    _currentAudioPipeName =
+                        $"{UpdateCore.BrandMetadata.ArtifactPrefix}-audio-{Environment.ProcessId}-{Guid.NewGuid():N}";
                     _audioPipeServer = new System.IO.Pipes.NamedPipeServerStream(
                         _currentAudioPipeName,
                         System.IO.Pipes.PipeDirection.Out,

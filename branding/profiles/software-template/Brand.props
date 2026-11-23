@@ -1,0 +1,66 @@
+<Project>
+  <PropertyGroup>
+    <!--
+      软件配置模板：复制整个 software-template 目录并改名，至少替换下面所有 Contoso 值。
+      当前 app.ico 与 logo.png 仅用于验证构建链，正式包装前必须替换。
+      并行安装要求 BrandDataDirectoryName、BrandInstanceNamePrefix、
+      BrandInstallDirectoryName、BrandSetupAppId、BrandStoreIdentityName
+      在所有同时安装的应用版本之间保持唯一。
+    -->
+    <BrandProfileId>software-template</BrandProfileId>
+    <BrandProductName>Contoso Packing</BrandProductName>
+    <BrandLegacyProductName>PackingProof</BrandLegacyProductName>
+    <BrandWindowTitle>Contoso Packing 包裹留证</BrandWindowTitle>
+    <BrandDisplayName>Contoso Packing 快递打包监控</BrandDisplayName>
+    <BrandArtifactPrefix>ContosoPacking</BrandArtifactPrefix>
+    <BrandDescription>Contoso Packing 定制版录像与订单联动软件</BrandDescription>
+    <BrandFeaturesRelativePath>Features.json</BrandFeaturesRelativePath>
+    <BrandWebsiteUrl>https://example.com/contoso-packing</BrandWebsiteUrl>
+    <BrandSupportUrl>https://example.com/contoso-packing/support</BrandSupportUrl>
+    <BrandUpdatesUrl>https://example.com/contoso-packing/releases</BrandUpdatesUrl>
+    <BrandPrivacyPolicyUrl>https://example.com/contoso-packing/privacy</BrandPrivacyPolicyUrl>
+    <BrandLicenseUrl>https://example.com/contoso-packing/license</BrandLicenseUrl>
+    <BrandSupportEmail>support@example.com</BrandSupportEmail>
+
+    <BrandAppIconRelativePath>branding/profiles/software-template/app.ico</BrandAppIconRelativePath>
+    <BrandAppIcon>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'app.ico'))</BrandAppIcon>
+    <BrandWebLogo>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'logo.png'))</BrandWebLogo>
+
+    <BrandRepositorySlug>Contoso/PackingProof-Desktop</BrandRepositorySlug>
+    <BrandUpdateGiteeCheckUrl>https://gitee.com/api/v5/repos/Contoso/PackingProof-Desktop/releases/latest</BrandUpdateGiteeCheckUrl>
+    <BrandUpdateGithubCheckUrl>https://api.github.com/repos/Contoso/PackingProof-Desktop/releases/latest</BrandUpdateGithubCheckUrl>
+    <BrandPatchDownloadBaseUrl>https://github.com/Contoso/PackingProof-Desktop/releases/download</BrandPatchDownloadBaseUrl>
+    <!-- 正式发布前必须填写该软件配置在仓库外的专用发布 token；不得沿用 PackingProof 发布机器人。 -->
+    <BrandGitHubReleaseTokenFile></BrandGitHubReleaseTokenFile>
+    <BrandGiteeReleaseTokenFile></BrandGiteeReleaseTokenFile>
+    <BrandGiteeReleaseUsername>Contoso-Release-Bot</BrandGiteeReleaseUsername>
+    <BrandMobileAppEnabled>false</BrandMobileAppEnabled>
+    <BrandMobileRepositoryUrl>https://gitee.com/Contoso/PackingProof-Mobile</BrandMobileRepositoryUrl>
+    <BrandMobileReleasesUrl>https://gitee.com/Contoso/PackingProof-Mobile/releases/latest</BrandMobileReleasesUrl>
+    <BrandMobileLatestReleaseApiUrl>https://gitee.com/api/v5/repos/Contoso/PackingProof-Mobile/releases/latest</BrandMobileLatestReleaseApiUrl>
+    <BrandMobileReleasesApiUrl>https://gitee.com/api/v5/repos/Contoso/PackingProof-Mobile/releases</BrandMobileReleasesApiUrl>
+    <BrandExtensionGiteeRegistryBase>https://gitee.com/Contoso/PackingProof-Extensions/raw/main/registry/</BrandExtensionGiteeRegistryBase>
+    <BrandExtensionGithubRegistryBase>https://github.com/Contoso/PackingProof-Extensions/raw/refs/heads/main/registry/</BrandExtensionGithubRegistryBase>
+    <!-- 正式软件配置必须替换为自己的市场签名公钥；当前值仅为构建占位。 -->
+    <BrandExtensionMarketPublicKeyId>6d14589c4a213deb</BrandExtensionMarketPublicKeyId>
+    <BrandExtensionMarketPublicKeySpki>MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEOlhap+0dM+SB6AcU0hdMV7vOn5jF6V9r1l7kv0pf/eDAqgCL6MN15kW4wMSEyUBf+fcYIfLxMEV7McScdcQgIA==</BrandExtensionMarketPublicKeySpki>
+    <BrandExtensionMarketPublicKeyIsPlaceholder>true</BrandExtensionMarketPublicKeyIsPlaceholder>
+
+    <BrandCompatibilityId>Contoso.PackingProof</BrandCompatibilityId>
+    <BrandDataDirectoryName>ContosoPackingProof</BrandDataDirectoryName>
+    <BrandInstanceNamePrefix>ContosoPackingProof</BrandInstanceNamePrefix>
+    <BrandInstallDirectoryName>ContosoPackingProof</BrandInstallDirectoryName>
+    <BrandAppUserModelId>Contoso.PackingProof.ExpressPackingMonitoring</BrandAppUserModelId>
+    <BrandSetupAppId>6C2A5981-7B95-49BE-8C95-EC43B9C15EE0</BrandSetupAppId>
+    <BrandStoreIdentityName>Contoso.PackingProof</BrandStoreIdentityName>
+    <BrandStorePublisher>CN=Contoso</BrandStorePublisher>
+    <BrandStorePublisherDisplayName>Contoso</BrandStorePublisherDisplayName>
+    <BrandStoreShortName>Contoso Packing</BrandStoreShortName>
+    <BrandStoreStartupTaskId>ContosoPackingStartup</BrandStoreStartupTaskId>
+    <BrandPackageEditionMarker>Contoso.PackingProof.PackageEdition.json</BrandPackageEditionMarker>
+    <BrandLauncherBaselineRelativePath>branding/profiles/software-template/launcher-baseline.json</BrandLauncherBaselineRelativePath>
+    <BrandWebServerPort>5380</BrandWebServerPort>
+    <BrandDiscoveryPort>5381</BrandDiscoveryPort>
+    <BrandMacBundleId>com.contoso.packingproof.host</BrandMacBundleId>
+  </PropertyGroup>
+</Project>

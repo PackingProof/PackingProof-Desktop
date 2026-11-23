@@ -15,7 +15,8 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <Grid Margin="16">
-            <Grid Grid.IsSharedSizeScope="True">
+            <Grid x:Name="ConnectionCardsGrid"
+                  Grid.IsSharedSizeScope="True">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="14"/>
@@ -170,7 +171,8 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Column="2"
+                <Border x:Name="MobileAppCard"
+                        Grid.Column="2"
                         Padding="16"
                         CornerRadius="12"
                         Background="{DynamicResource ControlBackground}"
@@ -201,7 +203,8 @@
                                        VerticalAlignment="Center"/>
                         </DockPanel>
                         <TextBlock Grid.Row="1"
-                                   Text="使用 Android 手机扫码，下载 PackingProof 手机录像 App"
+                                   x:Name="MobileAppDescriptionText"
+                                   Text=""
                                    Margin="0,4,0,0"
                                    MinHeight="36"
                                    FontSize="12"
@@ -262,7 +265,8 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Column="4"
+                <Border x:Name="IosAppCard"
+                        Grid.Column="4"
                         Padding="16"
                         CornerRadius="12"
                         Background="{DynamicResource ControlBackground}"

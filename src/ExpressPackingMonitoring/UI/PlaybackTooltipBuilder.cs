@@ -41,15 +41,23 @@ namespace ExpressPackingMonitoring.UI
             AddRow(orderDetails, Label("订单信息推送时间"), item.OrderInfoPushTime);
             groups.Add(new PlaybackTooltipGroup(orderDetails));
 
-            // 3. 录像本身的属性。
+            // 3. 文件本身的属性。
             var recording = new List<PlaybackTooltipRow>();
             if (item.StartTime != default)
-                AddRow(recording, Label("录制时间"), item.StartTime.ToString("yyyy-MM-dd HH:mm:ss"));
-            AddRow(recording, Label("时长"), item.Duration);
+                AddRow(
+                    recording,
+                    Label(item.IsPhoto ? "拍摄时间" : "录制时间"),
+                    item.StartTime.ToString("yyyy-MM-dd HH:mm:ss"));
+            AddRow(
+                recording,
+                Label(item.IsPhoto ? "尺寸" : "时长"),
+                item.IsPhoto ? item.PhotoDimensions : item.Duration);
             AddRow(recording, Label("大小"), item.FileSize);
-            AddRow(recording, Label("编码"), AppLanguage.TranslateRuntime(item.EncoderDisplay));
+            if (!item.IsPhoto)
+                AddRow(recording, Label("编码"), AppLanguage.TranslateRuntime(item.EncoderDisplay));
             AddRow(recording, Label("来源"), AppLanguage.TranslateRuntime(item.SourceDisplay));
-            AddRow(recording, Label("结束原因"), PlaybackReasonText.Translate(item.StopReason));
+            if (!item.IsPhoto)
+                AddRow(recording, Label("结束原因"), PlaybackReasonText.Translate(item.StopReason));
             groups.Add(new PlaybackTooltipGroup(recording));
 
             // 4. 异常与位置：放最后，正常录像这里只剩文件位置一行。

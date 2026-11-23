@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 PackingProof contributors
 //
-// 品牌色与图标约定与 MacViewer 完全一致：界面照它的代码搬，颜色不能自创。
+// 主题色与图标约定与 MacViewer 完全一致：界面照它的代码搬，颜色不能自创。
 
 import SwiftUI
 
-/// 只保留 PackingProof 品牌色与图标约定，其余颜色走系统语义色以跟随明暗主题。
+/// 只保留 PackingProof 主题色与图标约定，其余颜色走系统语义色以跟随明暗主题。
 enum AppTheme {
     static let accentBlue = Color(red: 0x3B / 255.0, green: 0x82 / 255.0, blue: 0xF6 / 255.0)
     static let successGreen = Color(red: 0x10 / 255.0, green: 0xB9 / 255.0, blue: 0x81 / 255.0)

@@ -104,7 +104,7 @@ function Test-IsPackagedInstallRoot {
         return $false
     }
     return (Test-Path -LiteralPath (Join-Path $normalized "AppxManifest.xml") -PathType Leaf) -or
-        (Test-Path -LiteralPath (Join-Path $normalized "PackingProof.PackageEdition.json") -PathType Leaf)
+        ((Get-ChildItem -LiteralPath $normalized -Filter "*.PackageEdition.json" -File -ErrorAction SilentlyContinue | Select-Object -First 1) -ne $null)
 }
 
 function Test-IsPackagedLauncherConfigRoot {
@@ -177,6 +177,44 @@ function Get-JsonProperty {
     return $null
 }
 
+function Get-RequiredJsonProperty {
+    param($Object, [string]$Name)
+    $value = [string](Get-JsonProperty $Object $Name)
+    if (Test-IsNullOrWhiteSpace $value) {
+        throw "启动器补丁软件配置清单缺少 $Name"
+    }
+    return $value.Trim()
+}
+
+function Get-PatchBrandContract {
+    param($Manifest)
+    $brand = Get-JsonProperty $Manifest "brand"
+    if ($null -eq $brand) {
+        # 软件配置隔离之前的历史 LauncherPatch 只可能属于默认 PackingProof。
+        return (New-Object PSObject -Property @{
+            ProfileId = "packingproof"
+            ProductName = "PackingProof"
+            DisplayName = "PackingProof 快递打包监控"
+            ArtifactPrefix = "PackingProof"
+            CompatibilityId = "PackingProof"
+            DataDirectoryName = "ExpressPackingMonitoring"
+            InstanceNamePrefix = "ExpressPackingMonitoring"
+            PackageEditionMarker = "PackingProof.PackageEdition.json"
+            IsLegacy = $true
+        })
+    }
+    return (New-Object PSObject -Property @{
+        ProfileId = Get-RequiredJsonProperty $brand "profile_id"
+        ProductName = Get-RequiredJsonProperty $brand "product_name"
+        DisplayName = Get-RequiredJsonProperty $brand "display_name"
+        ArtifactPrefix = Get-RequiredJsonProperty $brand "artifact_prefix"
+        CompatibilityId = Get-RequiredJsonProperty $brand "compatibility_id"
+        DataDirectoryName = Get-RequiredJsonProperty $brand "data_directory_name"
+        InstanceNamePrefix = Get-RequiredJsonProperty $brand "instance_name_prefix"
+        PackageEditionMarker = Get-RequiredJsonProperty $brand "package_edition_marker"
+    })
+}
+
 function Get-FileSha256 {
     param([string]$Path)
 
@@ -193,6 +231,7 @@ function Get-FileSha256 {
 }
 
 function Get-DefaultConfigPath {
+    param([string]$DirectoryName)
     $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
     if (Test-IsNullOrWhiteSpace $localAppData) {
         $localAppData = $env:LOCALAPPDATA
@@ -200,7 +239,7 @@ function Get-DefaultConfigPath {
     if (Test-IsNullOrWhiteSpace $localAppData) {
         throw "无法定位 Windows 用户数据目录"
     }
-    return Join-Path $localAppData "ExpressPackingMonitoring\config.json"
+    return Join-Path $localAppData ($DirectoryName + "\config.json")
 }
 
 function Get-ShortcutTargetPath {
@@ -268,7 +307,7 @@ function Resolve-LauncherRootCandidate {
     $appDirectory = Join-Path $root "app"
     if (-not (Test-Path -LiteralPath $launcherPath -PathType Leaf) -or
         -not (Test-Path -LiteralPath $appDirectory -PathType Container)) {
-        throw "所选位置不是标准 PackingProof 安装目录"
+        throw "所选位置不是标准 $($patchBrand.DisplayName) 安装目录"
     }
     return [System.IO.Path]::GetFullPath($root).TrimEnd([char[]]"\/")
 }
@@ -306,14 +345,30 @@ function Stop-InstalledLauncher {
     }
 }
 
-if (Test-IsNullOrWhiteSpace $ConfigPath) {
-    $ConfigPath = Get-DefaultConfigPath
+function Test-TargetBrandProduct {
+    param([string]$ExecutablePath, [string]$ExpectedProductName)
+    $actualProductName = [string]([Diagnostics.FileVersionInfo]::GetVersionInfo($ExecutablePath).ProductName)
+    if ($null -eq $actualProductName) {
+        $actualProductName = ""
+    }
+    $actualProductName = $actualProductName.Trim()
+    return (Test-IsNullOrWhiteSpace $actualProductName) -or
+        [string]::Equals($actualProductName, $ExpectedProductName.Trim(), [System.StringComparison]::OrdinalIgnoreCase)
 }
+
 $PatchRoot = [System.IO.Path]::GetFullPath($PatchRoot)
+$manifestPath = Join-Path $PatchRoot "launcher_patch_manifest.json"
+if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+    throw "LauncherPatch 缺少校验清单"
+}
+$manifest = ConvertFrom-Json35 -Json ([System.IO.File]::ReadAllText($manifestPath, [System.Text.Encoding]::UTF8))
+$patchBrand = Get-PatchBrandContract $manifest
+if (Test-IsNullOrWhiteSpace $ConfigPath) {
+    $ConfigPath = Get-DefaultConfigPath -DirectoryName $patchBrand.DataDirectoryName
+}
 $ConfigPath = [System.IO.Path]::GetFullPath($ConfigPath)
 $userDataDirectory = Split-Path -Parent $ConfigPath
 $logPath = Join-Path $userDataDirectory "log\manual_update.log"
-$manifestPath = Join-Path $PatchRoot "launcher_patch_manifest.json"
 $sourceLauncherPath = Join-Path $PatchRoot "ExpressPackingMonitoring.exe"
 $temporaryPath = ""
 $adjacentBackupPath = ""
@@ -329,7 +384,6 @@ try {
         -not (Test-Path -LiteralPath $sourceLauncherPath -PathType Leaf)) {
         throw "LauncherPatch 缺少启动器或校验清单"
     }
-    $manifest = ConvertFrom-Json35 -Json ([System.IO.File]::ReadAllText($manifestPath, [System.Text.Encoding]::UTF8))
     if (-not [string]::Equals([string](Get-JsonProperty $manifest "type"), "launcher_patch", [System.StringComparison]::OrdinalIgnoreCase) -or
         -not [string]::Equals([string](Get-JsonProperty $manifest "file"), "ExpressPackingMonitoring.exe", [System.StringComparison]::Ordinal)) {
         throw "启动器更新清单无效"
@@ -367,6 +421,9 @@ try {
     }
 
     $targetLauncherPath = Join-Path $launcherRoot "ExpressPackingMonitoring.exe"
+    if (-not (Test-TargetBrandProduct -ExecutablePath $targetLauncherPath -ExpectedProductName $patchBrand.ProductName)) {
+        throw "启动器补丁属于 $($patchBrand.DisplayName)，与所选安装目录的软件配置不匹配"
+    }
     if ((Get-FileSha256 -Path $targetLauncherPath) -eq $expectedHash) {
         Write-UpdateHost "当前启动器已经是此版本，无需重复更新" -ForegroundColor Green
         return
@@ -412,7 +469,7 @@ try {
     Write-UpdateLog -LogPath $logPath -Message "Manual launcher patch completed: root=$launcherRoot"
     Write-UpdateHost ""
     Write-UpdateHost "启动器更新完成" -ForegroundColor Green
-    Write-UpdateHost "下次从原来的入口打开 PackingProof 即可"
+    Write-UpdateHost "下次从原来的入口打开 $($patchBrand.ProductName) 即可"
 }
 catch {
     $failure = $_.Exception.Message

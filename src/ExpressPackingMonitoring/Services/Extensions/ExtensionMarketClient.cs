@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.UpdateCore;
 using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -8,17 +9,10 @@ namespace ExpressPackingMonitoring.Services.Extensions;
 
 internal sealed class ExtensionMarketClient : IExtensionMarketSource
 {
-    internal const string GiteeRegistryBase = "https://gitee.com/PackingProof/PackingProof-Extensions/raw/main/registry/";
-    internal const string GithubRegistryBase = "https://github.com/PackingProof/PackingProof-Extensions/raw/refs/heads/main/registry/";
+    internal static string GiteeRegistryBase => BrandMetadata.ExtensionGiteeRegistryBase;
+    internal static string GithubRegistryBase => BrandMetadata.ExtensionGithubRegistryBase;
     private const string CatalogFileName = "catalog.v1.json";
     private const string SignatureFileName = "catalog.v1.sig";
-    private const string PublicKeyId = "6d14589c4a213deb";
-    private const string PublicKeyPem = """
-        -----BEGIN PUBLIC KEY-----
-        MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEOlhap+0dM+SB6AcU0hdMV7vOn5jF
-        6V9r1l7kv0pf/eDAqgCL6MN15kW4wMSEyUBf+fcYIfLxMEV7McScdcQgIA==
-        -----END PUBLIC KEY-----
-        """;
     private static readonly HttpClient SharedClient = new() { Timeout = TimeSpan.FromMinutes(5) };
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -219,11 +213,13 @@ internal sealed class ExtensionMarketClient : IExtensionMarketSource
             ?? throw new InvalidDataException("市场签名格式无效");
         if (signature.SchemaVersion != 1
             || signature.Algorithm != "ECDSA-P256-SHA256"
-            || signature.KeyId != PublicKeyId)
+            || signature.KeyId != BrandMetadata.ExtensionMarketPublicKeyId)
             throw new InvalidDataException("市场签名算法不受支持");
         VerifySha256(catalogBytes, signature.CatalogSha256, "市场目录");
         using ECDsa verifier = ECDsa.Create();
-        verifier.ImportFromPem(PublicKeyPem);
+        verifier.ImportSubjectPublicKeyInfo(
+            Convert.FromBase64String(BrandMetadata.ExtensionMarketPublicKeySpki),
+            out _);
         byte[] rawSignature;
         try
         {

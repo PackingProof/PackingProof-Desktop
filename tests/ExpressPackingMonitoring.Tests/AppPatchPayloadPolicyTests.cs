@@ -6,8 +6,8 @@ using Xunit;
 namespace ExpressPackingMonitoring.Tests;
 
 /// <summary>
-/// 增量包载荷白名单（安装侧的纵深防御）：用户可替换的 ffmpeg / libvlc 既不能写也不能删，
-/// 主程序核心文件与运行时种子不能进清理列表。打包侧拒绝、安装侧再拒一次，清单来自网络也不能例外。
+/// 增量包载荷白名单（安装侧的纵深防御）：用户可替换的 ffmpeg / libvlc 不能删，
+/// 普通 LibVLC 文件也不能覆盖；唯一例外是 0.0.100 基线缺失的 drawable 插件可安全新增。
 /// </summary>
 public sealed class AppPatchPayloadPolicyTests
 {
@@ -20,6 +20,19 @@ public sealed class AppPatchPayloadPolicyTests
     public void Write_RejectsUserManagedRuntimeFiles(string relativePath)
     {
         Assert.NotNull(AppPatchPayloadPolicy.DescribeViolation(relativePath, isDelete: false));
+        Assert.NotNull(AppPatchPayloadPolicy.DescribeViolation(relativePath, isDelete: true));
+    }
+
+    [Fact]
+    public void MissingDrawablePlugin_MayBeAddedButNeverDeleted()
+    {
+        string relativePath = AppPatchPayloadPolicy.LibVlcDrawablePluginRelativePath;
+
+        Assert.Null(AppPatchPayloadPolicy.DescribeViolation(relativePath, isDelete: false));
+        Assert.NotNull(AppPatchPayloadPolicy.DescribeViolation(
+            relativePath,
+            isDelete: false,
+            root: "runtime"));
         Assert.NotNull(AppPatchPayloadPolicy.DescribeViolation(relativePath, isDelete: true));
     }
 
@@ -62,6 +75,24 @@ public sealed class AppPatchPayloadPolicyTests
         Assert.NotNull(AppPatchPayloadPolicy.DescribeViolation("   ", isDelete: true));
     }
 
+    [Fact]
+    public void Installers_RejectOverwritingAnExistingDifferentDrawablePlugin()
+    {
+        string root = FindRepositoryRoot();
+        string manualInstaller = File.ReadAllText(Path.Combine(root, "tools", "Apply-AppPatch.ps1"));
+        string launcher = File.ReadAllText(Path.Combine(
+            root, "src", "ExpressPackingMonitoring.Launcher", "Program.cs"));
+
+        Assert.Contains(
+            "目标电脑已有不同的 libdrawable_plugin.dll",
+            manualInstaller,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "目标电脑已有不同的 libdrawable_plugin.dll",
+            launcher,
+            StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// 打包脚本（tools\Apply-AppPatch.ps1 里的 Get-AppPatchPayloadViolation）与 C# 这份是两套实现，
     /// 必须给出同样的结论：任一侧单独改宽/改严，都会出现"打包侧拒绝、安装侧接受"或者反过来
@@ -77,6 +108,7 @@ public sealed class AppPatchPayloadPolicyTests
             "libvlc\\win-x64\\libvlc.dll",
             "libvlc/win-x64/plugins/codec/avcodec_plugin.dll",
             "libvlc",
+            "libvlc/win-x64/plugins/video_output/libdrawable_plugin.dll",
             "ExpressPackingMonitoring.exe",
             "ExpressPackingMonitoring.dll",
             "ExpressPackingMonitoring.deps.json",
@@ -111,6 +143,8 @@ public sealed class AppPatchPayloadPolicyTests
             // 只能用双引号：单引号字符串里 `t 不是转义，输出会带上字面反引号。
             .AppendLine("    \"{0}`t{1}`t{2}\" -f $sample, $writeFlag, $deleteFlag")
             .AppendLine("}")
+            .AppendLine("$runtimeViolation = Get-AppPatchPayloadViolation -RelativePath 'libvlc/win-x64/plugins/video_output/libdrawable_plugin.dll' -Root 'runtime'")
+            .AppendLine("if (Test-IsNullOrWhiteSpace $runtimeViolation) { exit 2 }")
             .ToString();
 
         ProcessResult result = RunPowerShell(command);

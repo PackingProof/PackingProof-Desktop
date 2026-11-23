@@ -99,7 +99,11 @@ namespace ExpressPackingMonitoring.UI
         {
             owner?.Dispatcher.BeginInvoke(
                 DispatcherPriority.Input,
-                new Action(Keyboard.ClearFocus));
+                new Action(() =>
+                {
+                    FocusManager.SetFocusedElement(owner, null);
+                    Keyboard.ClearFocus();
+                }));
         }
 
         private void RequestDataRefresh()

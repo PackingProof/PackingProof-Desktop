@@ -45,7 +45,7 @@
         <uap:DefaultTile
           Wide310x150Logo="Assets\Wide310x150Logo.png"
           Square310x310Logo="Assets\Square310x310Logo.png"
-          ShortName="PackingProof" />
+          ShortName="{{STORE_SHORT_NAME}}" />
         <uap:SplashScreen
           Image="Assets\SplashScreen.png"
           BackgroundColor="#FFFFFF" />
@@ -57,7 +57,7 @@
           Executable="ExpressPackingMonitoring.exe"
           EntryPoint="Windows.FullTrustApplication">
           <desktop:StartupTask
-            TaskId="PackingProofStartup"
+            TaskId="{{STORE_STARTUP_TASK_ID}}"
             Enabled="false"
             DisplayName="{{DISPLAY_NAME}}" />
         </desktop:Extension>

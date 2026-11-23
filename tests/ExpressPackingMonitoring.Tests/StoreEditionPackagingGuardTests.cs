@@ -18,7 +18,7 @@ public sealed class StoreEditionPackagingGuardTests
         string appProject = ReadRepositoryFile("src", "ExpressPackingMonitoring", "ExpressPackingMonitoring.csproj");
         string updateCoreProject = ReadRepositoryFile("src", "ExpressPackingMonitoring.UpdateCore", "ExpressPackingMonitoring.UpdateCore.csproj");
 
-        Assert.Contains("PackingProof.PackageEdition.json", script, StringComparison.Ordinal);
+        Assert.Contains("$brand.PackageEditionMarker", script, StringComparison.Ordinal);
         Assert.Contains("edition = \"store\"", script, StringComparison.Ordinal);
         Assert.Contains("商店包不能包含 Setup 版更新脚本", script, StringComparison.Ordinal);
         Assert.Contains("\"apply_app_patch.ps1\"", script, StringComparison.Ordinal);
@@ -40,8 +40,8 @@ public sealed class StoreEditionPackagingGuardTests
         Assert.Contains("-p:DebugSymbols=true", cleanPackageScript, StringComparison.Ordinal);
         Assert.Contains("Store 符号包缺少程序集符号", script, StringComparison.Ordinal);
         Assert.Contains("PackingProofCollectStoreSymbols", appProject, StringComparison.Ordinal);
-        Assert.Contains("<DebugType>none</DebugType>", updateCoreProject, StringComparison.Ordinal);
-        Assert.DoesNotContain("<DebugType>portable</DebugType>", updateCoreProject, StringComparison.Ordinal);
+        Assert.Contains("<DebugType>portable</DebugType>", updateCoreProject, StringComparison.Ordinal);
+        Assert.DoesNotContain("<DebugType>none</DebugType>", updateCoreProject, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class StoreEditionPackagingGuardTests
             Assert.Contains("Test-IsPackagedUserDataPath", script, StringComparison.Ordinal);
             Assert.Contains("WindowsApps", script, StringComparison.Ordinal);
             Assert.Contains("AppxManifest.xml", script, StringComparison.Ordinal);
-            Assert.Contains("PackingProof.PackageEdition.json", script, StringComparison.Ordinal);
+            Assert.Contains("*.PackageEdition.json", script, StringComparison.Ordinal);
         }
 
         Assert.Contains("本补丁只适用于 Setup 版", appNotice, StringComparison.Ordinal);

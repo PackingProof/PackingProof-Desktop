@@ -133,6 +133,17 @@ public sealed class ReleaseNotesPreservationTests
             string repositoryRoot = FindRepositoryRoot();
             string root = Path.Combine(Path.GetTempPath(), "pp-notes-preserve", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
+            string toolsDirectory = Path.Combine(root, "tools");
+            Directory.CreateDirectory(toolsDirectory);
+            File.Copy(
+                Path.Combine(repositoryRoot, "tools", "Branding.Common.ps1"),
+                Path.Combine(toolsDirectory, "Branding.Common.ps1"));
+            CopyDirectory(
+                Path.Combine(repositoryRoot, "branding"),
+                Path.Combine(root, "branding"));
+            File.Copy(
+                Path.Combine(repositoryRoot, "tools", "launcher-baseline.json"),
+                Path.Combine(toolsDirectory, "launcher-baseline.json"));
 
             string template = File.ReadAllText(
                 Path.Combine(repositoryRoot, "docs", "development", "RELEASE_NOTES_TEMPLATE.md"),
@@ -216,6 +227,29 @@ public sealed class ReleaseNotesPreservationTests
         string output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
         process.WaitForExit();
         return (process.ExitCode, output);
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (string directory in Directory.EnumerateDirectories(
+                     source,
+                     "*",
+                     SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(Path.Combine(
+                destination,
+                Path.GetRelativePath(source, directory)));
+        }
+        foreach (string file in Directory.EnumerateFiles(
+                     source,
+                     "*",
+                     SearchOption.AllDirectories))
+        {
+            string target = Path.Combine(destination, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target);
+        }
     }
 
     private static string Escape(string value) => value.Replace("'", "''", StringComparison.Ordinal);

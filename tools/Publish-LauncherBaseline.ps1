@@ -10,6 +10,8 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "LauncherBaseline.Common.ps1")
+. (Join-Path $PSScriptRoot "Branding.Common.ps1")
+$brand = Get-BrandProfile -RepoRoot $repoRoot
 
 function Get-DotEnvValue {
     param([string]$Key)
@@ -65,21 +67,30 @@ if ($normalizedVersion -notmatch '^\d+\.\d+\.\d+$') {
 }
 
 if ([string]::IsNullOrWhiteSpace($UpdateCheckUrl)) {
+    $profileKey = "BRAND_" + (($brand.ProfileId -replace "[^A-Za-z0-9]", "_").ToUpperInvariant()) + "_UPDATE_CHECK_URL"
+    $UpdateCheckUrl = [Environment]::GetEnvironmentVariable($profileKey)
+}
+if ([string]::IsNullOrWhiteSpace($UpdateCheckUrl) -and $brand.ProfileId -eq "packingproof") {
     $UpdateCheckUrl = [Environment]::GetEnvironmentVariable("UPDATE_CHECK_URL")
 }
-if ([string]::IsNullOrWhiteSpace($UpdateCheckUrl)) {
+if ([string]::IsNullOrWhiteSpace($UpdateCheckUrl) -and $brand.ProfileId -eq "packingproof") {
     $UpdateCheckUrl = Get-DotEnvValue -Key "UPDATE_CHECK_URL"
 }
 if ([string]::IsNullOrWhiteSpace($UpdateCheckUrl)) {
-    $UpdateCheckUrl = "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest"
+    $UpdateCheckUrl = $brand.UpdateGiteeCheckUrl
 }
 $UpdateCheckUrl = $UpdateCheckUrl.Trim()
 
 if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
-    $ManifestPath = Join-Path $PSScriptRoot "launcher-baseline.json"
+    $ManifestPath = $brand.LauncherBaselinePath
 }
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
-    $OutputDir = Join-Path $repoRoot "package\launcher-baselines\v$normalizedVersion"
+    $OutputDir = if ($brand.ProfileId -eq "packingproof") {
+        Join-Path $repoRoot "package\launcher-baselines\v$normalizedVersion"
+    }
+    else {
+        Join-Path $repoRoot ("package\launcher-baselines\" + $brand.ArtifactPrefix + "\v$normalizedVersion")
+    }
 }
 $manifestFullPath = [System.IO.Path]::GetFullPath($ManifestPath)
 $outputFullPath = [System.IO.Path]::GetFullPath($OutputDir)
@@ -91,14 +102,17 @@ if (-not $outputFullPath.StartsWith(($cacheRoot.TrimEnd('\') + '\'), [System.Str
 $fingerprint = Get-LauncherLogicalFingerprint `
     -RepositoryRoot $repoRoot `
     -Runtime $Runtime `
-    -UpdateCheckUrl $UpdateCheckUrl
+    -UpdateCheckUrl $UpdateCheckUrl `
+    -BrandProfileId $brand.ProfileId `
+    -BrandProfileContentSha256 $brand.ContentSha256
 $launcherProject = Join-Path $repoRoot "src\ExpressPackingMonitoring.Launcher\ExpressPackingMonitoring.Launcher.csproj"
 $buildArtifacts = Join-Path $outputFullPath "build-artifacts"
 $publishDir = Join-Path $outputFullPath "publish"
 $workDir = Join-Path $outputFullPath "package-work"
 $launcherPath = Join-Path $outputFullPath "ExpressPackingMonitoring.exe"
-$packageName = "PackingProof_LauncherPatch_v$normalizedVersion.zip"
+$packageName = "$($brand.ArtifactPrefix)_LauncherPatch_v$normalizedVersion.zip"
 $packagePath = Join-Path $outputFullPath $packageName
+$baselineTag = Get-LauncherBaselineTag -Version $normalizedVersion -ArtifactPrefix $brand.ArtifactPrefix
 
 if (Test-Path -LiteralPath $outputFullPath) {
     Remove-Item -LiteralPath $outputFullPath -Recurse -Force
@@ -134,7 +148,8 @@ $launcherHash = (Get-FileHash -LiteralPath $launcherPath -Algorithm SHA256).Hash
 Copy-Item -LiteralPath $launcherPath -Destination (Join-Path $workDir "ExpressPackingMonitoring.exe") -Force
 Copy-NormalizedCommandFile `
     -SourcePath (Join-Path $PSScriptRoot "Install-LauncherPatch.cmd") `
-    -DestinationPath (Join-Path $workDir "双击更新启动器.cmd")
+    -DestinationPath (Join-Path $workDir "双击更新启动器.cmd") `
+    -ArtifactPrefix $brand.ArtifactPrefix
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Apply-LauncherPatch.ps1") -Destination (Join-Path $workDir "apply_launcher_patch.ps1") -Force
 
 [ordered]@{
@@ -143,10 +158,20 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Apply-LauncherPatch.ps1") -Dest
     file = "ExpressPackingMonitoring.exe"
     size = $launcherSize
     sha256 = $launcherHash
+    brand = [ordered]@{
+        profile_id = $brand.ProfileId
+        product_name = $brand.ProductName
+        display_name = $brand.DisplayName
+        artifact_prefix = $brand.ArtifactPrefix
+        compatibility_id = $brand.CompatibilityId
+        data_directory_name = $brand.DataDirectoryName
+        instance_name_prefix = $brand.InstanceNamePrefix
+        package_edition_marker = $brand.PackageEditionMarker
+    }
 } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $workDir "launcher_patch_manifest.json") -Encoding UTF8
 
 @(
-    "PackingProof 启动器更新",
+    "$($brand.DisplayName) 启动器更新",
     "",
     "正常情况下无需手动下载，主程序会自动校验并更新启动器。",
     "如需手动更新，请完整解压本 ZIP，再双击《双击更新启动器.cmd》。",
@@ -165,11 +190,13 @@ $baseline = [ordered]@{
     schema_version = $script:LauncherBaselineSchemaVersion
     protocol_version = $script:LauncherUpdateProtocolVersion
     version = $normalizedVersion
-    tag = "launcher-v$normalizedVersion"
+    tag = $baselineTag
+    artifact_prefix = $brand.ArtifactPrefix
     release_tag = "v$normalizedVersion"
     runtime = $Runtime
     update_check_url = $UpdateCheckUrl
     source_fingerprint = $fingerprint
+    brand_profile_sha256 = $brand.ContentSha256
     fingerprint_files = @(Get-LauncherFingerprintFiles | ForEach-Object { $_.Replace('\', '/') })
     package = [ordered]@{
         file = $packageName
@@ -186,9 +213,11 @@ Assert-LauncherFile -Path $launcherPath -ExpectedSize $launcherSize -ExpectedSha
 
 Remove-Item -LiteralPath $publishDir -Recurse -Force
 Remove-Item -LiteralPath $workDir -Recurse -Force
-Remove-Item -LiteralPath $buildArtifacts -Recurse -Force
-Write-Host "Launcher baseline created: launcher-v$normalizedVersion"
+if (Test-Path -LiteralPath $buildArtifacts) {
+    Remove-Item -LiteralPath $buildArtifacts -Recurse -Force
+}
+Write-Host "Launcher baseline created: $baselineTag"
 Write-Host "Manifest: $manifestFullPath"
 Write-Host "Package:  $packagePath"
 Write-Host "SHA256:   $packageHash"
-Write-Host "Create the Git component tag only after committing the manifest: launcher-v$normalizedVersion"
+Write-Host "Create the Git component tag only after committing the manifest: $baselineTag"

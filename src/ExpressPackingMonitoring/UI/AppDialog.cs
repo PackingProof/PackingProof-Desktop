@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using ExpressPackingMonitoring.Localization;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.UI;
 
@@ -57,8 +58,8 @@ public static class AppDialog
         InvokeOnUiThread(() =>
         {
             var dialog = new ConfirmDialog(
-                message,
-                title,
+                BrandText.Apply(message),
+                BrandText.Apply(title),
                 confirmText: buttonText ?? AppLanguage.Get("确定"),
                 isDangerous: false,
                 showCancelButton: false,
@@ -80,8 +81,8 @@ public static class AppDialog
         return InvokeOnUiThread(() =>
         {
             var dialog = new ConfirmDialog(
-                message,
-                title,
+                BrandText.Apply(message),
+                BrandText.Apply(title),
                 confirmText ?? AppLanguage.Get("确定"),
                 cancelText ?? AppLanguage.Get("取消"),
                 isDangerous,

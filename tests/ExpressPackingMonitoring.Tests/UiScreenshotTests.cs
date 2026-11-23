@@ -10,6 +10,7 @@ using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
 using ExpressPackingMonitoring.UI.Controls;
+using ExpressPackingMonitoring.UpdateCore;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -92,6 +93,46 @@ public sealed class UiScreenshotTests
         if (tabs == null)
             return;
 
+        CaptureSettingsTabs(
+            outputDirectory,
+            "settings",
+            window,
+            tabs);
+
+        var workstationWindow = CreateSettingsWindow(
+            out _,
+            out TabControl? workstationTabs,
+            DeploymentPresets.RecordingWorkstation);
+        if (workstationTabs != null)
+        {
+            CaptureSettingsTabs(
+                outputDirectory,
+                "settings-workstation",
+                workstationWindow,
+                workstationTabs);
+        }
+
+        var localWindow = CreateSettingsWindow(
+            out _,
+            out TabControl? localTabs,
+            DeploymentPresets.RecordingHost,
+            CreateLocalCaptureSettingsCapabilities(),
+            [DeploymentPresets.RecordingHost]);
+        if (localTabs == null)
+            return;
+        CaptureSettingsTabs(
+            outputDirectory,
+            "settings-local-capture",
+            localWindow,
+            localTabs);
+    }
+
+    private static void CaptureSettingsTabs(
+        string outputDirectory,
+        string prefix,
+        Window window,
+        TabControl tabs)
+    {
         AttachToSource(window);
         TabItem[] visibleTabs = tabs.Items.OfType<TabItem>()
             .Where(item => item.Visibility == Visibility.Visible)
@@ -102,29 +143,34 @@ public sealed class UiScreenshotTests
             {
                 tabs.SelectedItem = visibleTabs[index];
                 Pump(window);
-                Save(window, Path.Combine(outputDirectory, $"settings-{index:00}.png"));
+                Save(window, Path.Combine(outputDirectory, $"{prefix}-{index:00}.png"));
                 ScrollViewer? scroller = FindScrollableContent(window);
                 if (scroller is { ScrollableHeight: > 0 })
                 {
                     scroller.ScrollToEnd();
                     Pump(window);
-                    Save(window, Path.Combine(outputDirectory, $"settings-{index:00}-bottom.png"));
+                    Save(window, Path.Combine(outputDirectory, $"{prefix}-{index:00}-bottom.png"));
                 }
             }
             catch (Exception ex)
             {
                 File.WriteAllText(
-                    Path.Combine(outputDirectory, $"settings-{index:00}.error.txt"),
+                    Path.Combine(outputDirectory, $"{prefix}-{index:00}.error.txt"),
                     ex.ToString());
             }
         }
     }
 
-    private static SettingsWindow CreateSettingsWindow(out AppConfig config, out TabControl? tabs)
+    private static SettingsWindow CreateSettingsWindow(
+        out AppConfig config,
+        out TabControl? tabs,
+        string preset = DeploymentPresets.RecordingHost,
+        SettingsCapabilities? capabilities = null,
+        IReadOnlyList<string>? availablePresets = null)
     {
         config = new AppConfig
         {
-            DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+            DeploymentPreset = preset,
             StorageLocations =
             [
                 new StorageLocation { Path = Path.Combine(Path.GetTempPath(), "PackingProofVideos"), Priority = 0 }
@@ -134,7 +180,16 @@ public sealed class UiScreenshotTests
 
         var context = new SettingsContext
         {
-            Capabilities = SettingsCapabilities.ForPreset(config.DeploymentPreset),
+            Capabilities = capabilities
+                ?? SettingsCapabilities.ForPreset(config.DeploymentPreset),
+            AvailablePurposes = (availablePresets
+                    ?? ProductCapabilityRuntime.AvailableRoles()
+                        .Select(role => role.DeploymentPreset)
+                        .ToArray())
+                .Select(value => new DeploymentPurposeOption(
+                    value,
+                    DeploymentPresets.GetDisplayName(value)))
+                .ToArray(),
             ApplyAsync = _ => Task.FromResult(true)
         };
 
@@ -144,13 +199,195 @@ public sealed class UiScreenshotTests
         return window;
     }
 
+    private static SettingsCapabilities CreateLocalCaptureSettingsCapabilities()
+    {
+        ProductFeatures features = CreateLocalCaptureFeatures();
+        EffectiveProductCapabilities effective = EffectiveProductCapabilities.Compose(
+            features,
+            ProductRoleCapabilityMapper.Get(
+                ProductRoleCapabilityMapper.RecordingHost),
+            RuntimeEnvironment.FullyAvailable,
+            new ProductCapabilityIdentity("local-capture", 1, new string('0', 64)));
+        return SettingsCapabilities.FromEffective(
+            effective,
+            canChoosePurpose: false);
+    }
+
+    private static ProductFeatures CreateLocalCaptureFeatures() =>
+        new(
+            VideoRecording: true,
+            PhotoCapture: false,
+            MediaLibrary: true,
+            RemoteMediaAccess: false,
+            LanCollaboration: false,
+            ComputerBackupReceive: false,
+            MobileBackupReceive: false,
+            MobileApp: false,
+            NasArchive: false,
+            Clip: false,
+            Compress: false,
+            ExtensionApi: false,
+            ExtensionMarket: false,
+            Userscript: false,
+            OrderReceiver: false,
+            Tts: false,
+            Inputs: new InputFeatures(true, true, true, true, true));
+
+    private static SettingsCapabilities CreateRecordingPhotoSettingsCapabilities()
+    {
+        ProductFeatures features = BrandMetadata.ProductFeatures with
+        {
+            PhotoCapture = true
+        };
+        EffectiveProductCapabilities effective = EffectiveProductCapabilities.Compose(
+            features,
+            ProductRoleCapabilityMapper.Get(
+                ProductRoleCapabilityMapper.RecordingHost),
+            RuntimeEnvironment.FullyAvailable,
+            new ProductCapabilityIdentity(
+                "recording-photo",
+                1,
+                new string('0', 64)));
+        return SettingsCapabilities.FromEffective(
+            effective,
+            canChoosePurpose: true);
+    }
+
     private static void CaptureStandalone(string outputDirectory)
     {
         CaptureTransferManagement(outputDirectory);
         CaptureViewerHostSelection(outputDirectory);
         CaptureViewerHostBindingFooter(outputDirectory);
         TryCapture("statistics", outputDirectory, () => new StatisticsWindow(new VideoDatabase(":memory:")));
+        TryCapture(
+            "main-window-full",
+            outputDirectory,
+            () =>
+            {
+                var window = new MainWindow(enableCloseBehaviorPrompt: false);
+                if (window.DataContext is ExpressPackingMonitoring.ViewModels.MainViewModel viewModel)
+                    viewModel.SetPhotoCaptureButtonVisibility(false);
+                return window;
+            });
+        TryCapture(
+            "main-window-recording-photo",
+            outputDirectory,
+            () =>
+            {
+                var window = new MainWindow(enableCloseBehaviorPrompt: false);
+                if (window.DataContext is ExpressPackingMonitoring.ViewModels.MainViewModel viewModel)
+                {
+                    viewModel.CapabilityOverride = CreateRecordingPhotoSettingsCapabilities();
+                    viewModel.SetPhotoCaptureButtonVisibility(true);
+                    viewModel.FilteredLogs.Add(new ScanRecord(
+                        "7902302208052379023022080523",
+                        "6s",
+                        "16:01:37",
+                        "发货",
+                        videoRecordId: 1,
+                        generatedName: "MAN_20261123_160137",
+                        saveStatusText: "已保存"));
+                }
+                return window;
+            });
+        TryCapture(
+            "main-window-recording-photo-compact",
+            outputDirectory,
+            () =>
+            {
+                var window = new MainWindow(enableCloseBehaviorPrompt: false)
+                {
+                    WindowState = WindowState.Normal,
+                    Width = 960,
+                    Height = 760
+                };
+                if (window.DataContext is ExpressPackingMonitoring.ViewModels.MainViewModel viewModel)
+                {
+                    viewModel.CapabilityOverride = CreateRecordingPhotoSettingsCapabilities();
+                    viewModel.SetPhotoCaptureButtonVisibility(true);
+                    viewModel.FilteredLogs.Add(new ScanRecord(
+                        "7902302208052379023022080523",
+                        "6s",
+                        "16:01:37",
+                        "发货",
+                        videoRecordId: 1,
+                        generatedName: "MAN_20261123_160137",
+                        saveStatusText: "已保存"));
+                }
+                return window;
+            });
+        TryCapture(
+            "main-window-recording-active",
+            outputDirectory,
+            () =>
+            {
+                var window = new MainWindow(enableCloseBehaviorPrompt: false);
+                if (window.DataContext is ExpressPackingMonitoring.ViewModels.MainViewModel viewModel)
+                {
+                    viewModel.CapabilityOverride = CreateRecordingPhotoSettingsCapabilities();
+                    viewModel.SetPhotoCaptureButtonVisibility(true);
+                    viewModel.FilteredLogs.Add(new ScanRecord(
+                        "MAN_20261123_224919",
+                        "8s",
+                        "22:49:19",
+                        "发货",
+                        isActive: true,
+                        generatedName: "MAN_20261123_224919"));
+                }
+                return window;
+            });
+        TryCapture(
+            "diagnostic-export-confirm",
+            outputDirectory,
+            () => new ConfirmDialog(
+                AppLanguage.Format(
+                    "导出诊断日志确认",
+                    "PackingProof@outlook.com"),
+                AppLanguage.Get("导出诊断日志"),
+                AppLanguage.Get("开始打包"),
+                AppLanguage.Get("取消"),
+                isDangerous: false,
+                showCancelButton: true,
+                severity: AppDialogSeverity.Warning));
+        TryCapture(
+            "diagnostic-export-success",
+            outputDirectory,
+            () => new ConfirmDialog(
+                DiagnosticExportText.BuildMessage(
+                    @"C:\Temp\PackingProof_Feedback_20261123-225118.zip",
+                    2 * 1024 * 1024,
+                    "PackingProof@outlook.com",
+                    []),
+                AppLanguage.Get("导出诊断日志"),
+                AppLanguage.Get("复制邮箱地址"),
+                AppLanguage.Get("关闭"),
+                isDangerous: false,
+                showCancelButton: true,
+                severity: AppDialogSeverity.Information));
+        TryCapture(
+            "main-window-local-capture",
+            outputDirectory,
+            () =>
+            {
+                var window = new MainWindow(enableCloseBehaviorPrompt: false);
+                if (window.DataContext is ExpressPackingMonitoring.ViewModels.MainViewModel viewModel)
+                    viewModel.CapabilityOverride = CreateLocalCaptureSettingsCapabilities();
+                return window;
+            });
         TryCapture("workstation-selection", outputDirectory, () => new WorkstationSelectionWindow());
+        TryCapture(
+            "workstation-selection-local-capture",
+            outputDirectory,
+            () => new WorkstationSelectionWindow(
+                currentPreset: null,
+                confirmCurrentPreset: false,
+                hostUnavailable: false,
+                availableRoles:
+                [
+                    ProductRoleCapabilityMapper.Get(
+                        ProductRoleCapabilityMapper.RecordingHost)
+                ],
+                productFeatures: CreateLocalCaptureFeatures()));
         TryCapture(
             "manual-host-connection",
             outputDirectory,
@@ -181,6 +418,76 @@ public sealed class UiScreenshotTests
             {
                 Width = 1440,
                 Height = 760
+            });
+        TryCapture(
+            "playback-all-library",
+            outputDirectory,
+            () =>
+            {
+                string photoDbPath = Path.Combine(
+                    Path.GetTempPath(),
+                    "packingproof-photo-library-" + Guid.NewGuid().ToString("N") + ".db");
+                var photoStore = new PhotoStore(photoDbPath);
+                var window = new PlaybackWindow(
+                    Path.GetTempPath(),
+                    new VideoDatabase(":memory:"),
+                    showDeletedVideos: true,
+                    photoStore: photoStore)
+                {
+                    Width = 1440,
+                    Height = 760
+                };
+                window.ApplyMixedLibraryPreviewForTest(
+                new VideoItem
+                {
+                    DisplayName = "SF202611230003",
+                    OrderId = "SF202611230003",
+                    TrackingNumber = "SF202611230003",
+                    Mode = "发货",
+                    Duration = "2s",
+                    FileSize = "0.2MB",
+                    FileSizeBytes = 200_000,
+                    SourceDisplay = "电脑2",
+                    SourceDeviceId = "device-2",
+                    StartTime = DateTime.Now.AddMinutes(-2),
+                    FullPath = Path.Combine(Path.GetTempPath(), "SF202611230003.mp4")
+                },
+                [
+                    new PhotoRecord(
+                        1,
+                        "SF202611230001",
+                        "发货",
+                        Path.Combine(Path.GetTempPath(), "SF202611230001.jpg"),
+                        DateTimeOffset.Now.AddMinutes(-4),
+                        "device-1",
+                        "电脑1",
+                        1920,
+                        1080,
+                        824_000,
+                        false,
+                        "",
+                        "",
+                        "Completed"),
+                    new PhotoRecord(
+                        2,
+                        "SF202611230002",
+                        "退货",
+                        Path.Combine(Path.GetTempPath(), "SF202611230002.jpg"),
+                        DateTimeOffset.Now.AddMinutes(-8),
+                        "device-1",
+                        "电脑1",
+                        1920,
+                        1080,
+                        716_000,
+                        false,
+                        "",
+                        "",
+                        "Failed",
+                        "NAS unavailable",
+                        3)
+                ],
+                CreateScreenshotDialogPreview(640, 360));
+                return window;
             });
         TryCapture(
             "playback-narrow",
@@ -891,50 +1198,30 @@ public sealed class UiScreenshotTests
 
     private static void RunOnStaThread(Action action)
     {
-        Exception? failure = null;
         var traceListener = new System.Diagnostics.TextWriterTraceListener(
             Path.Combine(Path.GetTempPath(), "packingproof-ui-trace.log"));
-        var thread = new Thread(() =>
+        try
         {
-            try
+            WpfTestHost.Run(() =>
             {
                 System.Diagnostics.PresentationTraceSources.Refresh();
                 System.Diagnostics.PresentationTraceSources.ResourceDictionarySource.Switch.Level =
                     System.Diagnostics.SourceLevels.All;
                 System.Diagnostics.PresentationTraceSources.ResourceDictionarySource.Listeners.Add(traceListener);
 
-                bool created = Application.Current == null;
-                if (created)
-                {
-                    var app = new ExpressPackingMonitoring.App();
-                    app.InitializeComponent();
-                }
-                Application.Current!.ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 object? textPrimary = Application.Current?.TryFindResource("TextPrimary");
                 File.WriteAllText(
                     Path.Combine(Path.GetTempPath(), "packingproof-ui-diag.txt"),
-                    $"created={created} resources={Application.Current?.Resources?.MergedDictionaries.Count} " +
+                    $"resources={Application.Current?.Resources?.MergedDictionaries.Count} " +
                     $"textPrimary={textPrimary?.GetType().Name}");
                 action();
-            }
-            catch (Exception ex)
-            {
-                failure = ex;
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        if (!thread.Join(TimeSpan.FromSeconds(45)))
-        {
-            // 测试进程卡死时不能让窗口留在桌面上：直接结束自己。
-            try { System.Diagnostics.Process.GetCurrentProcess().Kill(); }
-            catch { }
-            throw new Xunit.Sdk.XunitException("界面截图超时，已终止测试进程");
+            }, TimeSpan.FromSeconds(60), "界面截图超时");
         }
-        traceListener.Flush();
-        traceListener.Close();
-        if (failure != null)
-            throw new Xunit.Sdk.XunitException("界面截图失败：" + failure);
+        finally
+        {
+            traceListener.Flush();
+            traceListener.Close();
+        }
     }
 
     private static void LoadAppResources()

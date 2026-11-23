@@ -2,10 +2,8 @@ namespace ExpressPackingMonitoring.UpdateCore;
 
 public static class UpdateEndpointPolicy
 {
-    public const string DefaultGiteeCheckUrl =
-        "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest";
-    public const string DefaultGithubCheckUrl =
-        "https://api.github.com/repos/PackingProof/PackingProof-Desktop/releases/latest";
+    public static string DefaultGiteeCheckUrl => BrandMetadata.UpdateGiteeCheckUrl;
+    public static string DefaultGithubCheckUrl => BrandMetadata.UpdateGithubCheckUrl;
 
     public static IReadOnlyList<string> ResolveCheckUrls(
         string? configuredPrimary,

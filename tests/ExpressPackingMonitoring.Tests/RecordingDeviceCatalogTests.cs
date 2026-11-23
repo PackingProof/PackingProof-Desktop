@@ -6,6 +6,7 @@ using System.Text.Json;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UpdateCore;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -73,6 +74,29 @@ public sealed class RecordingDeviceCatalogTests
         PackingProofCapabilities.Recording,
         PackingProofCapabilities.OrderReceiver
     ];
+
+    [Fact]
+    public void PortlessRecorderAddressUsesTheSelectedBrandDefaultPort()
+    {
+        string mobileNodeId = Guid.NewGuid().ToString("D");
+        IReadOnlyList<RecordingDeviceInfo> devices = RecordingDeviceCatalog.Build(
+            DeploymentPresets.RecordingHost,
+            Guid.NewGuid().ToString("D"),
+            "主机",
+            BrandMetadata.WebServerPort,
+            "",
+            [new MobileOrderReceiverInfo(
+                mobileNodeId,
+                "手机",
+                "192.168.1.31",
+                0,
+                RecorderCapabilities,
+                Online: true)],
+            connectedClients: null);
+
+        RecordingDeviceInfo mobile = Assert.Single(devices, device => device.NodeId == mobileNodeId);
+        Assert.Equal($"http://192.168.1.31:{BrandMetadata.WebServerPort}", mobile.Address);
+    }
 
     [Fact]
     public void RecordingHostAndOnlineMobileRecorderAreIncluded()

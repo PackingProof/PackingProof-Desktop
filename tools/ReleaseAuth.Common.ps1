@@ -29,6 +29,22 @@ function ConvertTo-ReleaseBase64Url {
         .Replace("/", "_")
 }
 
+function Resolve-BrandReleaseTokenFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Value,
+        $Brand
+    )
+
+    $expanded = [Environment]::ExpandEnvironmentVariables($Value.Trim())
+    if ($expanded.StartsWith("~", [System.StringComparison]::Ordinal)) {
+        $expanded = Join-Path $env:USERPROFILE $expanded.Substring(1).TrimStart('\', '/')
+    }
+    if (-not [System.IO.Path]::IsPathRooted($expanded) -and $null -ne $Brand) {
+        $expanded = Join-Path $Brand.ProfileDirectory $expanded
+    }
+    return [System.IO.Path]::GetFullPath($expanded)
+}
+
 function Get-GitHubReleaseBotDirectory {
     $configured = $env:PACKINGPROOF_GITHUB_RELEASE_BOT_DIR
     if (-not [string]::IsNullOrWhiteSpace($configured)) {
@@ -67,6 +83,31 @@ function New-GitHubAppJwt {
 }
 
 function Import-GitHubReleaseAppInstallationToken {
+    param($Brand = $null)
+
+    if ($null -ne $Brand -and
+        -not [string]::Equals(
+            [string]$Brand.SelectedProfileName,
+            "packingproof",
+            [System.StringComparison]::OrdinalIgnoreCase) -and
+        [string]::IsNullOrWhiteSpace([string]$Brand.GitHubReleaseTokenFile)) {
+        throw "非默认软件配置必须配置 BrandGitHubReleaseTokenFile，不能回退到 PackingProof 发布机器人"
+    }
+
+    if ($null -ne $Brand -and -not [string]::IsNullOrWhiteSpace([string]$Brand.GitHubReleaseTokenFile)) {
+        $brandTokenPath = Resolve-BrandReleaseTokenFile -Value $Brand.GitHubReleaseTokenFile -Brand $Brand
+        if (-not (Test-Path -LiteralPath $brandTokenPath -PathType Leaf)) {
+        throw "软件配置指定的 GitHub 发布 token 文件不存在：$brandTokenPath"
+        }
+        $brandToken = ([IO.File]::ReadAllText($brandTokenPath, [Text.Encoding]::UTF8)).Trim()
+        if ([string]::IsNullOrWhiteSpace($brandToken)) {
+        throw "软件配置指定的 GitHub 发布 token 文件为空：$brandTokenPath"
+        }
+        $env:GH_TOKEN = $brandToken
+        $env:GITHUB_TOKEN = $brandToken
+        return "软件配置 GitHub 发布 token"
+    }
+
     $botRoot = Get-GitHubReleaseBotDirectory
     $appPath = Join-Path $botRoot "app.json"
     if (-not (Test-Path -LiteralPath $appPath -PathType Leaf)) {
@@ -121,7 +162,10 @@ function Import-GitHubReleaseAppInstallationToken {
 }
 
 function Import-GitHubReleaseTokenFromEnvFile {
-    param([Parameter(Mandatory = $true)][string]$RepoRoot)
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        $Brand = $null
+    )
 
     foreach ($name in @("GITHUB_RELEASE_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")) {
         $token = [Environment]::GetEnvironmentVariable($name)
@@ -140,10 +184,10 @@ function Import-GitHubReleaseTokenFromEnvFile {
     }
 
     try {
-        return Import-GitHubReleaseAppInstallationToken
+        return Import-GitHubReleaseAppInstallationToken -Brand $Brand
     }
     catch {
-        Write-Warning "GitHub Release Bot App 认证失败：$($_.Exception.Message)"
+        Write-Warning "GitHub 发布认证失败：$($_.Exception.Message)"
         return ""
     }
 }
@@ -167,13 +211,16 @@ function Test-GitHubReleaseAuthentication {
 }
 
 function Enable-ReleaseBotGitTransport {
-    param([Parameter(Mandatory = $true)][string[]]$Platforms)
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Platforms,
+        $Brand = $null
+    )
 
     $configs = [System.Collections.Generic.List[object]]::new()
     if ($Platforms -contains "github") {
-        $githubSource = Import-GitHubReleaseAppInstallationToken
+        $githubSource = Import-GitHubReleaseAppInstallationToken -Brand $Brand
         if ([string]::IsNullOrWhiteSpace($githubSource)) {
-            throw "GitHub 远端写入必须使用 PackingProof Release Bot 的 GitHub App token；个人 gh 登录态和普通 GITHUB_TOKEN 不会用于推送"
+            throw "GitHub 远端写入必须使用软件配置指定的专用发布 token；个人 gh 登录态和普通 GITHUB_TOKEN 不会用于推送"
         }
         # Token 获取阶段会为 api.github.com 直连设置 NO_PROXY；Git push 本身需要回到
         # 用户配置的代理，否则部分网络会直接重置 github.com:443。
@@ -191,11 +238,14 @@ function Enable-ReleaseBotGitTransport {
         })
     }
     if ($Platforms -contains "gitee") {
-        $giteeSource = Import-GiteeReleaseBotToken
+        $giteeSource = Import-GiteeReleaseBotToken -Brand $Brand
         if ([string]::IsNullOrWhiteSpace($giteeSource)) {
-            throw "Gitee 远端写入必须使用 PackingProof-Release-Bot token 文件；个人 gitee 登录态和普通 .env token 不会用于推送"
+            throw "Gitee 远端写入必须使用软件配置指定的专用发布 token；个人 gitee 登录态和普通 .env token 不会用于推送"
         }
-        $giteeUsername = $env:PACKINGPROOF_GITEE_RELEASE_BOT_USERNAME
+        $giteeUsername = if ($null -ne $Brand) { [string]$Brand.GiteeReleaseUsername } else { "" }
+        if ([string]::IsNullOrWhiteSpace($giteeUsername)) {
+            $giteeUsername = $env:PACKINGPROOF_GITEE_RELEASE_BOT_USERNAME
+        }
         if ([string]::IsNullOrWhiteSpace($giteeUsername)) {
             $giteeUsername = "PackingProof-Release-Bot"
         }

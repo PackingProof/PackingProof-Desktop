@@ -7,8 +7,24 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <DebugType>none</DebugType>
-    <DebugSymbols>false</DebugSymbols>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>ExpressPackingMonitoring.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(BrandLocalizationFile)' != '' and Exists('$(BrandLocalizationFile)')">
+    <EmbeddedResource Include="$(BrandLocalizationFile)"
+                      LogicalName="ExpressPackingMonitoring.UpdateCore.BrandLocalizations.json" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(BrandFeaturesFile)' != '' and Exists('$(BrandFeaturesFile)')">
+    <EmbeddedResource Include="$(BrandFeaturesFile)"
+                      LogicalName="ExpressPackingMonitoring.UpdateCore.BrandFeatures.json" />
+  </ItemGroup>
 
 </Project>

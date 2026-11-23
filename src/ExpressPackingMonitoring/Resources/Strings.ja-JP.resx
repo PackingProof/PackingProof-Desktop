@@ -13,6 +13,7 @@
   <data name="上一步" xml:space="preserve"><value>戻る</value></data>
   <data name="完成" xml:space="preserve"><value>完了</value></data>
   <data name="播放" xml:space="preserve"><value>再生</value></data>
+  <data name="播放录像" xml:space="preserve"><value>録画を再生</value></data>
   <data name="暂停" xml:space="preserve"><value>一時停止</value></data>
   <data name="下载" xml:space="preserve"><value>ダウンロード</value></data>
   <data name="剪辑" xml:space="preserve"><value>切り抜き</value></data>
@@ -47,10 +48,74 @@
   <data name="语音提醒" xml:space="preserve"><value>音声通知</value></data>
   <data name="播报音量最大" xml:space="preserve"><value>アナウンス音量を最大にする</value></data>
   <data name="录像列表" xml:space="preserve"><value>録画一覧</value></data>
+  <data name="拍照" xml:space="preserve"><value>写真撮影</value></data>
+  <data name="照片库" xml:space="preserve"><value>写真ライブラリ</value></data>
+  <data name="照片取证" xml:space="preserve"><value>写真証跡</value></data>
+  <data name="照片列表" xml:space="preserve"><value>写真一覧</value></data>
+  <data name="按单号搜索" xml:space="preserve"><value>追跡番号で検索</value></data>
+  <data name="搜索" xml:space="preserve"><value>検索</value></data>
+  <data name="拍摄时间" xml:space="preserve"><value>撮影日時</value></data>
+  <data name="尺寸" xml:space="preserve"><value>サイズ</value></data>
+  <data name="打开照片" xml:space="preserve"><value>写真を開く</value></data>
+  <data name="未记录单号" xml:space="preserve"><value>追跡番号なし</value></data>
+  <data name="本机" xml:space="preserve"><value>この PC</value></data>
+  <data name="照片已保存" xml:space="preserve"><value>写真を保存しました</value></data>
+  <data name="拍照按钮已显示" xml:space="preserve"><value>撮影ボタンを表示しました</value></data>
+  <data name="拍照按钮已隐藏" xml:space="preserve"><value>撮影ボタンを非表示にしました</value></data>
+  <data name="当前用途不支持拍照" xml:space="preserve"><value>この用途では撮影できません</value></data>
+  <data name="照片已保存：{0}" xml:space="preserve"><value>写真を保存しました: {0}</value></data>
+  <data name="摄像头画面尚未就绪" xml:space="preserve"><value>カメラ映像の準備ができていません</value></data>
+  <data name="正在切换用途，暂时不能拍照" xml:space="preserve"><value>用途を切り替え中のため撮影できません</value></data>
+  <data name="拍照失败：{0}" xml:space="preserve"><value>写真の撮影に失敗しました: {0}</value></data>
+  <data name="读取照片失败：{0}" xml:space="preserve"><value>写真を読み込めません: {0}</value></data>
+  <data name="删除后将从照片库隐藏，并删除本机照片文件。确定删除吗？" xml:space="preserve"><value>ライブラリから非表示にし、この PC の写真ファイルを削除します。削除しますか？</value></data>
+  <data name="删除照片" xml:space="preserve"><value>写真を削除</value></data>
+  <data name="照片" xml:space="preserve"><value>写真</value></data>
+  <data name="录像" xml:space="preserve"><value>録画</value></data>
+  <data name="图片" xml:space="preserve"><value>写真</value></data>
+  <data name="照片预览" xml:space="preserve"><value>写真プレビュー</value></data>
+  <data name="当前用途不能删除照片" xml:space="preserve"><value>現在の用途では写真を削除できません</value></data>
+  <data name="确定删除这张照片吗？" xml:space="preserve"><value>この写真を削除しますか？</value></data>
+  <data name="照片会从本地回放库隐藏并删除本机文件" xml:space="preserve"><value>写真はローカル ライブラリから非表示になり、この PC のファイルが削除されます</value></data>
+  <data name="已删除该照片" xml:space="preserve"><value>写真を削除しました</value></data>
+  <data name="删除照片…" xml:space="preserve"><value>写真を削除…</value></data>
+  <data name="删除照片失败：{0}" xml:space="preserve"><value>写真を削除できません: {0}</value></data>
+  <data name="本地拍照取证" xml:space="preserve"><value>ローカル写真証跡</value></data>
+  <data name="拍照并保存到本机资料库" xml:space="preserve"><value>写真を撮影してローカル ライブラリに保存</value></data>
+  <data name="可使用摄像头拍照" xml:space="preserve"><value>カメラで写真を撮影できます</value></data>
+  <data name="照片与录像统一按单号检索" xml:space="preserve"><value>写真と録画を追跡番号でまとめて検索</value></data>
+  <data name="取消切换" xml:space="preserve"><value>切り替えをキャンセル</value></data>
+  <data name="等待剪辑完成" xml:space="preserve"><value>切り抜きの完了を待機中</value></data>
+  <data name="当前软件未开放本机录像" xml:space="preserve"><value>このソフトウェアではこの PC の録画を利用できません</value></data>
+  <data name="当前软件未开放不录像模式" xml:space="preserve"><value>このソフトウェアでは録画しないモードを利用できません</value></data>
+  <data name="要，长期保存在这台电脑" xml:space="preserve"><value>はい、この PC に長期保存します</value></data>
+  <data name="这台电脑负责长期保存录像" xml:space="preserve"><value>この PC が録画を長期保存します</value></data>
+  <data name="当前软件未开放录像从机或查看端" xml:space="preserve"><value>このソフトウェアでは録画クライアントまたは閲覧モードを利用できません</value></data>
+  <data name="正在取消用途切换" xml:space="preserve"><value>用途の切り替えをキャンセル中</value></data>
+  <data name="重启已取消，用途未切换" xml:space="preserve"><value>再起動をキャンセルしました。用途は変更されていません</value></data>
+  <data name="正在切换用途，暂时不能开始录像" xml:space="preserve"><value>用途を切り替え中のため録画を開始できません</value></data>
+  <data name="正在保存上一张照片" xml:space="preserve"><value>前の写真を保存中</value></data>
+  <data name="保存照片失败：{0}" xml:space="preserve"><value>写真を保存できません: {0}</value></data>
+  <data name="缩小" xml:space="preserve"><value>縮小</value></data>
+  <data name="放大" xml:space="preserve"><value>拡大</value></data>
+  <data name="旋转" xml:space="preserve"><value>回転</value></data>
+  <data name="重置" xml:space="preserve"><value>リセット</value></data>
+  <data name="选择照片查看大图" xml:space="preserve"><value>写真を選択して拡大表示</value></data>
+  <data name="备份" xml:space="preserve"><value>バックアップ</value></data>
+  <data name="已备份" xml:space="preserve"><value>バックアップ済み</value></data>
+  <data name="等待备份" xml:space="preserve"><value>待機中</value></data>
+  <data name="备份失败" xml:space="preserve"><value>失敗</value></data>
+  <data name="不需要备份" xml:space="preserve"><value>不要</value></data>
+  <data name="重试备份" xml:space="preserve"><value>バックアップを再試行</value></data>
+  <data name="重试备份失败：{0}" xml:space="preserve"><value>バックアップの再試行に失敗しました: {0}</value></data>
+  <data name="打开照片失败：{0}" xml:space="preserve"><value>写真を開けません: {0}</value></data>
+  <data name="拍照，不停止录像" xml:space="preserve"><value>録画を止めずに写真を撮影</value></data>
+  <data name="按单号检索本机照片与备份状态" xml:space="preserve"><value>追跡番号でローカル写真とバックアップ状態を検索</value></data>
   <data name="开始日期" xml:space="preserve"><value>開始日</value></data>
   <data name="结束日期" xml:space="preserve"><value>終了日</value></data>
   <data name="订单号或文件名" xml:space="preserve"><value>注文番号またはファイル名</value></data>
   <data name="加载中" xml:space="preserve"><value>読み込み中</value></data>
+  <data name="正在加载" xml:space="preserve"><value>読み込み中</value></data>
   <data name="正在搜索..." xml:space="preserve"><value>検索中...</value></data>
   <data name="连接失败" xml:space="preserve"><value>接続に失敗しました</value></data>
   <data name="开始录制" xml:space="preserve"><value>録画を開始</value></data>
@@ -405,6 +470,7 @@
   <data name="请选择这台电脑的用途" xml:space="preserve"><value>このパソコンの用途を選択してください</value></data>
   <data name="请用扫码枪扫描一个快递面单条码。检测到自动回车时可后台扫码；没有自动回车时会切到窗口内识别" xml:space="preserve"><value>バーコードスキャナーで送り状のバーコードを読み取ってください。自動改行を検出できる場合はバックグラウンドで読み取れます。自動改行がない場合はウィンドウ内認識に切り替わります</value></data>
   <data name="全部" xml:space="preserve"><value>すべて</value></data>
+  <data name="显示内容" xml:space="preserve"><value>表示内容</value></data>
   <data name="扫码动态" xml:space="preserve"><value>スキャンの動き</value></data>
   <data name="本机录制动态" xml:space="preserve"><value>本機の録画の動き</value></data>
   <data name="摄像头识别面单条码开始录制，再次识别同一条码停止录制" xml:space="preserve"><value>カメラが送り状のバーコードを認識すると録画を開始し、同じバーコードを再度認識すると停止します</value></data>
@@ -626,7 +692,7 @@
   <data name="在电脑打开录像网页" xml:space="preserve"><value>このパソコンで録画ページを開く</value></data>
   <data name="暂时无法生成连接二维码" xml:space="preserve"><value>接続用 QR コードを生成できません</value></data>
   <data name="下载手机 App" xml:space="preserve"><value>スマートフォンアプリをダウンロード</value></data>
-  <data name="使用 Android 手机扫码，下载 PackingProof 手机录像 App" xml:space="preserve"><value>Android スマートフォンで読み取り、PackingProof 録画アプリをダウンロードします</value></data>
+  <data name="使用 Android 手机扫码，下载 PackingProof 手机录像 App" xml:space="preserve"><value>Android スマートフォンで読み取り、録画アプリをダウンロードします</value></data>
   <data name="手机 App 下载二维码" xml:space="preserve"><value>スマートフォンアプリのダウンロード QR コード</value></data>
   <data name="Android 版 · 扫码打开下载页" xml:space="preserve"><value>Android 版 · 読み取りでダウンロードページを開く</value></data>
   <data name="Android 最新版 v{0}" xml:space="preserve"><value>Android 最新版 v{0}</value></data>
@@ -691,7 +757,7 @@
   <data name="接收手机录像" xml:space="preserve"><value>スマートフォンの録画を受信する</value></data>
   <data name="PackingProof 查看客户端" xml:space="preserve"><value>PackingProof ビューアークライアント</value></data>
   <data name="查看客户端" xml:space="preserve"><value>ビューアークライアント</value></data>
-  <data name="连接局域网中的 PackingProof 主机，不在本机录制或保存录像" xml:space="preserve"><value>LAN 上の PackingProof ホストに接続し、本機では録画も保存もしません</value></data>
+  <data name="连接局域网中的 PackingProof 主机，不在本机录制或保存录像" xml:space="preserve"><value>LAN 上のバックアップホストに接続し、本機では録画も保存もしません</value></data>
   <data name="当前绑定主机" xml:space="preserve"><value>接続中のホスト</value></data>
   <data name="尚未绑定" xml:space="preserve"><value>未接続</value></data>
   <data name="主机地址" xml:space="preserve"><value>ホストのアドレス</value></data>
@@ -703,7 +769,7 @@
   <data name="重新选择这台电脑的用途" xml:space="preserve"><value>このパソコンの用途を選び直す</value></data>
   <data name="在浏览器中打开主机网页回放" xml:space="preserve"><value>ブラウザーでホストの Web 再生を開く</value></data>
   <data name="打开网页回放" xml:space="preserve"><value>Web 再生</value></data>
-  <data name="重新扫描局域网中的 PackingProof 主机" xml:space="preserve"><value>LAN 上の PackingProof ホストを再検索</value></data>
+  <data name="重新扫描局域网中的 PackingProof 主机" xml:space="preserve"><value>LAN 上のバックアップホストを再検索</value></data>
   <data name="解除当前显示并选择另一台主机" xml:space="preserve"><value>現在の接続を解除して別のホストを選択</value></data>
   <data name="保存并连接列表中选中的主机" xml:space="preserve"><value>一覧で選択したホストを保存して接続</value></data>
   <data name="连接输入的主机地址" xml:space="preserve"><value>入力したホストのアドレスに接続</value></data>
@@ -722,9 +788,9 @@
   <data name="选择电脑用途" xml:space="preserve"><value>パソコンの用途を選択</value></data>
   <data name="这台电脑主要用来做什么？" xml:space="preserve"><value>このパソコンの主な用途は何ですか？</value></data>
   <data name="选择后将只启动这个场景需要的设备、存储和网络服务" xml:space="preserve"><value>選択すると、そのシナリオに必要なデバイス、ストレージ、ネットワークサービスだけを起動します</value></data>
-  <data name="使用电脑摄像头和麦克风录制打包过程，优先由摄像头识别面单条码，也可选用扫码枪。本机会成为 PackingProof 主机，也可以接收手机或其他电脑上传的录像" xml:space="preserve"><value>パソコンのカメラとマイクで梱包作業を録画し、カメラで送り状のバーコードを優先的に認識します。バーコードスキャナーも使用できます。このパソコンは PackingProof ホストとなり、スマートフォンや他のパソコンからの録画も受信できます</value></data>
-  <data name="不在本机录制或保存视频，连接局域网中的 PackingProof 主机查看录像，也可以安装快递助手联动脚本" xml:space="preserve"><value>本機では録画も保存もせず、LAN 上の PackingProof ホストに接続して録画を閲覧します。送り状アシスタントの連携スクリプトもインストールできます</value></data>
-  <data name="不使用电脑摄像头，集中保存手机或其他电脑上传的录像。本机会成为 PackingProof 主机" xml:space="preserve"><value>パソコンのカメラは使わず、スマートフォンや他のパソコンからアップロードされた録画をまとめて保存します。このパソコンは PackingProof ホストとなります</value></data>
+  <data name="使用电脑摄像头和麦克风录制打包过程，优先由摄像头识别面单条码，也可选用扫码枪。本机会成为 PackingProof 主机，也可以接收手机或其他电脑上传的录像" xml:space="preserve"><value>パソコンのカメラとマイクで梱包作業を録画し、カメラで送り状のバーコードを優先的に認識します。バーコードスキャナーも使用できます。このパソコンはバックアップホストとなり、スマートフォンや他のパソコンからの録画も受信できます</value></data>
+  <data name="不在本机录制或保存视频，连接局域网中的 PackingProof 主机查看录像，也可以安装快递助手联动脚本" xml:space="preserve"><value>本機では録画も保存もせず、LAN 上のバックアップホストに接続して録画を閲覧します。送り状アシスタントの連携スクリプトもインストールできます</value></data>
+  <data name="不使用电脑摄像头，集中保存手机或其他电脑上传的录像。本机会成为 PackingProof 主机" xml:space="preserve"><value>パソコンのカメラは使わず、スマートフォンや他のパソコンからアップロードされた録画をまとめて保存します。このパソコンはバックアップホストとなります</value></data>
   <data name="安装或重新生成快递助手联动脚本" xml:space="preserve"><value>送り状アシスタント連携スクリプトをインストールまたは再生成</value></data>
   <data name="快递助手联动" xml:space="preserve"><value>送り状アシスタント連携</value></data>
   <data name="PackingProof 录像文件备份主机" xml:space="preserve"><value>PackingProof 録画ファイルのバックアップホスト</value></data>
@@ -920,6 +986,7 @@
   <data name="确认用途" xml:space="preserve"><value>用途を確定</value></data>
   <data name="当前用途" xml:space="preserve"><value>現在の用途</value></data>
   <data name="将切换到" xml:space="preserve"><value>切り替え先</value></data>
+  <data name="将使用" xml:space="preserve"><value>使用する用途</value></data>
   <data name="电脑录像并保存在本机" xml:space="preserve"><value>パソコンで録画し、本機に保存</value></data>
   <data name="这台电脑既负责录像，也作为备份主机长期保管录像" xml:space="preserve"><value>このパソコンは録画を行い、バックアップホストとして録画を長期保管します</value></data>
   <data name="使用完整电脑录像能力" xml:space="preserve"><value>パソコン録画の全機能を使用</value></data>
@@ -975,6 +1042,7 @@
   <data name="正在准备视频..." xml:space="preserve"><value>動画を準備中...</value></data>
   <data name="正在转码，完成后会自动播放" xml:space="preserve"><value>トランスコード中です。準備が完了すると自動的に再生します</value></data>
   <data name="主机正在准备兼容版本，完成后会自动播放" xml:space="preserve"><value>ホストが互換バージョンを準備しています。完了すると自動的に再生します</value></data>
+  <data name="这条录像暂时无法播放" xml:space="preserve"><value>この録画は現在再生できません</value></data>
   <data name="录像暂时无法播放，请稍后重试" xml:space="preserve"><value>現在この録画を再生できません。しばらくしてから再試行してください</value></data>
   <data name="录像仍在准备中，请稍后重新选择" xml:space="preserve"><value>録画はまだ準備中です。しばらくしてからもう一度選択してください</value></data>
   <data name="视频播放失败" xml:space="preserve"><value>動画の再生に失敗しました</value></data>
@@ -1081,7 +1149,7 @@
   <data name="允许称重等第三方程序把数据显示到录像水印中" xml:space="preserve"><value>計量などのサードパーティプログラムが録画ウォーターマークにデータを表示することを許可します</value></data>
   <data name="允许第三方扩展连接？" xml:space="preserve"><value>サードパーティ拡張の接続を許可しますか？</value></data>
   <data name="申请访问范围" xml:space="preserve"><value>要求されたアクセス範囲</value></data>
-  <data name="PackingProof 不会执行此扩展的代码。允许后，扩展只能调用上面列出的接口；请仅批准你信任的来源" xml:space="preserve"><value>PackingProof は拡張コードを実行しません。許可すると上記 API のみ呼び出せます。信頼できる提供元のみ承認してください</value></data>
+  <data name="PackingProof 不会执行此扩展的代码。允许后，扩展只能调用上面列出的接口；请仅批准你信任的来源" xml:space="preserve"><value>本アプリは拡張コードを実行しません。許可すると上記 API のみ呼び出せます。信頼できる提供元のみ承認してください</value></data>
   <data name="允许扩展" xml:space="preserve"><value>拡張を許可</value></data>
   <data name="Extension.EnrollmentSourceUnknown" xml:space="preserve"><value>提供元の情報がありません</value></data>
   <data name="Extension.EnrollmentAddressUnknown" xml:space="preserve"><value>アドレスが不明です</value></data>
@@ -1136,6 +1204,7 @@
   <data name="录像从机" xml:space="preserve"><value>録画ワークステーション</value></data>
   <data name="备份主机" xml:space="preserve"><value>バックアップホスト</value></data>
   <data name="录像查看端" xml:space="preserve"><value>録画ビューアー</value></data>
+  <data name="尚未配置" xml:space="preserve"><value>未設定</value></data>
   <data name="本机录像并长期保存，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>本機で録画して長期保存し、NAS／ネットワーク共有フォルダーへのバックアップに対応</value></data>
   <data name="接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>スマートフォンや他のパソコンの録画を受信して長期保存し、NAS／ネットワーク共有フォルダーへのバックアップに対応</value></data>
   <data name="本机录像，自动上传到备份主机" xml:space="preserve"><value>本機で録画し、バックアップホストへ自動でアップロード</value></data>
@@ -1319,7 +1388,7 @@
   <data name="打开完整更新页面" xml:space="preserve"><value>ダウンロードページ</value></data>
   <data name="打开主机录像失败" xml:space="preserve"><value>ホストの録画を開けませんでした</value></data>
   <data name="单号不一致：{upperResult}" xml:space="preserve"><value>番号が一致しません: {0}</value></data>
-  <data name="当前 PackingProof 版本过低" xml:space="preserve"><value>現在の PackingProof のバージョンが古すぎます</value></data>
+  <data name="当前 PackingProof 版本过低" xml:space="preserve"><value>現在のバージョンが古すぎます</value></data>
   <data name="当前日期范围内没有可导出的单号" xml:space="preserve"><value>現在の日付範囲にエクスポートできる番号がありません</value></data>
   <data name="当前识别：{status.Code}" xml:space="preserve"><value>現在の認識: {0}</value></data>
   <data name="当前选择未通过编码器检测" xml:space="preserve"><value>現在の選択はエンコーダー測定に合格しませんでした</value></data>
@@ -1398,7 +1467,7 @@
   <data name="请输入大于 0 的 GB 数值" xml:space="preserve"><value>0 より大きい GB 値を入力してください</value></data>
   <data name="请输入网络摄像头地址，然后点击测试连接" xml:space="preserve"><value>ネットワーク カメラのアドレスを入力し、「接続をテスト」をクリックしてください</value></data>
   <data name="请输入预览文本" xml:space="preserve"><value>プレビュー用のテキストを入力してください</value></data>
-  <data name="请先搜索并绑定 PackingProof 主机" xml:space="preserve"><value>先に PackingProof ホストを検索して接続してください</value></data>
+  <data name="请先搜索并绑定 PackingProof 主机" xml:space="preserve"><value>先にバックアップホストを検索して接続してください</value></data>
   <data name="请先搜索并连接一台主机" xml:space="preserve"><value>先にホストを検索して接続してください</value></data>
   <data name="请先填写网络摄像头地址" xml:space="preserve"><value>先にネットワーク カメラのアドレスを入力してください</value></data>
   <data name="请先选择可用摄像头" xml:space="preserve"><value>先に利用可能なカメラを選択してください</value></data>
@@ -1587,7 +1656,7 @@
   <data name="启动中" xml:space="preserve"><value>起動中</value></data>
   <data name="连接服务未开启" xml:space="preserve"><value>接続サービスがオフ</value></data>
   <data name="等待录像完成" xml:space="preserve"><value>録画完了を待機中</value></data>
-  <data name="程序已经在运行" xml:space="preserve"><value>PackingProof は既に実行中です</value></data>
+  <data name="程序已经在运行" xml:space="preserve"><value>アプリは既に実行中です</value></data>
   <data name="数据库不可用，无法清理" xml:space="preserve"><value>データベースが利用できないため整理できません</value></data>
   <data name="尚未设置本地缓存位置" xml:space="preserve"><value>ローカルキャッシュが未設定です</value></data>
   <data name="日本語" xml:space="preserve"><value>日本語</value></data>
@@ -1729,7 +1798,7 @@
   <data name="共 0 条" xml:space="preserve"><value>録画はありません</value></data>
   <data name="第 {0} / {1} 页，共 {2} 条" xml:space="preserve"><value>{0} / {1} ページ · 全 {2} 件</value></data>
   <data name="（已安装）" xml:space="preserve"><value>（インストール済み）</value></data>
-  <data name="{0}{1}  ·  需要 PackingProof {2}+" xml:space="preserve"><value>{0}{1}  ·  PackingProof {2}+ が必要</value></data>
+  <data name="{0}{1}  ·  需要 PackingProof {2}+" xml:space="preserve"><value>{0}{1}  ·  バージョン {2} 以降が必要です</value></data>
   <data name="安装扩展失败：{0}" xml:space="preserve"><value>拡張機能のインストールに失敗しました: {0}</value></data>
   <data name="此磁盘当前建议最多 {0}，实际使用会随磁盘剩余空间动态调整" xml:space="preserve"><value>このディスクの推奨上限: {0}。実際の使用量は空き容量に応じて変わります</value></data>
   <data name="读取扩展详情失败：{0}" xml:space="preserve"><value>拡張機能の詳細を読み込めませんでした: {0}</value></data>
@@ -1742,15 +1811,15 @@
   <data name="{0}，请改用完整版本更新" xml:space="preserve"><value>{0}。完全版で更新してください</value></data>
   <data name="最新版本：暂无" xml:space="preserve"><value>最新バージョン: なし</value></data>
   <data name="最新版本：{0}" xml:space="preserve"><value>最新バージョン: {0}</value></data>
-  <data name="⚠ 闭源外部程序。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>⚠ 非公開の外部アプリです。PackingProof は内部動作を監査できず、システムへのアクセスも制限できません</value></data>
-  <data name="⚠ 外部程序由用户手动运行。PackingProof 不会自动启动，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>⚠ 外部アプリは手動で実行します。PackingProof は自動起動せず、システムへのアクセスも制限できません</value></data>
+  <data name="⚠ 闭源外部程序。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>⚠ 非公開の外部アプリです。本アプリは内部動作を監査できず、システムへのアクセスも制限できません</value></data>
+  <data name="⚠ 外部程序由用户手动运行。PackingProof 不会自动启动，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>⚠ 外部アプリは手動で実行し、自動起動しません。本アプリはシステムへのアクセスを制限できません</value></data>
   <data name="重新安装" xml:space="preserve"><value>再インストール</value></data>
   <data name="更新" xml:space="preserve"><value>更新</value></data>
   <data name="尚未安装" xml:space="preserve"><value>未インストール</value></data>
   <data name="已安装：{0}" xml:space="preserve"><value>インストール済み: {0}</value></data>
   <data name="没有可安装版本" xml:space="preserve"><value>インストール可能なバージョンがありません</value></data>
-  <data name="需要 PackingProof {0} 或更高版本" xml:space="preserve"><value>PackingProof {0} 以降が必要です</value></data>
-  <data name="需要 PackingProof {0} 或更高版本，当前版本无法安装" xml:space="preserve"><value>PackingProof {0} 以降が必要です。現在のバージョンではインストールできません</value></data>
+  <data name="需要 PackingProof {0} 或更高版本" xml:space="preserve"><value>バージョン {0} 以降が必要です</value></data>
+  <data name="需要 PackingProof {0} 或更高版本，当前版本无法安装" xml:space="preserve"><value>バージョン {0} 以降が必要です。現在のバージョンではインストールできません</value></data>
   <data name="没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪，作为摄像头识别的后备方案" xml:space="preserve"><value>スキャナーがなくても次へ進めます。使用する場合は、ここでカメラ認識の予備としてテストできます</value></data>
   <data name="没有扫码枪也可手动输入面单号；如需使用，可在这里测试扫码枪" xml:space="preserve"><value>スキャナーがなくても送り状番号を手入力できます。使用する場合はここでテストできます</value></data>
   <data name="已旋转 {0}°" xml:space="preserve"><value>{0}° 回転</value></data>
@@ -1799,15 +1868,14 @@
   <data name="NAS 副本已循环清理" xml:space="preserve"><value>NAS コピーはローテーション済み</value></data>
   <data name="检测到 exe 版数据。商店版与 exe 版使用独立数据目录，更新和卸载互不覆盖；exe 版的设置和录像不会自动迁移" xml:space="preserve"><value>exe 版のデータが見つかりました。Store 版と exe 版は別々のデータ フォルダーを使用し、更新やアンインストールで互いを上書きしません。exe 版の設定と録画は自動移行されません</value></data>
   <data name="检测到 Microsoft Store 版数据。Setup 版与商店版使用独立数据目录，更新和卸载互不覆盖；商店版请从 Microsoft Store 更新" xml:space="preserve"><value>Microsoft Store 版のデータが見つかりました。Setup 版と Store 版は別々のデータ フォルダーを使用し、更新やアンインストールで互いを上書きしません。Store 版は Microsoft Store から更新してください</value></data>
-  <data name="另一个 PackingProof 实例已经把当前电脑作为备份主机。两个版本可以同时运行，但同一时间只能有一个备份主机；请关闭其中一个，或把当前版本改为查看端/录像从机" xml:space="preserve"><value>別の PackingProof インスタンスがこのパソコンをバックアップホストとして使用中です。2 つのエディションは同時に実行できますが、バックアップホストにできるのは 1 つだけです。どちらかを終了するか、このエディションをビューアーまたは録画ワークステーションに切り替えてください</value></data>
+  <data name="另一个 PackingProof 实例已经把当前电脑作为备份主机。两个版本可以同时运行，但同一时间只能有一个备份主机；请关闭其中一个，或把当前版本改为查看端/录像从机" xml:space="preserve"><value>別のインスタンスがこのパソコンをバックアップホストとして使用中です。2 つのエディションは同時に実行できますが、バックアップホストにできるのは 1 つだけです。どちらかを終了するか、このエディションをビューアーまたは録画ワークステーションに切り替えてください</value></data>
   <data name="不能同时作为备份主机" xml:space="preserve"><value>バックアップホストは 1 つだけです</value></data>
   <data name="另一个版本正在作为备份主机。这台电脑只能选择查看端或录像从机，不能再次作为备份主机" xml:space="preserve"><value>別のエディションがバックアップホストとして使用中です。このパソコンはビューアーまたは録画ワークステーションのみ選択でき、バックアップホストにはできません</value></data>
   <data name="商店版更新由 Microsoft Store 统一管理，请打开 Microsoft Store 的“库”页面检查更新" xml:space="preserve"><value>ストア版の更新は Microsoft Store で管理されます。Microsoft Store の [ライブラリ] ページで更新を確認してください</value></data>
   <data name="请先关闭旧版本" xml:space="preserve"><value>旧バージョンを終了してください</value></data>
   <data name="检测到旧版本仍在运行。请先关闭旧版本，再打开新版本，避免两个进程同时写入同一份配置和录像数据库" xml:space="preserve"><value>旧バージョンが実行中です。同じ設定と録画データベースに 2 つのプロセスが書き込まないよう、旧バージョンを終了してから開いてください</value></data>
-  <data name="提示：" xml:space="preserve"><value>お知らせ:</value></data>
   <data name="扩展脚本已导入，可在安装订单联动中选择" xml:space="preserve"><value>拡張スクリプトをインポートしました。注文連携で選択できます</value></data>
-  <data name="外部扩展已安装。PackingProof 不会自动运行它，关闭此提示后将打开安装目录" xml:space="preserve"><value>外部拡張をインストールしました。PackingProof は自動実行しません。この通知を閉じるとインストール フォルダーが開きます</value></data>
+  <data name="外部扩展已安装。PackingProof 不会自动运行它，关闭此提示后将打开安装目录" xml:space="preserve"><value>外部拡張をインストールしました。本アプリは自動実行しません。この通知を閉じるとインストール フォルダーが開きます</value></data>
   <data name="安装完成" xml:space="preserve"><value>インストール完了</value></data>
   <data name="已打开表格所在文件夹，但系统未能自动选中导出文件" xml:space="preserve"><value>エクスポート先フォルダーを開きましたが、システムがファイルを自動選択できませんでした</value></data>
   <data name="定位导出文件" xml:space="preserve"><value>エクスポートしたファイルを表示</value></data>
@@ -1826,11 +1894,11 @@
   <data name="本地版本：{0}" xml:space="preserve"><value>ローカル バージョン: {0}</value></data>
   <data name="该扩展从本地 PPEXT 安装，未提供简介" xml:space="preserve"><value>この拡張はローカル PPEXT からインストールされ、説明はありません</value></data>
   <data name="该扩展从本地 PPEXT 安装，不会从市场自动更新" xml:space="preserve"><value>この拡張はローカル PPEXT からインストールされたため、マーケットから自動更新されません</value></data>
-  <data name="本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>ローカル拡張はマーケット審査を受けていません。PackingProof は内部動作を審査できず、ネットワーク、ファイル、その他のシステム リソースへのアクセスも制限できません</value></data>
+  <data name="本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>ローカル拡張はマーケット審査を受けていません。本アプリは内部動作を審査できず、ネットワーク、ファイル、その他のシステム リソースへのアクセスも制限できません</value></data>
   <data name="改进面单识别与放大" xml:space="preserve"><value>送り状の認識と拡大</value></data>
   <data name="截取录像开头和结尾画面，改进面单识别与放大" xml:space="preserve"><value>録画の冒頭と末尾を抽出し、送り状認識を改善します</value></data>
   <data name="导出样本包" xml:space="preserve"><value>サンプルを書き出す</value></data>
-  <data name="帮助 PackingProof 变得更好" xml:space="preserve"><value>PackingProof の改善にご協力ください</value></data>
+  <data name="帮助 PackingProof 变得更好" xml:space="preserve"><value>本アプリの改善にご協力ください</value></data>
   <data name="面单识别不可靠？" xml:space="preserve"><value>送り状認識が不安定ですか？</value></data>
   <data name="本机性能检测通过，已自动开启倾斜面单识别" xml:space="preserve"><value>端末の性能テストに合格したため、傾いた送り状の認識を自動で有効にしました</value></data>
   <data name="本机性能检测完成，倾斜面单识别保持关闭" xml:space="preserve"><value>端末の性能テストが完了しました。傾いた送り状の認識はオフのままです</value></data>
@@ -1843,7 +1911,7 @@
   <data name="包内不含录像、订单数据库、配置和日志，但会附带匿名设备标识和录像来源指纹，画面也可能包含面单和人物" xml:space="preserve"><value>パッケージには録画、注文データベース、設定、ログは含まれませんが、匿名の端末 ID と録画ソースの指紋が含まれ、送り状や人物が映る場合があります</value></data>
   <data name="贡献样本" xml:space="preserve"><value>サンプルを提供</value></data>
   <data name="暂不" xml:space="preserve"><value>今はしない</value></data>
-  <data name="请检查画面内容后，通过微信发送给 PackingProof 维护者，或发送到邮箱 {0}" xml:space="preserve"><value>画像を確認してから、WeChat で PackingProof のメンテナーに送るか、メール {0} に送信してください</value></data>
+  <data name="请检查画面内容后，通过微信发送给 PackingProof 维护者，或发送到邮箱 {0}" xml:space="preserve"><value>画像を確認してから、WeChat でメンテナーに送るか、メール {0} に送信してください</value></data>
   <data name="将只读取本机录像并抽取少量画面，生成 ZIP 样本包。包内不含录像、数据库、配置或日志，但画面可能包含面单和人物信息，请确认后再发送" xml:space="preserve"><value>ローカル録画からフレームのみを抽出します。録画、データベース、設定、ログは含みませんが、匿名の端末 ID を含み、送り状や人物が映る場合があります。確認してから送信してください</value></data>
   <data name="开始抓取" xml:space="preserve"><value>取得を開始</value></data>
   <data name="正在生成样本包" xml:space="preserve"><value>サンプル パッケージを作成中</value></data>
@@ -1861,6 +1929,12 @@
   <data name="知道了" xml:space="preserve"><value>OK</value></data>
   <data name="已复制反馈邮箱：{0}" xml:space="preserve"><value>フィードバック メールをコピーしました: {0}</value></data>
   <data name="请把刚生成的样本包作为附件发送" xml:space="preserve"><value>作成したサンプル パッケージを添付して送信してください</value></data>
+  <data name="开始打包" xml:space="preserve"><value>パッケージを作成</value></data>
+  <data name="诊断包已生成：{0}" xml:space="preserve"><value>診断パッケージを作成しました: {0}</value></data>
+  <data name="点击“复制邮箱地址”会复制反馈邮箱 {0}，把刚生成的压缩包作为附件发过去即可" xml:space="preserve"><value>「メール アドレスをコピー」をクリックしてフィードバック メール ({0}) をコピーし、作成したアーカイブを添付して送信してください</value></data>
+  <data name="提示：" xml:space="preserve"><value>お知らせ:</value></data>
+  <data name="请把刚生成的压缩包作为附件发送：{0}" xml:space="preserve"><value>作成したアーカイブを添付して送信してください: {0}</value></data>
+  <data name="打包失败：{0}" xml:space="preserve"><value>パッケージの作成に失敗しました: {0}</value></data>
   <data name="没能写入剪贴板，请手动记录反馈邮箱：{0}" xml:space="preserve"><value>クリップボードに書き込めませんでした。フィードバック メールを手動で控えてください: {0}</value></data>
   <data name="样本包生成失败：{0}" xml:space="preserve"><value>サンプル パッケージを作成できませんでした: {0}</value></data>
   <data name="播放（空格）" xml:space="preserve"><value>再生（スペース）</value></data>
@@ -1981,9 +2055,10 @@
   <data name="WindowsDevicePermission.DialogTitle" xml:space="preserve"><value>カメラまたはマイクのアクセス許可がオフです</value></data>
   <data name="WindowsDevicePermission.CameraTitle" xml:space="preserve"><value>カメラのアクセス許可</value></data>
   <data name="WindowsDevicePermission.MicrophoneTitle" xml:space="preserve"><value>マイクのアクセス許可</value></data>
-  <data name="WindowsDevicePermission.CameraBlocked" xml:space="preserve"><value>カメラへのアクセスがブロックされています。Windows の設定で許可し、PackingProof を開き直してください</value></data>
-  <data name="WindowsDevicePermission.MicrophoneBlocked" xml:space="preserve"><value>マイクへのアクセスがブロックされています。Windows の設定で許可し、PackingProof を開き直してください</value></data>
-  <data name="WindowsDevicePermission.BothBlocked" xml:space="preserve"><value>カメラとマイクへのアクセスがブロックされています。Windows の設定で許可し、PackingProof を開き直してください</value></data>
+  <data name="WindowsDevicePermission.CameraBlocked" xml:space="preserve"><value>カメラへのアクセスがブロックされています。Windows の設定で許可し、アプリを開き直してください</value></data>
+  <data name="WindowsDevicePermission.MicrophoneBlocked" xml:space="preserve"><value>マイクへのアクセスがブロックされています。Windows の設定で許可し、アプリを開き直してください</value></data>
+  <data name="WindowsDevicePermission.BothBlocked" xml:space="preserve"><value>カメラとマイクへのアクセスがブロックされています。Windows の設定で許可し、アプリを開き直してください</value></data>
+  <data name="PackingProof 主机离线或无法访问" xml:space="preserve"><value>バックアップホストがオフラインか、アクセスできません</value></data>
   <data name="WindowsDevicePermission.OpenSettings" xml:space="preserve"><value>Windows の設定を開く</value></data>
   <data name="WindowsDevicePermission.CameraOpenSettings" xml:space="preserve"><value>カメラのアクセス許可設定を開く</value></data>
   <data name="WindowsDevicePermission.MicrophoneOpenSettings" xml:space="preserve"><value>マイクのアクセス許可設定を開く</value></data>

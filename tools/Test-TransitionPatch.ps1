@@ -85,7 +85,7 @@ function Publish-FrameworkDependentApp {
         [string]$Version
     )
 
-    # 补丁里的应用文件必须是待升级版本：启动器安装完会校验 app 里的产品版本等于补丁的 latest_version。
+    # 补丁里的应用文件必须是待升级版本：启动器安装完会校验 app 里的软件版本等于补丁的 latest_version。
     & dotnet publish (Join-Path $repoRoot "src\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj") `
         -c Release -r win-x64 --self-contained false --nologo `
         "-p:InformationalVersion=$Version" `

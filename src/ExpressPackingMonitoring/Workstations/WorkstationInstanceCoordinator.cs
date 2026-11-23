@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.UpdateCore;
 using System.IO;
 using System.IO.Pipes;
 using System.Windows;
@@ -9,10 +10,10 @@ namespace ExpressPackingMonitoring;
 
 public sealed class WorkstationInstanceCoordinator : IDisposable
 {
-    private const string NamePrefix = "ExpressPackingMonitoring";
     private const string LegacyMutexName = @"Local\ExpressPackingMonitoring.Mutex";
     private const string LegacyActivationPipeName = "ExpressPackingMonitoring.Activate";
-    private const string HostMutexName = @"Local\ExpressPackingMonitoring.Host.Mutex";
+    private static string NamePrefix => BrandMetadata.InstanceNamePrefix;
+    private static string HostMutexName => $@"Local\{NamePrefix}.Host.Mutex";
     private readonly Mutex _mutex;
     private readonly Mutex? _legacyMutex;
     private readonly CancellationTokenSource _cts = new();
@@ -45,7 +46,9 @@ public sealed class WorkstationInstanceCoordinator : IDisposable
             Environment.GetEnvironmentVariable("EPM_SKIP_LEGACY_INSTANCE_LOCK"),
             "1",
             StringComparison.OrdinalIgnoreCase);
-        bool acquireLegacyAlias = !packaged && !skipLegacyAlias;
+        bool acquireLegacyAlias = !packaged
+            && !skipLegacyAlias
+            && string.Equals(BrandMetadata.CompatibilityId, "PackingProof", StringComparison.OrdinalIgnoreCase);
         return TryCreateCore(
             out coordinator,
             out conflict,
@@ -114,7 +117,9 @@ public sealed class WorkstationInstanceCoordinator : IDisposable
         if (MutexExists(GetMutexName()))
             return true;
 
-        return !PackagingIdentity.IsPackaged && MutexExists(LegacyMutexName);
+        return !PackagingIdentity.IsPackaged
+            && string.Equals(BrandMetadata.CompatibilityId, "PackingProof", StringComparison.OrdinalIgnoreCase)
+            && MutexExists(LegacyMutexName);
     }
 
     private static bool MutexExists(string name)

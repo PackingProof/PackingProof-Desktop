@@ -75,7 +75,7 @@ struct MainWindowView: View {
                 .frame(width: 38, height: 38)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
-                Text(model.isViewer ? "PackingProof 查看端" : "PackingProof 备份主机")
+                Text(model.isViewer ? "\(AppBranding.displayName) 查看端" : "\(AppBranding.displayName) 备份主机")
                     .font(.title3.weight(.semibold))
                 Text(model.isViewer ? "只连接主机查看" : "接收手机与其他电脑的录像")
                     .font(.subheadline)
@@ -516,7 +516,7 @@ private struct SettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("关于").font(.headline)
             VStack(alignment: .leading, spacing: 4) {
-                Text(model.isViewer ? "PackingProof 查看端" : "PackingProof 备份主机")
+                Text(model.isViewer ? "\(AppBranding.displayName) 查看端" : "\(AppBranding.displayName) 备份主机")
                     .font(.subheadline.weight(.semibold))
                 Text(model.appVersion.isEmpty ? "版本未知" : "版本 \(model.appVersion)")
                     .font(.caption)

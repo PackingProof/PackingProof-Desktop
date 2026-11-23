@@ -1,3 +1,7 @@
+param(
+    [string]$BrandProfile = ""
+)
+
 $source = @"
 using System;
 using System.Drawing;
@@ -46,7 +50,7 @@ public class AdvancedIconGenerator {
 
     /// <summary>
     /// 按尺寸画一张图标：白色圆角方块 + 蓝色"打包监控"（32 以下只画"包"）。
-    /// app.ico 与网页头部用的 Web/logo.png 共用这一份画法，样式不会走偏。
+    /// 软件配置里的 app.ico 与 logo.png 共用这一份画法，样式不会走偏。
     /// </summary>
     public static Bitmap CreateIconBitmap(int size) {
         var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
@@ -190,11 +194,16 @@ $drawingReferences = if ($PSVersionTable.PSEdition -eq 'Core') {
 }
 
 Add-Type -TypeDefinition $source -ReferencedAssemblies $drawingReferences -ErrorAction Stop
-$outputPath = Join-Path $PSScriptRoot "app.ico"
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+. (Join-Path $repoRoot "tools\Branding.Common.ps1")
+$brand = Get-BrandProfile -RepoRoot $repoRoot -BrandProfile $BrandProfile
+$profileRoot = $brand.ProfileDirectory
+
+$outputPath = Join-Path $profileRoot "app.ico"
 [AdvancedIconGenerator]::BuildIcon($outputPath)
-Write-Host "Multi-resolution icon generated successfully."
+Write-Host "Multi-resolution icon generated: $outputPath"
 
 # 网页头部（Web/index.html）直接引用这张图，尺寸按显示大小出图，浏览器不用缩放。
-$webLogoPath = Join-Path $PSScriptRoot "Web\logo.png"
+$webLogoPath = Join-Path $profileRoot "logo.png"
 [AdvancedIconGenerator]::SaveWebLogo($webLogoPath, 96)
 Write-Host "Web logo generated: $webLogoPath"

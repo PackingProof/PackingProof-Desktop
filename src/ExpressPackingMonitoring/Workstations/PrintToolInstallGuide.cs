@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.UpdateCore;
 using ExpressPackingMonitoring.Services;
 using System.IO;
 using System.Net;
@@ -12,10 +13,11 @@ namespace ExpressPackingMonitoring;
 internal static class PrintToolInstallGuide
 {
     private const string TemplateFileName = "kuaidizs-install-guide.html";
-    internal const string ScriptFileName = "PackingProof-Order-Integration-KDZS.user.js";
+    internal static string ScriptFileName =>
+        BrandMetadata.ArtifactPrefix + "-Order-Integration-KDZS.user.js";
     private const string UpdateUrlsMarker = "// PACKING_PROOF_UPDATE_URLS";
 
-    internal static string OfficialScriptName => "PackingProof 快递助手订单联动";
+    internal static string OfficialScriptName => BrandMetadata.ProductName + " 快递助手订单联动";
 
     public static string CreateLocalGuide(string monitorAddress)
     {
@@ -259,7 +261,7 @@ internal static class PrintToolInstallGuide
                     || uri.Port is <= 0 or > 65535)
                     continue;
 
-                int port = uri.IsDefaultPort ? 5280 : uri.Port;
+                int port = uri.IsDefaultPort ? BrandMetadata.WebServerPort : uri.Port;
                 var normalized = new UriBuilder(Uri.UriSchemeHttp, uri.Host, port).Uri;
                 if (result.Any(item => string.Equals(item.Authority, normalized.Authority, StringComparison.OrdinalIgnoreCase)))
                     continue;
@@ -311,7 +313,7 @@ internal static class PrintToolInstallGuide
     private static string BuildScriptLink(string scriptUrl)
     {
         return string.IsNullOrWhiteSpace(scriptUrl)
-            ? "<div class=\"warn\">订单联动脚本尚未就绪，请回到 PackingProof Desktop 再点一次“安装订单联动”</div>"
+            ? $"<div class=\"warn\">订单联动脚本尚未就绪，请回到 {BrandMetadata.ProductName} Desktop 再点一次“安装订单联动”</div>"
             : $"<a class=\"primary\" href=\"{WebUtility.HtmlEncode(scriptUrl)}\" target=\"_blank\" rel=\"noopener\">安装订单联动</a>";
     }
 

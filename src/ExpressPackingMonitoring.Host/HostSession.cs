@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Host;
 
@@ -70,6 +71,8 @@ internal static class HostSession
             nodeName: config.NodeName,
             deploymentPreset: DeploymentPresets.MobileBackupHost,
             validatedEncodersProvider: () => config.ValidatedEncodersCache,
+            effectiveCapabilities: ProductCapabilityRuntime.ForPreset(
+                DeploymentPresets.MobileBackupHost),
             backupDeviceEnrollmentApprover: ApproveDeviceEnrollment);
         try
         {

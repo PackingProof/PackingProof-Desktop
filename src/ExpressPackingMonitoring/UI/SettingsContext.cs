@@ -3,6 +3,7 @@ using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
+using ExpressPackingMonitoring.UpdateCore;
 using CommunityToolkit.Mvvm.Input;
 using System.Windows;
 using System.Windows.Input;
@@ -11,21 +12,57 @@ namespace ExpressPackingMonitoring.UI;
 
 public sealed class SettingsCapabilities
 {
-    private SettingsCapabilities(DeploymentCapabilities capabilities)
+    private readonly bool _supportsOrderReceiver;
+    private readonly bool _visionObbConfigured;
+    private readonly bool _canChoosePurpose;
+
+    private SettingsCapabilities(
+        EffectiveProductCapabilities permissions,
+        EffectiveProductCapabilities effective,
+        bool? canChoosePurpose)
     {
-        IsHost = capabilities.IsHost;
-        IsRecordingDevice = capabilities.IsRecordingDevice;
-        CanUseCamera = capabilities.CanUseCamera;
-        CanRecordAudio = capabilities.CanRecordAudio;
-        CanUseCameraBarcode = capabilities.CanUseCameraBarcode;
-        CanUseScanner = capabilities.CanUseScanner;
-        CanRecordPcVideo = capabilities.CanRecordPcVideo;
-        CanConfigureStorage = capabilities.CanConfigureStorage;
-        CanRunWebServer = capabilities.CanRunWebServer;
-        CanReceiveMobileBackup = capabilities.CanReceiveMobileBackup;
-        CanConnectHost = capabilities.CanConnectHost;
-        CanManageRecordingDevices = capabilities.CanManageRecordingDevices;
-        CanGenerateUserscript = capabilities.CanGenerateUserscript;
+        IsHost = effective.IsHost;
+        IsRecordingDevice = permissions.Features.VideoRecording;
+        CanUseCamera = permissions.Features.Inputs.Camera;
+        CanRecordAudio = permissions.Features.Inputs.Microphone;
+        CanUseCameraBarcode = permissions.Features.Inputs.CameraBarcode;
+        CanUseScanner = permissions.Features.Inputs.Scanner;
+        CanRecordPcVideo = permissions.Features.VideoRecording;
+        CanConfigureStorage =
+            permissions.IsHost && permissions.Features.MediaLibrary;
+        CanRunWebServer =
+            permissions.Features.MediaLibrary
+            && permissions.Features.RemoteMediaAccess;
+        CanReceiveMobileBackup = permissions.Features.MobileBackupReceive;
+        CanConnectHost =
+            !permissions.IsHost && permissions.Features.LanCollaboration;
+        CanManageRecordingDevices =
+            permissions.IsHost
+            && permissions.Features.MediaLibrary
+            && permissions.Features.LanCollaboration;
+        CanGenerateUserscript = permissions.Features.Userscript;
+        CanUseMediaLibrary = permissions.Features.MediaLibrary;
+        CanConfigureNasArchive = permissions.Features.NasArchive;
+        CanUseExtensionMarket = permissions.Features.ExtensionMarket;
+        CanUseOrderReceiver = permissions.Features.OrderReceiver;
+        CanUseTts = permissions.Features.Tts;
+        _supportsOrderReceiver = permissions.Features.OrderReceiver;
+        _visionObbConfigured = permissions.Features.Inputs.VisionObb;
+        CanUseTransferManagement =
+            (IsHost
+                && (permissions.Features.MobileBackupReceive
+                    || permissions.Features.ComputerBackupReceive))
+            || CanConnectHost;
+        CanOperateCamera = effective.Features.Inputs.Camera;
+        CanOperateVideo = effective.Features.VideoRecording;
+        CanOperatePhoto =
+            effective.Features.PhotoCapture
+            && effective.Features.MediaLibrary;
+        CanOperateScanner = effective.Features.Inputs.Scanner;
+        CanOperateCameraBarcode = effective.Features.Inputs.CameraBarcode;
+        CanOperateVisionObb = effective.Features.Inputs.VisionObb;
+        _canChoosePurpose = canChoosePurpose
+            ?? ProductCapabilityRuntime.AvailableRoles().Count > 1;
     }
 
     public bool IsHost { get; }
@@ -33,7 +70,8 @@ public sealed class SettingsCapabilities
     public bool CanUseCamera { get; }
     public bool CanRecordAudio { get; }
     public bool CanUseCameraBarcode { get; }
-    public bool CanUseVisionObb => CanUseCameraBarcode && VisionObbHost.IsAvailable;
+    public bool CanUseVisionObb =>
+        _visionObbConfigured && VisionObbHost.IsAvailable;
     public bool CanUseScanner { get; }
     public bool CanRecordPcVideo { get; }
     public bool CanConfigureStorage { get; }
@@ -42,6 +80,20 @@ public sealed class SettingsCapabilities
     public bool CanConnectHost { get; }
     public bool CanManageRecordingDevices { get; }
     public bool CanGenerateUserscript { get; }
+    public bool CanUseMediaLibrary { get; }
+    public bool CanConfigureNasArchive { get; }
+    public bool CanUseExtensionMarket { get; }
+    public bool CanUseOrderReceiver { get; }
+    public bool CanUseTts { get; }
+    public bool ShowSoundSettings => IsRecordingDevice && CanUseTts;
+    public bool CanUseTransferManagement { get; }
+    public bool CanOperateCamera { get; }
+    public bool CanOperateVideo { get; }
+    public bool CanOperatePhoto { get; }
+    public bool CanOperateScanner { get; }
+    public bool CanOperateCameraBarcode { get; }
+    public bool CanOperateVisionObb { get; }
+    public bool CanChoosePurpose => _canChoosePurpose;
     public bool CanConfigureRecordingCache =>
         IsRecordingDevice && CanConnectHost && !IsHost;
 
@@ -53,6 +105,7 @@ public sealed class SettingsCapabilities
 
     public bool CanViewStorageSettings =>
         CanConfigureStorage || CanConfigureRecordingCache;
+    public bool CanViewBackupStorageSettings => CanConfigureNasArchive;
 
     /// <summary>当前是不是 Microsoft Store 的 MSIX 包；商店版由包管理器负责更新和启动项。</summary>
     public bool IsStorePackage { get; } = PackagingIdentity.IsPackaged;
@@ -71,20 +124,63 @@ public sealed class SettingsCapabilities
 
     public bool SupportsSpeechSettings => CanRecordPcVideo;
     public bool SupportsScannerSettings => CanUseScanner;
-    public bool SupportsOrderVoiceSettings => IsRecordingDevice;
+    public bool SupportsOrderVoiceSettings =>
+        CanRecordPcVideo && _supportsOrderReceiver;
     public bool SupportsCameraMaintenance => CanUseCamera;
     public bool IsNoCameraWorkstation => !CanUseCamera;
 
     public static SettingsCapabilities ForPreset(string? preset) =>
-        new(DeploymentCapabilities.ForPreset(preset));
+        FromEffective(ProductCapabilityRuntime.ForPreset(preset));
+
+    public static SettingsCapabilities ForPreset(
+        string? preset,
+        RuntimeEnvironment environment)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        EffectiveProductCapabilities permissions = ProductCapabilityRuntime.ForPreset(
+            preset,
+            RuntimeEnvironment.FullyAvailable);
+        EffectiveProductCapabilities effective = ProductCapabilityRuntime.ForPreset(
+            preset,
+            environment);
+        return new SettingsCapabilities(
+            permissions,
+            effective,
+            canChoosePurpose:
+                ProductCapabilityRuntime.AvailableRoles(environment).Count > 1);
+    }
 
     public static SettingsCapabilities ForRole(string? role) =>
         ForPreset(DeploymentPresets.FromLegacyRole(role));
+
+    internal static SettingsCapabilities FromEffective(
+        EffectiveProductCapabilities capabilities,
+        bool? canChoosePurpose = null)
+        => FromEffective(capabilities, capabilities, canChoosePurpose);
+
+    internal static SettingsCapabilities FromEffective(
+        EffectiveProductCapabilities permissions,
+        EffectiveProductCapabilities effective,
+        bool? canChoosePurpose = null)
+    {
+        ArgumentNullException.ThrowIfNull(permissions);
+        ArgumentNullException.ThrowIfNull(effective);
+        return new SettingsCapabilities(
+            permissions,
+            effective,
+            canChoosePurpose);
+    }
 }
+
+public sealed record DeploymentPurposeOption(
+    string Preset,
+    string DisplayName);
 
 public sealed class SettingsContext
 {
     public required SettingsCapabilities Capabilities { get; init; }
+    public IReadOnlyList<DeploymentPurposeOption> AvailablePurposes { get; init; } = [];
+    public bool CanChoosePurpose => AvailablePurposes.Count > 1;
     public required Func<AppConfig, Task<bool>> ApplyAsync { get; init; }
     public Func<string>? ConnectionAddressProvider { get; init; }
     public Action<Window>? ShowMobileConnection { get; init; }
@@ -118,7 +214,13 @@ public sealed class SettingsContext
         ArgumentNullException.ThrowIfNull(mainViewModel);
         return new SettingsContext
         {
-            Capabilities = SettingsCapabilities.ForPreset(mainViewModel.Config.DeploymentPreset),
+            Capabilities = mainViewModel.Capabilities,
+            AvailablePurposes = ProductCapabilityRuntime.AvailableRoles(
+                    RuntimeCapabilityEnvironment.FromConfig(mainViewModel.Config))
+                .Select(role => new DeploymentPurposeOption(
+                    role.DeploymentPreset,
+                    DeploymentPresets.GetDisplayName(role.DeploymentPreset)))
+                .ToArray(),
             ApplyAsync = mainViewModel.ApplySettingsAsync,
             ConnectionAddressProvider = () => mainViewModel.MonitorAccessAddress,
             ShowMobileConnection = mainViewModel.ShowMobileConnection,
@@ -127,7 +229,7 @@ public sealed class SettingsContext
             OpenExtensionMarket = mainViewModel.OpenExtensionMarket,
             SwitchPurposeCommand = new AsyncRelayCommand<Window>(
                 mainViewModel.SwitchWorkstationAsync,
-                _ => mainViewModel.CanSwitchWorkstation),
+                _ => mainViewModel.CanInvokePurposeSwitch),
             RequestHostStorageCommand = new AsyncRelayCommand<Window>(
                 mainViewModel.RequestHostStorageAsync),
             FormatRecordingCacheUsage = mainViewModel.FormatRecordingCacheUsage,

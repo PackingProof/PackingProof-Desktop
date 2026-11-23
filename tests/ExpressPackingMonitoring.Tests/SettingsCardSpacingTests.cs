@@ -69,23 +69,6 @@ public sealed class SettingsCardSpacingTests
         host.UpdateLayout();
     }
 
-    private static void RunOnStaThread(Action action)
-    {
-        Exception? failure = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                if (Application.Current == null)
-                    _ = new Application();
-                action();
-            }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA 线程执行超时");
-        if (failure != null)
-            throw new Xunit.Sdk.XunitException($"卡片留白验证失败：{failure}");
-    }
+    private static void RunOnStaThread(Action action) =>
+        WpfTestHost.Run(action, TimeSpan.FromSeconds(60), "STA 线程执行超时");
 }

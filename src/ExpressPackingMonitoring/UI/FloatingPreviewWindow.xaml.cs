@@ -59,6 +59,7 @@ namespace ExpressPackingMonitoring.UI
             _restoreMainWindow = restoreMainWindow ?? throw new ArgumentNullException(nameof(restoreMainWindow));
 
             InitializeComponent();
+            Title = UpdateCore.BrandMetadata.WindowTitle;
             DataContext = viewModel;
 
             RestoreButton.ToolTip = AppLanguage.Get("回到主界面");

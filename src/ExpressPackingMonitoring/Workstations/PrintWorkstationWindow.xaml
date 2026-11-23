@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:ExpressPackingMonitoring.UI.Controls"
         xmlns:loc="clr-namespace:ExpressPackingMonitoring.Localization"
-        Title="PackingProof 备份主机"
+        Title="Storage Host"
         Width="760"
         MinWidth="760"
         MaxHeight="720"

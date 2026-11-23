@@ -55,6 +55,8 @@ public sealed class LauncherBaselineScriptTests
             if ($one -ne $same -or $one -eq $otherUrl -or $one -eq $otherRuntime -or
                 $files -notcontains 'Tools\Install-LauncherPatch.cmd' -or
                 $files -notcontains 'Tools\Apply-LauncherPatch.ps1' -or
+                $files -notcontains 'Branding\Brand.props' -or
+                $files -contains 'Branding\profiles\software-template\Brand.props' -or
                 $files -notcontains 'ExpressPackingMonitoring.UpdateCore\UpdateMetadataClient.cs' -or
                 $files -notcontains 'ExpressPackingMonitoring.UpdateCore\PackageDownloadRoutePolicy.cs' -or
                 $missing.Count -gt 0) {
@@ -79,6 +81,37 @@ public sealed class LauncherBaselineScriptTests
         Assert.Contains("--artifacts-path $buildArtifacts", script, StringComparison.Ordinal);
         Assert.Contains("-o $publishDir", script, StringComparison.Ordinal);
         Assert.DoesNotContain("BaseIntermediateOutputPath", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LauncherComponentTag_PointsAtTheCurrentScopedBaseline()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string manifestPath = Path.Combine(repositoryRoot, "tools", "launcher-baseline.json");
+        string manifest = File.ReadAllText(manifestPath, Encoding.UTF8);
+        var baseline = JsonDocument.Parse(manifest).RootElement;
+        string tag = baseline.GetProperty("tag").GetString()!;
+        string sourceFingerprint = baseline.GetProperty("source_fingerprint").GetString()!;
+        string packageSha256 = baseline.GetProperty("package").GetProperty("sha256").GetString()!;
+        Assert.DoesNotContain(
+            baseline.GetProperty("fingerprint_files").EnumerateArray().Select(item => item.GetString()),
+            path => path?.Contains("Branding/profiles/", StringComparison.OrdinalIgnoreCase) == true);
+
+        string command = $$"""
+            $ErrorActionPreference = 'Stop'
+            $manifest = git -C '{{EscapePowerShell(repositoryRoot)}}' show '{{EscapePowerShell(tag)}}:tools/launcher-baseline.json' | ConvertFrom-Json
+            if ($manifest.source_fingerprint -ne '{{EscapePowerShell(sourceFingerprint)}}' -or
+                $manifest.package.sha256 -ne '{{EscapePowerShell(packageSha256)}}' -or
+                @($manifest.fingerprint_files | Where-Object {
+                    $_ -like 'Branding/profiles/*'
+                }).Count -gt 0) {
+                exit 1
+            }
+            """;
+
+        ProcessResult result = RunPowerShell(command, repositoryRoot);
+
+        Assert.True(result.ExitCode == 0, $"{result.Output}\n{result.Error}");
     }
 
     [Fact]
@@ -129,10 +162,15 @@ public sealed class LauncherBaselineScriptTests
                 @"src\ExpressPackingMonitoring.Launcher\Program.cs",
                 @"src\ExpressPackingMonitoring.Launcher\ExpressPackingMonitoring.Launcher.csproj",
                 @"src\ExpressPackingMonitoring.UpdateCore\ExpressPackingMonitoring.UpdateCore.csproj",
-                @"src\ExpressPackingMonitoring\app.ico",
                 @"tools\Install-LauncherPatch.cmd",
                 @"tools\Apply-LauncherPatch.ps1"
             }.Concat(Directory
+                .EnumerateFiles(
+                    Path.Combine(repositoryRoot, "branding"),
+                    "*",
+                    SearchOption.AllDirectories)
+                .Select(path => Path.GetRelativePath(repositoryRoot, path)))
+                .Concat(Directory
                 .EnumerateFiles(
                     Path.Combine(repositoryRoot, "src", "ExpressPackingMonitoring.UpdateCore"),
                     "*.cs")
@@ -221,6 +259,7 @@ public sealed class LauncherBaselineScriptTests
                 runtime = "win-x64",
                 update_check_url = "https://example.test/releases/latest",
                 source_fingerprint = new string('a', 64),
+                brand_profile_sha256 = new string('b', 64),
                 package = new
                 {
                     file = Path.GetFileName(PackagePath),

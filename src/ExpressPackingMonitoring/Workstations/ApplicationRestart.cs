@@ -24,12 +24,14 @@ public static class ApplicationRestart
             if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
                 return false;
 
-            if (!WorkstationNetwork.TryScheduleRestart(exePath, AppContext.BaseDirectory, reason))
+            if (!WorkstationNetwork.TryStartReplacementProcess(
+                    exePath,
+                    AppContext.BaseDirectory,
+                    reason,
+                    out int? replacementPid))
                 return false;
 
             RuntimeLog.RecordShutdownRequest("ApplicationRestart", reason);
-            RuntimeLog.Info("Restart",
-                $"Replacement process scheduled after resource cleanup currentPid={Environment.ProcessId}, reason={reason}");
             try
             {
                 if (owner != null)
@@ -40,6 +42,16 @@ public static class ApplicationRestart
             catch
             {
                 WorkstationNetwork.CancelPendingRestart();
+                if (replacementPid is > 0)
+                {
+                    try
+                    {
+                        using Process replacement = Process.GetProcessById(
+                            replacementPid.Value);
+                        replacement.Kill(entireProcessTree: true);
+                    }
+                    catch { }
+                }
                 throw;
             }
             return true;

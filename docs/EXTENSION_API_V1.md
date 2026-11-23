@@ -246,6 +246,8 @@ GET /api/extensions/v1/capabilities
 }
 ```
 
+`product` 是当前软件版本的兼容身份：默认 PackingProof 返回 `PackingProof`，独立软件配置返回自己的 `BrandCompatibilityId`。扩展不能假定所有应用版本都返回默认软件名，应优先依据 `apiVersion` 和 `features` 协商能力。
+
 总开关关闭时能力查询仍可返回，但授权和签名接口返回 `extension_disabled`。
 
 扩展 API 的启用状态、能力查询、服务启动方式和签名鉴权失败原因会默认写入自动轮转的 `runtime.log`，使用“关于 → 导出诊断日志”时会一并收集，不需要用户提前打开“详细调试日志”。设置中的详细调试日志可能包含订单内容和文件路径，只应在需要复现业务数据或媒体处理问题时临时开启。
@@ -329,7 +331,7 @@ ST,NT,+32.1000kg\r\n
 
 测量结果中的 `deliveryId + taskId` 已经与 `trackingNumber`、`originNodeId` 和 `recordingSessionId` 绑定。测量任务的 `orders` 必须保持为空，第三方不能重复填写或替换快递单号；服务端会把重量写入扫码任务对应的订单和录像会话。
 
-不同品牌电子秤通常只需替换 `parseYingzhanFrame`。串口号、主机地址和授权凭据均保存在运行环境或本机状态文件中，不应写死到源码或提交仓库。
+不同厂商的电子秤通常只需替换 `parseYingzhanFrame`。串口号、主机地址和授权凭据均保存在运行环境或本机状态文件中，不应写死到源码或提交仓库。
 
 ## 心跳与在线状态
 

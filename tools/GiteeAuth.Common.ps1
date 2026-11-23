@@ -6,7 +6,47 @@
 # 各存一份，容易停在失效的旧身份上（而且 `gitee auth status` 在令牌失效时仍返回 0），
 # 所以发布脚本必须先注入 .env 里的令牌，不能只看 CLI 的登录状态。
 
+function Resolve-BrandGiteeTokenFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Value,
+        $Brand
+    )
+
+    $expanded = [Environment]::ExpandEnvironmentVariables($Value.Trim())
+    if ($expanded.StartsWith("~", [System.StringComparison]::Ordinal)) {
+        $expanded = Join-Path $env:USERPROFILE $expanded.Substring(1).TrimStart('\', '/')
+    }
+    if (-not [System.IO.Path]::IsPathRooted($expanded) -and $null -ne $Brand) {
+        $expanded = Join-Path $Brand.ProfileDirectory $expanded
+    }
+    return [System.IO.Path]::GetFullPath($expanded)
+}
+
 function Import-GiteeReleaseBotToken {
+    param($Brand = $null)
+
+    if ($null -ne $Brand -and
+        -not [string]::Equals(
+            [string]$Brand.SelectedProfileName,
+            "packingproof",
+            [System.StringComparison]::OrdinalIgnoreCase) -and
+        [string]::IsNullOrWhiteSpace([string]$Brand.GiteeReleaseTokenFile)) {
+        throw "非默认软件配置必须配置 BrandGiteeReleaseTokenFile，不能回退到 PackingProof 发布机器人"
+    }
+
+    if ($null -ne $Brand -and -not [string]::IsNullOrWhiteSpace([string]$Brand.GiteeReleaseTokenFile)) {
+        $brandTokenPath = Resolve-BrandGiteeTokenFile -Value $Brand.GiteeReleaseTokenFile -Brand $Brand
+        if (-not (Test-Path -LiteralPath $brandTokenPath -PathType Leaf)) {
+        throw "软件配置指定的 Gitee 发布 token 文件不存在：$brandTokenPath"
+        }
+        $brandToken = ([IO.File]::ReadAllText($brandTokenPath, [Text.Encoding]::UTF8)).Trim()
+        if ([string]::IsNullOrWhiteSpace($brandToken)) {
+        throw "软件配置指定的 Gitee 发布 token 文件为空：$brandTokenPath"
+        }
+        $env:GITEE_TOKEN = $brandToken
+        return "软件配置 Gitee 发布 token"
+    }
+
     $botTokenPath = $env:PACKINGPROOF_GITEE_RELEASE_BOT_TOKEN_FILE
     if ([string]::IsNullOrWhiteSpace($botTokenPath)) {
         $botTokenPath = Join-Path $env:USERPROFILE ".config\PackingProof\gitee-release-bot\token.txt"
@@ -23,9 +63,12 @@ function Import-GiteeReleaseBotToken {
 }
 
 function Import-GiteeTokenFromEnvFile {
-    param([Parameter(Mandatory = $true)] [string]$RepoRoot)
+    param(
+        [Parameter(Mandatory = $true)] [string]$RepoRoot,
+        $Brand = $null
+    )
 
-    $botSource = Import-GiteeReleaseBotToken
+    $botSource = Import-GiteeReleaseBotToken -Brand $Brand
     if ($botSource) {
         return $botSource
     }
@@ -74,10 +117,11 @@ function Import-GiteeTokenFromEnvFile {
 function Test-GiteeAuthentication {
     param(
         [Parameter(Mandatory = $true)] [string]$Repository,
-        [Parameter(Mandatory = $true)] [string]$RepoRoot
+        [Parameter(Mandatory = $true)] [string]$RepoRoot,
+        $Brand = $null
     )
 
-    $null = Import-GiteeTokenFromEnvFile -RepoRoot $RepoRoot
+    $null = Import-GiteeTokenFromEnvFile -RepoRoot $RepoRoot -Brand $Brand
 
     & gitee release list --repo $Repository *> $null
     return $LASTEXITCODE -eq 0

@@ -61,7 +61,7 @@ public sealed class SettingsCapabilityVisibilityTests
     [Theory]
     [InlineData("面单放大", "Capabilities.CanRecordPcVideo")]
     [InlineData("录像设置", "Capabilities.CanRecordPcVideo")]
-    [InlineData("声音与播报", "Capabilities.IsRecordingDevice")]
+    [InlineData("声音与播报", "Capabilities.ShowSoundSettings")]
     [InlineData("扫码与识别", "Capabilities.CanUseScanner")]
     public void CameraOnlyTabsAreControlledByCapabilities(string header, string capability)
     {
@@ -79,7 +79,7 @@ public sealed class SettingsCapabilityVisibilityTests
     [InlineData("视频编码格式", "Capabilities.CanRecordPcVideo")]
     [InlineData("启用录像水印", "Capabilities.CanRecordPcVideo")]
     [InlineData("配置向导", "Capabilities.CanUseCamera")]
-    [InlineData("订单备注播报", "Capabilities.IsRecordingDevice")]
+    [InlineData("订单备注播报", "Capabilities.ShowSoundSettings")]
     public void CameraOnlyRowsOrCardsAreControlledByCapabilities(string label, string capability)
     {
         XElement labelElement = Assert.Single(

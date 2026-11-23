@@ -26,7 +26,8 @@ public sealed class RecordingFailureScanRecordTests
             failureBranch,
             StringComparison.Ordinal);
         Assert.Contains("_currentScanRecord.IsActive = false", failureBranch);
-        Assert.Contains("_currentScanRecord.Duration = \"失败\"", failureBranch);
+        Assert.Contains("_currentScanRecord.SaveStatusText =", failureBranch);
+        Assert.Contains("AppLanguage.Get(\"失败\")", failureBranch);
         Assert.Contains("_currentScanRecord = null", failureBranch);
     }
 
@@ -42,7 +43,8 @@ public sealed class RecordingFailureScanRecordTests
 
         string before = code[..startIndex];
         Assert.Contains("_currentScanRecord.IsActive = false", before);
-        Assert.Contains("_currentScanRecord.Duration = \"失败\"", before);
+        Assert.Contains("_currentScanRecord.SaveStatusText =", before);
+        Assert.Contains("AppLanguage.Get(\"失败\")", before);
     }
 
     private static string LoadRecordingSource()

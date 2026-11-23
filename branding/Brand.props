@@ -1,0 +1,60 @@
+<Project>
+  <PropertyGroup>
+    <BrandProfile Condition="'$(BrandProfile)' == ''">$(BRAND_PROFILE)</BrandProfile>
+    <BrandProfile Condition="'$(BrandProfile)' == ''">packingproof</BrandProfile>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)profiles.local.props" Condition="Exists('$(MSBuildThisFileDirectory)profiles.local.props')" />
+
+  <PropertyGroup>
+    <_BrandProfileExplicitDirectory>$(BrandProfileDirectory)</_BrandProfileExplicitDirectory>
+    <_BrandProfileExplicitDirectory Condition="'$(_BrandProfileExplicitDirectory)' == '' and '$(BRAND_PROFILE_DIR)' != ''">$(BRAND_PROFILE_DIR)</_BrandProfileExplicitDirectory>
+    <BrandExternalProfilesRoot Condition="'$(BrandExternalProfilesRoot)' == ''">$(BRAND_PROFILE_ROOT)</BrandExternalProfilesRoot>
+    <_RepositoryBrandProfileFile>$(MSBuildThisFileDirectory)profiles\$(BrandProfile)\Brand.props</_RepositoryBrandProfileFile>
+    <_BrandProfileDirectoryInput Condition="'$(_BrandProfileExplicitDirectory)' != ''">$(_BrandProfileExplicitDirectory)</_BrandProfileDirectoryInput>
+    <_BrandProfileDirectoryInput Condition="'$(_BrandProfileDirectoryInput)' == '' and '$(BrandExternalProfilesRoot)' != ''">$(BrandExternalProfilesRoot)\$(BrandProfile)</_BrandProfileDirectoryInput>
+    <_BrandProfileDirectoryInput Condition="'$(_BrandProfileDirectoryInput)' == ''">$(MSBuildThisFileDirectory)profiles\$(BrandProfile)</_BrandProfileDirectoryInput>
+    <_BrandProfileDirectoryResolved>$([MSBuild]::NormalizeDirectory('$(_BrandProfileDirectoryInput)'))</_BrandProfileDirectoryResolved>
+    <BrandProfileFile>$(_BrandProfileDirectoryResolved)Brand.props</BrandProfileFile>
+    <_BrandProfileDirectoryResolved Condition="'$(_BrandProfileExplicitDirectory)' == '' and '$(BrandExternalProfilesRoot)' != '' and !Exists('$(BrandProfileFile)') and Exists('$(_RepositoryBrandProfileFile)')">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)profiles\$(BrandProfile)'))</_BrandProfileDirectoryResolved>
+    <BrandProfileFile>$(_BrandProfileDirectoryResolved)Brand.props</BrandProfileFile>
+    <BrandProfileDirectory>$(_BrandProfileDirectoryResolved)</BrandProfileDirectory>
+  </PropertyGroup>
+
+  <Import Project="$(BrandProfileFile)" Condition="Exists('$(BrandProfileFile)')" />
+
+  <PropertyGroup>
+    <BrandFeaturesFile Condition="'$(BrandFeaturesRelativePath)' != ''">$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(BrandProfileDirectory)', '$(BrandFeaturesRelativePath)'))))</BrandFeaturesFile>
+    <BrandLocalizationFile Condition="'$(BrandLocalizationRelativePath)' != ''">$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(BrandProfileDirectory)', '$(BrandLocalizationRelativePath)'))))</BrandLocalizationFile>
+    <_BrandFeaturesRelativeNormalized>$([System.String]::Copy('$(BrandFeaturesRelativePath)').Replace('\', '/'))</_BrandFeaturesRelativeNormalized>
+    <_BrandLocalizationRelativeNormalized>$([System.String]::Copy('$(BrandLocalizationRelativePath)').Replace('\', '/'))</_BrandLocalizationRelativeNormalized>
+  </PropertyGroup>
+
+  <Target Name="ValidateBrandProfile" BeforeTargets="PrepareForBuild" Condition="!Exists('$(BrandProfileFile)')">
+    <Error Text="找不到定制档案 '$(BrandProfile)'：$(BrandProfileFile)。可设置 BRAND_PROFILE_ROOT、BRAND_PROFILE_DIR，或创建 branding/profiles.local.props。" />
+  </Target>
+
+  <Target Name="ValidateBrandFeaturesPath"
+          BeforeTargets="PrepareForBuild"
+          Condition="Exists('$(BrandProfileFile)')">
+    <Error Condition="'$(BrandFeaturesRelativePath)' == ''"
+           Text="软件配置 '$(BrandProfile)' 缺少 BrandFeaturesRelativePath" />
+    <Error Condition="$([System.IO.Path]::IsPathRooted('$(BrandFeaturesRelativePath)'))"
+           Text="软件配置 '$(BrandProfile)' 的 BrandFeaturesRelativePath 必须是配置目录内的相对路径" />
+    <Error Condition="'$(_BrandFeaturesRelativeNormalized)' == '..' or $([System.String]::Copy('$(_BrandFeaturesRelativeNormalized)').StartsWith('../')) or $([System.String]::Copy('$(_BrandFeaturesRelativeNormalized)').Contains('/../')) or $([System.String]::Copy('$(_BrandFeaturesRelativeNormalized)').EndsWith('/..'))"
+           Text="软件配置 '$(BrandProfile)' 的 BrandFeaturesRelativePath 不能包含上级目录" />
+    <Error Condition="!Exists('$(BrandFeaturesFile)')"
+           Text="软件配置 '$(BrandProfile)' 缺少能力配置：$(BrandFeaturesFile)" />
+  </Target>
+
+  <Target Name="ValidateBrandLocalizationPath"
+          BeforeTargets="PrepareForBuild"
+          Condition="Exists('$(BrandProfileFile)') and '$(BrandLocalizationRelativePath)' != ''">
+    <Error Condition="$([System.IO.Path]::IsPathRooted('$(BrandLocalizationRelativePath)'))"
+           Text="软件配置 '$(BrandProfile)' 的 BrandLocalizationRelativePath 必须是配置目录内的相对路径" />
+    <Error Condition="'$(_BrandLocalizationRelativeNormalized)' == '..' or $([System.String]::Copy('$(_BrandLocalizationRelativeNormalized)').StartsWith('../')) or $([System.String]::Copy('$(_BrandLocalizationRelativeNormalized)').Contains('/../')) or $([System.String]::Copy('$(_BrandLocalizationRelativeNormalized)').EndsWith('/..'))"
+           Text="软件配置 '$(BrandProfile)' 的 BrandLocalizationRelativePath 不能包含上级目录" />
+    <Error Condition="!Exists('$(BrandLocalizationFile)')"
+           Text="软件配置 '$(BrandProfile)' 缺少本地化文案：$(BrandLocalizationFile)" />
+  </Target>
+</Project>

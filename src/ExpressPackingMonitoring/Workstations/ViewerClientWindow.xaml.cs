@@ -50,10 +50,12 @@ public partial class ViewerClientWindow : Window
                 : DeploymentPresets.ViewerClient;
         _bindingOnly = _deploymentPreset == DeploymentPresets.RecordingWorkstation;
         InitializeComponent();
+        WindowDescriptionText.Text = AppLanguage.Get(
+            "连接局域网中的 PackingProof 主机，不在本机录制或保存录像");
         if (_bindingOnly)
             DialogWindowChrome.UseCloseButtonOnly(this);
         if (!_bindingOnly)
-            Title = $"{AppLanguage.Translate(Title)} {AppVersion.Current}";
+            Title = $"{AppLanguage.Get("PackingProof 查看客户端")} {AppVersion.Current}";
         if (_bindingOnly)
         {
             Title = AppLanguage.Format("PackingProof 备份主机 {0}", AppVersion.Current);
@@ -445,7 +447,7 @@ public partial class ViewerClientWindow : Window
         {
             ShowConnectionError(_bindingOnly
                 ? "这台电脑暂时不能作为备份主机"
-                : "该地址不是有效的 PackingProof 主机");
+                : AppLanguage.Get("该地址不是有效的 PackingProof 主机"));
             return;
         }
         if (_bindingOnly && !IsRecordingReceiverHost(node))
@@ -825,7 +827,10 @@ public partial class ViewerClientWindow : Window
         string address = _boundHost?.Address ?? _config.LastKnownHostAddress;
         if (string.IsNullOrWhiteSpace(address))
         {
-            AppDialog.Warning(this, "请先搜索并绑定 PackingProof 主机", "安装快递助手联动");
+            AppDialog.Warning(
+                this,
+                AppLanguage.Get("请先搜索并绑定 PackingProof 主机"),
+                "安装快递助手联动");
             return;
         }
 

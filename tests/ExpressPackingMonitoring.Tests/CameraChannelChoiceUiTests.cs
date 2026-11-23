@@ -554,47 +554,24 @@ public sealed class CameraChannelChoiceUiTests
     /// </summary>
     private static void RunOnStaThread(Action action)
     {
-        Exception? failure = null;
-        var thread = new Thread(() =>
+        WpfTestHost.Run(() =>
         {
-            try
-            {
-                if (Application.Current == null)
-                    _ = new Application();
-                LoadAppResources();
-                SynchronizationContext.SetSynchronizationContext(
-                    new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
-                action();
-                PumpDispatcher(TimeSpan.FromMilliseconds(600));
-            }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA 线程执行超时");
-        if (failure != null)
-        {
-            var detail = new StringBuilder();
-            for (Exception? current = failure; current != null; current = current.InnerException)
-                detail.AppendLine($"{current.GetType().Name}: {current.Message}");
-            detail.AppendLine(failure.StackTrace);
-            throw new Xunit.Sdk.XunitException($"摄像头通道验证失败：{detail}");
-        }
+            action();
+            PumpDispatcher(TimeSpan.FromMilliseconds(600));
+        }, TimeSpan.FromSeconds(60), "STA 线程执行超时");
     }
 
     /// <summary>把异步续体跑完（选摄像头会触发 async void 的档位加载）。</summary>
     private static void PumpDispatcher(TimeSpan duration)
     {
-        var stopwatch = Stopwatch.StartNew();
-        while (stopwatch.Elapsed < duration)
-        {
-            var frame = new DispatcherFrame();
-            Dispatcher.CurrentDispatcher.BeginInvoke(
-                DispatcherPriority.ApplicationIdle,
-                new Action(() => frame.Continue = false));
-            Dispatcher.PushFrame(frame);
-            Thread.Sleep(20);
-        }
+        Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
+        var frame = new DispatcherFrame();
+        _ = Task.Delay(duration).ContinueWith(
+            _ => dispatcher.BeginInvoke(
+                DispatcherPriority.Send,
+                new Action(() => frame.Continue = false)),
+            TaskScheduler.Default);
+        Dispatcher.PushFrame(frame);
     }
 
     /// <summary>与 App.xaml 相同的合并顺序，否则窗口里的资源键解析不到。</summary>

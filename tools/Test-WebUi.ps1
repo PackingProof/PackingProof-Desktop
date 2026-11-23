@@ -117,8 +117,10 @@ try {
 
     $previousBaseUrl = $env:EPM_AUTOMATION_BASE_URL
     $previousBrowserExecutable = $env:EPM_BROWSER_EXECUTABLE
+    $previousScreenshotsDir = $env:EPM_AUTOMATION_SCREENSHOTS_DIR
     $env:EPM_AUTOMATION_BASE_URL = $baseUrl
     $env:EPM_BROWSER_EXECUTABLE = $browserExecutable
+    $env:EPM_AUTOMATION_SCREENSHOTS_DIR = Join-Path $runRoot "screenshots"
     try {
         Write-Host "运行网页 UI 自动化测试..."
         Invoke-Checked -FilePath "npm" -Arguments @("run", "test:e2e")
@@ -126,6 +128,7 @@ try {
     finally {
         $env:EPM_AUTOMATION_BASE_URL = $previousBaseUrl
         $env:EPM_BROWSER_EXECUTABLE = $previousBrowserExecutable
+        $env:EPM_AUTOMATION_SCREENSHOTS_DIR = $previousScreenshotsDir
     }
 
     Write-Host ""

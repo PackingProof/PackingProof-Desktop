@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services.Extensions;
 
@@ -103,7 +104,8 @@ internal sealed class ExtensionAutoUpdateService
 
                 if (!ExtensionMarketVersionPolicy.IsAppCompatible(release.Compatibility.MinPackingProofVersion, _appVersion))
                 {
-                    failures.Add($"{record.Id}: 需要 PackingProof {release.Compatibility.MinPackingProofVersion} 或更高版本");
+                    failures.Add($"{record.Id}: " + BrandText.Apply(
+                        $"需要 PackingProof {release.Compatibility.MinPackingProofVersion} 或更高版本"));
                     continue;
                 }
 

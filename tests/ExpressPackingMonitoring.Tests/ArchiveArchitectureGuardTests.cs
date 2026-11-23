@@ -42,7 +42,8 @@ public sealed class ArchiveArchitectureGuardTests
         [
             "IArchiveProvider.cs",
             "NasArchiveProvider.cs",
-            "NasCircularCleanupService.cs"
+            "NasCircularCleanupService.cs",
+            "PhotoCaptureService.cs"
         ];
         string[] offenders = ProjectSourceFiles()
             .Where(path => File.ReadAllText(path).Contains("DeleteAsync", StringComparison.Ordinal)

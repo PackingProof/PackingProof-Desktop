@@ -48,19 +48,23 @@ function Get-ReleaseArtifactNames {
         throw "tag $Tag 的版本号不是 X.Y.Z 形式，无法推断产物名"
     }
 
+    if (-not (Get-Command Get-BrandProfile -ErrorAction SilentlyContinue)) {
+        . (Join-Path $RepoRoot "tools\Branding.Common.ps1")
+    }
+    $brand = Get-BrandProfile -RepoRoot $RepoRoot
     $releaseTag = "v$normalizedVersion"
     return @{
         NormalizedVersion = $normalizedVersion
         ReleaseTag = $releaseTag
-        PackageRoot = Join-Path $RepoRoot "package\PackingProof+$releaseTag"
-        SetupFileName = "PackingProof_Setup_v$normalizedVersion.exe"
+        PackageRoot = Join-Path $RepoRoot ("package\" + $brand.ArtifactPrefix + "+$releaseTag")
+        SetupFileName = "$($brand.ArtifactPrefix)_Setup_v$normalizedVersion.exe"
         UpdateJsonFileName = "update_v$normalizedVersion.json"
-        AppPatchFileName = "PackingProof_AppPatch_$releaseTag.zip"
-        LauncherPatchFileName = "PackingProof_LauncherPatch_$releaseTag.zip"
-        StorePackageRoot = Join-Path $RepoRoot "package\store\PackingProof_Store_v$normalizedVersion"
-        StorePackageFileName = "PackingProof_Store_v$normalizedVersion.msix"
-        StoreSymbolFileName = "PackingProof_Store_v$normalizedVersion.appxsym"
-        StoreUploadFileName = "PackingProof_Store_v$normalizedVersion.msixupload"
+        AppPatchFileName = "$($brand.ArtifactPrefix)_AppPatch_$releaseTag.zip"
+        LauncherPatchFileName = "$($brand.ArtifactPrefix)_LauncherPatch_$releaseTag.zip"
+        StorePackageRoot = Join-Path $RepoRoot ("package\store\" + $brand.ArtifactPrefix + "_Store_v$normalizedVersion")
+        StorePackageFileName = "$($brand.ArtifactPrefix)_Store_v$normalizedVersion.msix"
+        StoreSymbolFileName = "$($brand.ArtifactPrefix)_Store_v$normalizedVersion.appxsym"
+        StoreUploadFileName = "$($brand.ArtifactPrefix)_Store_v$normalizedVersion.msixupload"
         StoreManifestFileName = "store_package_$releaseTag.json"
     }
 }
@@ -154,9 +158,11 @@ function Test-AllowedStoreArchiveEntry {
         "AppxManifest.xml",
         "AppxBlockMap.xml",
         "AppxSignature.p7x",
-        "[Content_Types].xml",
-        "PackingProof.PackageEdition.json"
+        "[Content_Types].xml"
     )) {
+        return $true
+    }
+    if ($Name.EndsWith(".PackageEdition.json", [System.StringComparison]::Ordinal)) {
         return $true
     }
     if ($Name.StartsWith("Assets/", [System.StringComparison]::Ordinal) -or
@@ -333,7 +339,14 @@ function Resolve-ReleasePayloadAppDir {
         [switch]$RequireExact
     )
 
-    $exact = Join-Path $PackageRoot ("PackingProof+v" + $Version + "\app")
+    $packageLeaf = Split-Path -Leaf $PackageRoot
+    $artifactPrefix = if ($packageLeaf -match '^(.+)\+v\d') {
+        $Matches[1]
+    }
+    else {
+        "PackingProof"
+    }
+    $exact = Join-Path $PackageRoot (($artifactPrefix + "+v" + $Version) + "\app")
     if (-not [string]::IsNullOrWhiteSpace($ExpectedFingerprint)) {
         if (-not (Test-Path -LiteralPath (Join-Path $exact "ExpressPackingMonitoring.exe") -PathType Leaf)) {
             throw "本次 Setup 的 app 目录不存在：$exact；不能用旧 sibling 目录替代"
@@ -360,7 +373,7 @@ function Resolve-ReleasePayloadAppDir {
         $candidateAppDirs += $exact
     }
     $candidateAppDirs += @(
-        Get-ChildItem -LiteralPath $PackageRoot -Directory -Filter ("PackingProof+v" + $Version + "*") `
+        Get-ChildItem -LiteralPath $PackageRoot -Directory -Filter ($artifactPrefix + "+v" + $Version + "*") `
             -ErrorAction SilentlyContinue |
             Where-Object {
                 Test-Path -LiteralPath (Join-Path $_.FullName "app\ExpressPackingMonitoring.exe") `

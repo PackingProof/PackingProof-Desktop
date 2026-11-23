@@ -399,6 +399,20 @@ internal sealed class RecordingTransferService : IDisposable
             return _nextProcessingAt;
     }
 
+    internal int GetActiveWorkCount()
+    {
+        RecordingTransferSummary summary = _store.GetSummary();
+        int storeWork = summary.PendingCount + summary.UploadingCount;
+        bool eventWork =
+            !_completedRecordingEvents.IsEmpty
+            || Volatile.Read(ref _completedRecordingScanRequested) != 0;
+        return Math.Max(
+            Math.Max(storeWork, Volatile.Read(ref _processing)),
+            Math.Max(
+                Volatile.Read(ref _activeOperations),
+                eventWork ? 1 : 0));
+    }
+
     internal async Task<bool> ProbeHostNowAsync(
         CancellationToken cancellationToken = default)
     {

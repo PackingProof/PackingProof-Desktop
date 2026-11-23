@@ -123,7 +123,7 @@ public sealed class GiteeAssetRefreshTests
 
         Assert.Contains("$giteeSetupIncluded = Test-GiteeAttachmentFits -Size $setupSize", publisher, StringComparison.Ordinal);
         Assert.Contains("$giteeAssets = @($setupPath) + $giteeAssets", publisher, StringComparison.Ordinal);
-        Assert.Contains("PackingProof_StoreInstaller_$releaseTag.exe", publisher, StringComparison.Ordinal);
+        Assert.Contains("$($brand.ArtifactPrefix)_StoreInstaller_$releaseTag.exe", publisher, StringComparison.Ordinal);
         Assert.Contains("-StoreBridgeInstallerPath", publisher, StringComparison.Ordinal);
         Assert.Contains("Remove-GiteeReleaseAttachmentByName", publisher, StringComparison.Ordinal);
     }

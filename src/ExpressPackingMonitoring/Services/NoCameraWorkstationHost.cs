@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.UpdateCore;
 using ExpressPackingMonitoring.UI;
 using System.IO;
 
@@ -38,6 +39,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     public bool IsRunning => _server != null;
     public bool HasDatabase => _database != null;
     public bool HasActiveMobileBackups => _server?.HasActiveMobileBackups == true;
+    public bool HasActiveClipTasks => _server?.HasActiveClipTasks == true;
     public bool IsLanAvailable { get; private set; }
     public string StoragePath { get; private set; } = "";
     public string LocalPlaybackUrl { get; private set; } = "";
@@ -87,6 +89,18 @@ internal sealed class NoCameraWorkstationHost : IDisposable
 
     public Task WaitForMobileBackupsAsync(CancellationToken cancellationToken = default) =>
         _server?.WaitForMobileBackupsAsync(cancellationToken) ?? Task.CompletedTask;
+
+    public void PauseRequestAdmission() =>
+        _server?.PauseRequestAdmission();
+
+    public void ResumeRequestAdmission() =>
+        _server?.ResumeRequestAdmission();
+
+    public Task<bool> WaitForAdmittedRequestsIdleAsync(
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default) =>
+        _server?.WaitForAdmittedRequestsIdleAsync(timeout, cancellationToken)
+        ?? Task.FromResult(true);
 
     public IReadOnlyList<RecordingDeviceInfo> GetRecordingDevices(bool includeKnown = false)
     {
@@ -343,6 +357,9 @@ internal sealed class NoCameraWorkstationHost : IDisposable
             nodeName: _config.NodeName,
             deploymentPreset: DeploymentPresets.MobileBackupHost,
             validatedEncodersProvider: () => _config.ValidatedEncodersCache,
+            effectiveCapabilities: ProductCapabilityRuntime.ForPreset(
+                DeploymentPresets.MobileBackupHost,
+                RuntimeCapabilityEnvironment.FromConfig(_config)),
             backupDeviceEnrollmentApprover: request =>
                 BackupDeviceEnrollmentRequested?.Invoke(request)
                 ?? BackupDeviceEnrollmentApprovalDecision.Unavailable)

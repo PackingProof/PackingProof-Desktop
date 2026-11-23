@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Localization;
 
 namespace ExpressPackingMonitoring.UI
 {
@@ -19,7 +20,7 @@ namespace ExpressPackingMonitoring.UI
             IEnumerable<string>? usedPaths = null,
             bool fixedDrivesOnly = false)
         {
-            Title = "选择磁盘分区";
+            Title = AppLanguage.Get("选择磁盘分区");
             Width = 420;
             SizeToContent = SizeToContent.Height;
             WindowStyle = WindowStyle.ToolWindow;
@@ -35,7 +36,7 @@ namespace ExpressPackingMonitoring.UI
 
             var title = new TextBlock
             {
-                Text = "选择用于保存录像的磁盘",
+                Text = AppLanguage.Get("选择用于保存录像的磁盘"),
                 FontSize = 15,
                 FontWeight = FontWeights.SemiBold,
                 Margin = new Thickness(0, 0, 0, 6)
@@ -45,7 +46,7 @@ namespace ExpressPackingMonitoring.UI
 
             var hint = new TextBlock
             {
-                Text = "程序会自动使用所选磁盘下的“PackingProofVideos”目录",
+                Text = AppLanguage.Get("程序会自动使用所选磁盘下的“PackingProofVideos”目录"),
                 FontSize = 12,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 12)

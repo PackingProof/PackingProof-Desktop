@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Host;
 
@@ -44,9 +45,10 @@ internal static class MacDialog
     {
         if (hostLabels.Count == 0) return null;
         string list = string.Join(", ", hostLabels.Select(label => $"\"{Escape(label)}\""));
+        string viewerTitle = Escape($"{BrandMetadata.ProductName} 查看端");
         string? chosen = Run(
             $"set options to {{{list}}}",
-            "set chosen to choose from list options with prompt \"选择要连接的备份主机\" with title \"PackingProof 查看端\"",
+            $"set chosen to choose from list options with prompt \"选择要连接的备份主机\" with title \"{viewerTitle}\"",
             "if chosen is false then",
             "return \"\"",
             "end if",
@@ -71,15 +73,17 @@ internal static class MacDialog
             _ => "手机"
         };
         string name = string.IsNullOrWhiteSpace(deviceName) ? "未命名设备" : deviceName.Trim();
+        string hostTitle = Escape($"{BrandMetadata.ProductName} 备份主机");
         string? answer = Run(
             $"set messageText to \"{Escape($"设备「{name}」（{kindText}）请求连接本机保存录像，是否允许？")}\"",
-            "set answer to button returned of (display dialog messageText buttons {\"不允许\", \"允许\"} default button \"允许\" with title \"PackingProof 备份主机\" with icon caution)",
+            $"set answer to button returned of (display dialog messageText buttons {{\"不允许\", \"允许\"}} default button \"允许\" with title \"{hostTitle}\" with icon caution)",
             "return answer");
         return answer == "允许";
     }
 
-    internal static void ShowMessage(string text, string title = "PackingProof")
+    internal static void ShowMessage(string text, string? title = null)
     {
+        title ??= BrandMetadata.ProductName;
         Run(
             $"set messageText to \"{Escape(text)}\"",
             $"display dialog messageText buttons {{\"好\"}} default button \"好\" with title \"{Escape(title)}\"");

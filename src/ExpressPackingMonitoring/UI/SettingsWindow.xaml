@@ -1000,7 +1000,8 @@
                         <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid x:Name="PurposeRow" Style="{StaticResource SettingRowStyle}"
+                                          Visibility="{Binding Context.CanChoosePurpose, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -1008,35 +1009,60 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="电脑用途" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="选择这台电脑在 PackingProof 中承担的职责"
+                                            <TextBlock Text="{loc:Localized 选择这台电脑在 PackingProof 中承担的职责}"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <ComboBox Grid.Column="2"
+                                        <ComboBox x:Name="PurposeComboBox"
+                                                  Grid.Column="2"
                                                   SelectedValue="{Binding Config.DeploymentPreset}"
                                                   SelectedValuePath="Tag"
                                                   Cursor="Hand">
                                             <ComboBoxItem Tag="RecordingHost">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <Path Data="{StaticResource FluentVideoIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="录像主机"/>
+                                                    <Path Data="{StaticResource FluentVideoIcon}"
+                                                          Width="16"
+                                                          Height="16"
+                                                          Stretch="Uniform"
+                                                          Fill="{DynamicResource AccentBlue}"
+                                                          Margin="0,0,8,0"/>
+                                                    <TextBlock Text="{loc:Localized 录像主机}"
+                                                               Foreground="{DynamicResource TextPrimary}"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                             <ComboBoxItem Tag="RecordingWorkstation">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <Path Data="{StaticResource FluentWifiIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="录像从机"/>
+                                                    <Path Data="{StaticResource FluentWifiIcon}"
+                                                          Width="16"
+                                                          Height="16"
+                                                          Stretch="Uniform"
+                                                          Fill="{DynamicResource AccentBlue}"
+                                                          Margin="0,0,8,0"/>
+                                                    <TextBlock Text="{loc:Localized 录像从机}"
+                                                               Foreground="{DynamicResource TextPrimary}"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                             <ComboBoxItem Tag="ViewerClient">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <Path Data="{StaticResource FluentPlayIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="录像查看端"/>
+                                                    <Path Data="{StaticResource FluentPlayIcon}"
+                                                          Width="16"
+                                                          Height="16"
+                                                          Stretch="Uniform"
+                                                          Fill="{DynamicResource AccentBlue}"
+                                                          Margin="0,0,8,0"/>
+                                                    <TextBlock Text="{loc:Localized 录像查看端}"
+                                                               Foreground="{DynamicResource TextPrimary}"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                             <ComboBoxItem Tag="MobileBackupHost">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <Path Data="{StaticResource FluentDatabaseIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentOrange}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="备份主机"/>
+                                                    <Path Data="{StaticResource FluentDatabaseIcon}"
+                                                          Width="16"
+                                                          Height="16"
+                                                          Stretch="Uniform"
+                                                          Fill="{DynamicResource AccentOrange}"
+                                                          Margin="0,0,8,0"/>
+                                                    <TextBlock Text="{loc:Localized 备份主机}"
+                                                               Foreground="{DynamicResource TextPrimary}"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                         </ComboBox>
@@ -2545,7 +2571,8 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource SectionCardStyle}">
+                            <Border x:Name="BackupStorageCard" Style="{StaticResource SectionCardStyle}"
+                                    Visibility="{Binding Capabilities.CanViewBackupStorageSettings, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
                                     <TextBlock Text="录像备份位置" Style="{StaticResource FieldLabelStyle}"/>
                                     <TextBlock Text="软件支持 NAS 备份。主机就是负责长期保存录像的电脑；点击“添加网络位置”，在用途选择第 2 问选“要”即可配置"
@@ -2558,7 +2585,7 @@
                                             CornerRadius="8"
                                             Background="{DynamicResource ControlBackground}">
                                         <DataGrid x:Name="BackupStorageDataGrid"
-                                                  IsEnabled="{Binding Capabilities.CanConfigureStorage}"
+                                                  IsEnabled="{Binding Capabilities.CanConfigureNasArchive}"
                                                   AutoGenerateColumns="False"
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"
@@ -2607,7 +2634,7 @@
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 Margin="0,0,10,0"/>
                                         <Button x:Name="BtnAddBackupStorage"
-                                                Visibility="{Binding Capabilities.CanConfigureStorage, Converter={StaticResource BoolToVisibility}}"
+                                                Visibility="{Binding Capabilities.CanConfigureNasArchive, Converter={StaticResource BoolToVisibility}}"
                                                 Content="添加网络位置"
                                                 Click="BtnAddNetworkStorage_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
@@ -3054,7 +3081,7 @@
             </TabItem>
 
             <TabItem Header="声音与播报"
-                     Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
+                     Visibility="{Binding Capabilities.ShowSoundSettings, Converter={StaticResource BoolToVisibility}}">
                 <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel x:Name="SoundSettingsPanel" Loaded="SoundSettingsPanel_Loaded">

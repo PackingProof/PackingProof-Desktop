@@ -22,59 +22,8 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class SettingsWindowRenderTests
 {
     /// <summary>WPF 控件必须在 STA 线程上创建，测试宿主默认 MTA。</summary>
-    private static void RunOnStaThread(Action action)
-    {
-        Exception? failure = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                // pack:// 方案要有 Application 实例才注册得上；
-                // 测试宿主不是 WPF 程序，这里自己建一个。
-                if (Application.Current == null)
-                    _ = new Application();
-                LoadAppResources();
-                action();
-            }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA 线程执行超时");
-        if (failure != null)
-        {
-            var detail = new System.Text.StringBuilder();
-            for (Exception? current = failure; current != null; current = current.InnerException)
-                detail.AppendLine($"{current.GetType().Name}: {current.Message}");
-            detail.AppendLine(failure.StackTrace);
-            throw new Xunit.Sdk.XunitException($"设置窗口构造失败：{detail}");
-        }
-    }
-
-    /// <summary>与 App.xaml 相同的合并顺序，否则窗口里的资源键解析不到。</summary>
-    private static void LoadAppResources()
-    {
-        string[] files =
-        [
-            "ColorTokens.xaml", "LightTheme.xaml", "ComboBoxTheme.xaml", "DatePickerTheme.xaml",
-            "SpinBoxTheme.xaml", "TextBoxTheme.xaml", "ButtonTheme.xaml", "ScrollBarTheme.xaml",
-            "FluentIcons.xaml", "SliderTheme.xaml", "MenuTheme.xaml"
-        ];
-
-        var merged = new ResourceDictionary();
-        foreach (string file in files)
-        {
-            merged.MergedDictionaries.Add(new ResourceDictionary
-            {
-                Source = new Uri(
-                    $"pack://application:,,,/ExpressPackingMonitoring;component/themes/{file.ToLowerInvariant()}",
-                    UriKind.Absolute)
-            });
-        }
-
-        if (Application.Current != null)
-            Application.Current.Resources = merged;
-    }
+    private static void RunOnStaThread(Action action) =>
+        WpfTestHost.Run(action, TimeSpan.FromSeconds(60), "STA 线程执行超时");
 
     [Fact]
     public void Constructor_WithStorageAndBackupLocations_DoesNotThrow()
@@ -108,6 +57,11 @@ public sealed class SettingsWindowRenderTests
                 };
 
                 var window = new SettingsWindow(context, config, 12d, "12%");
+                window.WindowStartupLocation = WindowStartupLocation.Manual;
+                window.Left = -20000;
+                window.Top = -20000;
+                window.ShowInTaskbar = false;
+                window.Show();
                 window.Measure(new Size(1200, 900));
                 window.Arrange(new Rect(0, 0, 1200, 900));
                 window.UpdateLayout();
@@ -115,6 +69,9 @@ public sealed class SettingsWindowRenderTests
                 // 预留只能从磁盘右键改：保存位置与备份位置的行样式都要挂上"设置预留空间…"菜单
                 AssertStorageReserveMenu(Assert.IsType<DataGrid>(window.FindName("StorageDataGrid")));
                 AssertStorageReserveMenu(Assert.IsType<DataGrid>(window.FindName("BackupStorageDataGrid")));
+                Assert.Equal(
+                    Visibility.Collapsed,
+                    Assert.IsType<Border>(window.FindName("BackupStorageCard")).Visibility);
 
                 window.Close();
             }
@@ -122,6 +79,48 @@ public sealed class SettingsWindowRenderTests
             {
                 CultureInfo.CurrentUICulture = original;
             }
+        });
+    }
+
+    [Fact]
+    public void SingleAvailablePurposeHidesPurposeSelector()
+    {
+        RunOnStaThread(() =>
+        {
+            var config = new AppConfig
+            {
+                DeploymentPreset = DeploymentPresets.RecordingHost
+            };
+            var context = new SettingsContext
+            {
+                Capabilities = SettingsCapabilities.ForPreset(
+                    DeploymentPresets.RecordingHost),
+                AvailablePurposes =
+                [
+                    new DeploymentPurposeOption(
+                        DeploymentPresets.RecordingHost,
+                        DeploymentPresets.GetDisplayName(
+                            DeploymentPresets.RecordingHost))
+                ],
+                ApplyAsync = _ => Task.FromResult(true)
+            };
+            var window = new SettingsWindow(context, config, 12d, "12%");
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
+            window.Left = -20000;
+            window.Top = -20000;
+            window.ShowInTaskbar = false;
+            window.Show();
+            window.Measure(new Size(1200, 900));
+            window.Arrange(new Rect(0, 0, 1200, 900));
+            window.UpdateLayout();
+
+            Assert.Equal(
+                Visibility.Collapsed,
+                Assert.IsType<Grid>(window.FindName("PurposeRow")).Visibility);
+            Assert.Equal(
+                Visibility.Visible,
+                Assert.IsType<Border>(window.FindName("BackupStorageCard")).Visibility);
+            window.Content = null;
         });
     }
 

@@ -58,7 +58,7 @@ internal static class VisionModelDiagnostics
         if (!string.IsNullOrWhiteSpace(independent))
             parts.Add(independent);
         if (!hasPackingProofMetadata)
-            parts.Add("未携带 PackingProof 元数据");
+            parts.Add(ExpressPackingMonitoring.UpdateCore.BrandText.Apply("未携带 PackingProof 元数据"));
         return string.Join("；", parts);
     }
 

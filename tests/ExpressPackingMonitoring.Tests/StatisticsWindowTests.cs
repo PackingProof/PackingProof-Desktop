@@ -31,7 +31,14 @@ public sealed class StatisticsWindowTests
             "src", "ExpressPackingMonitoring", "UI", "StatisticsWindow.xaml.cs"));
 
         Assert.Contains("ClearOwnerKeyboardFocus(Owner)", code, StringComparison.Ordinal);
-        Assert.Contains("new Action(Keyboard.ClearFocus)", code, StringComparison.Ordinal);
+        Assert.Contains(
+            "FocusManager.SetFocusedElement(owner, null)",
+            code,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Keyboard.ClearFocus()",
+            code,
+            StringComparison.Ordinal);
     }
 
     [Theory]

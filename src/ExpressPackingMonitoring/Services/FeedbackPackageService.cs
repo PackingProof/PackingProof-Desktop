@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.UpdateCore;
 using ExpressPackingMonitoring.Data;
 using Microsoft.Win32;
 using System.Diagnostics;
@@ -23,7 +24,7 @@ internal sealed class FeedbackPackageService
     internal const int MaxCrashDumpsToInclude = 1;
     internal const long MaxCrashDumpBytes = 512L * 1024 * 1024;
     private const string RedactedMarker = "已脱敏";
-    private const string ZipPrefix = "PackingProof_Feedback_";
+    private static string ZipPrefix => BrandMetadata.ArtifactPrefix + "_Feedback_";
     private static readonly HashSet<string> CrashDumpExtensions =
         new(StringComparer.OrdinalIgnoreCase) { ".dmp", ".hdmp", ".mdmp" };
 
@@ -263,7 +264,7 @@ internal sealed class FeedbackPackageService
     private void WriteInfoFile(string stagingDir, List<string> warnings)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("PackingProof 反馈信息");
+        builder.AppendLine(BrandMetadata.DisplayName + " 反馈信息");
         builder.AppendLine($"生成时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         builder.AppendLine($"应用版本：{_appVersion}");
         builder.AppendLine($"Commit：{_commitId}");

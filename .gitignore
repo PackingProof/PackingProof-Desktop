@@ -33,6 +33,8 @@ tools/ExpressPackingMonitoring.DefaultScriptPackager/bin/
 tools/ExpressPackingMonitoring.DefaultScriptPackager/obj/
 tools/ExpressPackingMonitoring.AutomationHost/bin/
 tools/ExpressPackingMonitoring.AutomationHost/obj/
+tools/ExpressPackingMonitoring.BrandFeatures.Validator/bin/
+tools/ExpressPackingMonitoring.BrandFeatures.Validator/obj/
 tools/ExpressPackingMonitoring.VisionProbe/bin/
 tools/ExpressPackingMonitoring.VisionProbe/obj/
 src/ExpressPackingMonitoring/bin/Release/package/
@@ -67,6 +69,7 @@ docs/images/PixPin_*.jpg
 Videos/*
 package/*
 tools/store-package.local.json
+branding/profiles.local.props
 TODO.md
 node_modules/
 TestResults/

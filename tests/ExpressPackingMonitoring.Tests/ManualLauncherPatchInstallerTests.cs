@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using ExpressPackingMonitoring.UpdateCore;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -37,6 +38,47 @@ public sealed class ManualLauncherPatchInstallerTests
         Assert.Equal("old-launcher", File.ReadAllText(fixture.LauncherPath, Encoding.UTF8));
         Assert.Equal("app-unchanged", File.ReadAllText(fixture.AppMarkerPath, Encoding.UTF8));
         Assert.Contains("SHA256 校验失败", result.StandardOutput + result.StandardError);
+    }
+
+    [Fact]
+    public async Task Installer_RejectsLauncherPatchForAnotherBrandBeforeChangingFiles()
+    {
+        using var fixture = new Fixture();
+        fixture.InstallRealBrandExecutable();
+        fixture.CreatePatch("new-launcher", validHash: true, productName: "Other Brand");
+
+        ProcessResult result = await fixture.RunAsync();
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("软件配置不匹配", result.StandardOutput + result.StandardError);
+        Assert.Equal("app-unchanged", File.ReadAllText(fixture.AppMarkerPath, Encoding.UTF8));
+        Assert.Equal(
+            BrandMetadata.ProductName,
+            FileVersionInfo.GetVersionInfo(fixture.LauncherPath).ProductName);
+    }
+
+    [Fact]
+    public async Task LegacyBrandlessLauncherPatchOnlyAppliesToPackingProofTarget()
+    {
+        using var fixture = new Fixture();
+        fixture.InstallRealBrandExecutable();
+        fixture.CreatePatch("new-launcher", validHash: true, includeBrand: false);
+
+        ProcessResult result = await fixture.RunAsync();
+
+        if (BrandMetadata.ProfileId == "packingproof")
+        {
+            Assert.Equal(0, result.ExitCode);
+            Assert.Equal("new-launcher", File.ReadAllText(fixture.LauncherPath, Encoding.UTF8));
+        }
+        else
+        {
+            Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("软件配置不匹配", result.StandardOutput + result.StandardError);
+            Assert.Equal(
+                BrandMetadata.ProductName,
+                FileVersionInfo.GetVersionInfo(fixture.LauncherPath).ProductName);
+        }
     }
 
     [Fact]
@@ -158,7 +200,17 @@ public sealed class ManualLauncherPatchInstallerTests
                 Encoding.UTF8);
         }
 
-        public void CreatePatch(string content, bool validHash)
+        public void InstallRealBrandExecutable()
+        {
+            string source = Path.Combine(AppContext.BaseDirectory, "ExpressPackingMonitoring.dll");
+            File.Copy(source, LauncherPath, overwrite: true);
+        }
+
+        public void CreatePatch(
+            string content,
+            bool validHash,
+            string productName = "PackingProof",
+            bool includeBrand = true)
         {
             Directory.CreateDirectory(_patchRoot);
             string sourcePath = Path.Combine(_patchRoot, "ExpressPackingMonitoring.exe");
@@ -175,7 +227,20 @@ public sealed class ManualLauncherPatchInstallerTests
                     version = "0.0.99",
                     file = "ExpressPackingMonitoring.exe",
                     size = bytes.LongLength,
-                    sha256 = hash
+                    sha256 = hash,
+                    brand = includeBrand
+                        ? new
+                        {
+                            profile_id = "test",
+                            product_name = productName,
+                            display_name = productName + " 快递打包监控",
+                            artifact_prefix = "TestPacking",
+                            compatibility_id = "Test.PackingProof",
+                            data_directory_name = "TestPackingProof",
+                            instance_name_prefix = "TestPackingProof",
+                            package_edition_marker = "Test.PackingProof.PackageEdition.json"
+                        }
+                        : null
                 }),
                 Encoding.UTF8);
         }

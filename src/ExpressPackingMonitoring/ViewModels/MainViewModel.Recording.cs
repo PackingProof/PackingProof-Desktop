@@ -96,12 +96,14 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private async Task InternalStopRecordingAsync(bool playCompletionBeep = true)
         {
+            Interlocked.Exchange(ref _recordingStopInProgress, 1);
             try
             {
                 await InternalStopRecordingCoreAsync(playCompletionBeep);
             }
             finally
             {
+                Interlocked.Exchange(ref _recordingStopInProgress, 0);
                 TryRunDeferredCameraVisionBenchmark();
             }
         }
@@ -278,7 +280,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         {
                             if (!_isDisposed && scanRecord != null)
                             {
-                                scanRecord.Duration = AppLanguage.Get("直存收尾异常");
+                                scanRecord.Duration = ScanRecord.FormatDuration(recordDuration);
+                                scanRecord.SaveStatusText =
+                                    AppLanguage.Get("直存收尾异常");
                                 scanRecord.IsActive = false;
                                 RefreshTodayStats();
                             }
@@ -379,7 +383,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         {
                             if (!_isDisposed && scanRecord != null)
                             {
-                                scanRecord.Duration = "已保存";
+                                scanRecord.Duration = durStr;
+                                scanRecord.SaveStatusText =
+                                    AppLanguage.Get("已保存");
                                 scanRecord.IsActive = false;
                                 RefreshTodayStats();
                             }
@@ -729,6 +735,12 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private async Task InternalStartRecordingAsync()
         {
+            if (_purposeSwitchPending)
+            {
+                ShowToast("正在切换用途，暂时不能开始录像", ToastSeverity.Information);
+                return;
+            }
+            Interlocked.Exchange(ref _recordingStartInProgress, 1);
             var startupWatch = Stopwatch.StartNew();
             IsBusy = true;
             BusyText = "正在启动";
@@ -1217,14 +1229,24 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_currentScanRecord != null)
                 {
                     _currentScanRecord.IsActive = false;
-                    _currentScanRecord.Duration = "失败";
+                    _currentScanRecord.SaveStatusText =
+                        AppLanguage.Get("失败");
                 }
                 _scanAudit?.RecordRecordingStarted(
                     _currentRecordId,
                     _recordingSessionId ?? "",
                     filePath);
                 int initialDisplayedSeconds = Math.Max(0, (int)Math.Floor(_activePreRecordSeconds));
-                _currentScanRecord = new ScanRecord(_recordingOrderId, $"{initialDisplayedSeconds}s", DateTime.Now.ToString("HH:mm:ss"), _recordingMode, true);
+                _currentScanRecord = new ScanRecord(
+                    _recordingOrderId,
+                    $"{initialDisplayedSeconds}s",
+                    DateTime.Now.ToString("HH:mm:ss"),
+                    _recordingMode,
+                    true,
+                    _currentRecordId,
+                    string.IsNullOrWhiteSpace(_recordingOrderId)
+                        ? Path.GetFileNameWithoutExtension(filePath)
+                        : _recordingOrderId);
                 AddRecord(_currentScanRecord);
 
                 // 扫码识别、手动“开始录制”和指令条码都汇聚到这条启动路径：带着真实单号开始时
@@ -1235,6 +1257,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             finally
             {
+                Interlocked.Exchange(ref _recordingStartInProgress, 0);
                 // 启动失败或首帧检查回滚时，不能把已复制的预录帧留在待注入列表中
                 if (!IsRecording)
                 {
@@ -1315,7 +1338,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (_currentScanRecord != null)
                     {
                         _currentScanRecord.IsActive = false;
-                        _currentScanRecord.Duration = "失败";
+                        _currentScanRecord.SaveStatusText =
+                            AppLanguage.Get("失败");
                         _currentScanRecord = null;
                     }
                     RefreshTodayStats();

@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.UpdateCore;
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
@@ -22,15 +23,12 @@ internal sealed class MobileAppUpdatePolicyProvider
     {
         Timeout = TimeSpan.FromSeconds(6)
     };
-    private const string LatestReleaseApiUrl =
-        "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Mobile/releases/latest";
-    private const string ReleasesListApiUrl =
-        "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Mobile/releases";
+    private static readonly string LatestReleaseApiUrl = BrandMetadata.MobileLatestReleaseApiUrl;
+    private static readonly string ReleasesListApiUrl = BrandMetadata.MobileReleasesApiUrl;
     private const string IosLatestManifestName = "ios-latest.json";
     private const int ReleaseListPageSize = 100;
     private const int MaximumReleaseListPages = 20;
-    internal const string ReleasesUrl =
-        "https://gitee.com/PackingProof/PackingProof-Mobile/releases/latest";
+    internal static string ReleasesUrl => BrandMetadata.MobileReleasesUrl;
     internal const string TestFlightJoinUrl =
         "https://testflight.apple.com/join/KR4qNs6t";
 
@@ -47,7 +45,7 @@ internal sealed class MobileAppUpdatePolicyProvider
         MinimumVersion: BackupCompatibilityPolicy.MinimumMobileVersion,
         MinimumBuildNumber: BackupCompatibilityPolicy.MinimumMobileBuildNumber,
         Message: "当前 APP 版本过低，需要更新");
-    internal const string RepositoryUrl = "https://gitee.com/PackingProof/PackingProof-Mobile";
+    internal static string RepositoryUrl => BrandMetadata.MobileRepositoryUrl;
 
     internal MobileAppUpdatePolicyProvider()
     {
@@ -75,6 +73,9 @@ internal sealed class MobileAppUpdatePolicyProvider
 
     internal Task? RefreshInBackground()
     {
+        if (!ProductCapabilityRuntime.CurrentFeatures.MobileApp)
+            return null;
+
         lock (_gate)
         {
             if (_refreshTask is { IsCompleted: false }
@@ -163,7 +164,7 @@ internal sealed class MobileAppUpdatePolicyProvider
         CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseApiUrl);
-        request.Headers.UserAgent.ParseAdd("PackingProof-Desktop/1.0");
+        request.Headers.UserAgent.ParseAdd(BrandMetadata.ArtifactPrefix + "-Desktop/1.0");
         using HttpResponseMessage response = await Client.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
         string json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -192,7 +193,7 @@ internal sealed class MobileAppUpdatePolicyProvider
             string url =
                 $"{ReleasesListApiUrl}?page={page}&per_page={ReleaseListPageSize}";
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.UserAgent.ParseAdd("PackingProof-Desktop/1.0");
+            request.Headers.UserAgent.ParseAdd(BrandMetadata.ArtifactPrefix + "-Desktop/1.0");
             using HttpResponseMessage response = await Client.SendAsync(
                 request,
                 cancellationToken);
@@ -255,7 +256,7 @@ internal sealed class MobileAppUpdatePolicyProvider
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, manifestUrl);
-        request.Headers.UserAgent.ParseAdd("PackingProof-Desktop/1.0");
+        request.Headers.UserAgent.ParseAdd(BrandMetadata.ArtifactPrefix + "-Desktop/1.0");
         using HttpResponseMessage response = await Client.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
@@ -360,7 +361,7 @@ internal sealed class MobileAppUpdatePolicyProvider
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, manifestUrl);
-            request.Headers.UserAgent.ParseAdd("PackingProof-Desktop/1.0");
+            request.Headers.UserAgent.ParseAdd(BrandMetadata.ArtifactPrefix + "-Desktop/1.0");
             using HttpResponseMessage response = await Client.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,

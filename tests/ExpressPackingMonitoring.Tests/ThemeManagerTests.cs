@@ -28,8 +28,6 @@ public sealed class ThemeManagerTests
     {
         RunOnStaThread(() =>
         {
-            if (Application.Current == null)
-                _ = new Application();
             Application.Current!.Resources = new ResourceDictionary();
 
             ThemeManager.ApplyTheme(AppTheme.Light);
@@ -56,18 +54,6 @@ public sealed class ThemeManagerTests
     /// <summary>
     /// 主题资源要真的加载进 WPF 资源体系，测试宿主得自己起 STA 线程。
     /// </summary>
-    private static void RunOnStaThread(Action action)
-    {
-        Exception? failure = null;
-        var thread = new Thread(() =>
-        {
-            try { action(); }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA 线程执行超时");
-        if (failure != null)
-            throw new Xunit.Sdk.XunitException(failure.ToString());
-    }
+    private static void RunOnStaThread(Action action) =>
+        WpfTestHost.Run(action, TimeSpan.FromSeconds(60), "STA 线程执行超时");
 }

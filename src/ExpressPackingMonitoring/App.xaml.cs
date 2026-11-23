@@ -24,6 +24,7 @@ namespace ExpressPackingMonitoring
     public partial class App : Application
     {
         private static readonly bool SoftwareRenderingForced = ConfigureWpfRendering();
+        internal static bool StartWithoutMainWindowForTests { get; set; }
         private WorkstationInstanceCoordinator? _instanceCoordinator;
         private IDisposable? _hostLease;
         private CancellationTokenSource? _launcherUpdateCancellation;
@@ -36,6 +37,13 @@ namespace ExpressPackingMonitoring
                 RuntimeLog.Info(
                     "StartupTrace",
                     $"{stage} elapsedMs={Stopwatch.GetElapsedTime(startupStartedAt).TotalMilliseconds:F0}");
+            }
+
+            if (StartWithoutMainWindowForTests)
+            {
+                base.OnStartup(e);
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                return;
             }
 
             ApplyConfiguredWpfRenderingMode();
@@ -151,27 +159,85 @@ namespace ExpressPackingMonitoring
 
             if (forceChoose)
                 config.DeploymentPreset = "";
-            if (requestedPreset.Length > 0 && !TrySaveStartupPreset(config, requestedPreset))
-                return;
+            RuntimeEnvironment startupEnvironment =
+                RuntimeCapabilityEnvironment.FromConfig(config);
+            if (requestedPreset.Length > 0)
+            {
+                bool requestedAvailable =
+                    ProductRoleCapabilityMapper.TryGet(
+                        requestedPreset,
+                        out RoleCapabilities requestedRole)
+                    && ProductCapabilityRuntime.IsRoleAvailable(
+                        requestedRole,
+                        startupEnvironment);
+                if (requestedAvailable)
+                {
+                    if (!TrySaveStartupPreset(config, requestedPreset))
+                        return;
+                }
+                else
+                {
+                    RuntimeLog.Warn(
+                        "Deployment",
+                        $"Requested preset is unavailable for this brand: {requestedPreset}");
+                }
+            }
 
             string startupPreset = config.DeploymentPreset;
             bool requiresDeploymentSetup = forceChoose || AppConfig.ShouldRunDeploymentSetup(config);
             while (true)
             {
-                if (!DeploymentPresets.IsKnown(startupPreset) || requiresDeploymentSetup)
+                bool startupPresetAvailable =
+                    ProductRoleCapabilityMapper.TryGet(
+                        startupPreset,
+                        out RoleCapabilities startupRole)
+                    && ProductCapabilityRuntime.IsRoleAvailable(
+                        startupRole,
+                        RuntimeEnvironment.FullyAvailable)
+                    && (ProductCapabilityRuntime.IsRoleAvailable(
+                            startupRole,
+                            startupEnvironment)
+                        || (config.FirstUseWizardCompleted
+                            && DeploymentPresets.IsKnown(startupPreset)));
+                if (!startupPresetAvailable || requiresDeploymentSetup)
                 {
-                    var selector = new WorkstationSelectionWindow(startupPreset, confirmCurrentPreset: true);
-                    if (selector.ShowDialog() != true || string.IsNullOrWhiteSpace(selector.SelectedPreset))
+                    string selectedPreset;
+                    string? automaticPreset = forceChoose
+                        ? null
+                        : ProductCapabilityRuntime.SingleAvailablePreset(
+                            startupEnvironment);
+                    if (automaticPreset != null)
                     {
-                        RuntimeLog.RecordShutdownRequest("DeploymentSelectionCancelled");
-                        Shutdown(0);
-                        return;
+                        selectedPreset = automaticPreset;
+                        RuntimeLog.Info(
+                            "Deployment",
+                            $"Only brand role available; selecting preset={selectedPreset}");
+                        if (!TrySaveStartupPreset(config, selectedPreset))
+                            return;
+                        startupPreset = selectedPreset;
+                        requiresDeploymentSetup = false;
+                        continue;
+                    }
+                    else
+                    {
+                        var selector = new WorkstationSelectionWindow(
+                            startupPreset,
+                            confirmCurrentPreset: true,
+                            runtimeEnvironment: startupEnvironment);
+                        if (selector.ShowDialog() != true
+                            || string.IsNullOrWhiteSpace(selector.SelectedPreset))
+                        {
+                            RuntimeLog.RecordShutdownRequest("DeploymentSelectionCancelled");
+                            Shutdown(0);
+                            return;
+                        }
+                        selectedPreset = selector.SelectedPreset;
                     }
 
                     AppConfig draft = JsonSerializer.Deserialize<AppConfig>(
                         JsonSerializer.Serialize(config)) ?? new AppConfig();
-                    draft.DeploymentPreset = selector.SelectedPreset;
-                    if (selector.SelectedPreset == DeploymentPresets.RecordingWorkstation)
+                    draft.DeploymentPreset = selectedPreset;
+                    if (selectedPreset == DeploymentPresets.RecordingWorkstation)
                     {
                         draft.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
                         RecordingWorkstationCachePolicy.ConfigureInitialLocation(
@@ -179,7 +245,7 @@ namespace ExpressPackingMonitoring
                             preserveExistingLocation: config.FirstUseWizardCompleted);
                     }
                     draft.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
-                    draft.WorkstationRole = selector.SelectedPreset switch
+                    draft.WorkstationRole = selectedPreset switch
                     {
                         DeploymentPresets.RecordingHost => WorkstationRoles.CameraMonitor,
                         DeploymentPresets.MobileBackupHost => WorkstationRoles.PrintStation,
@@ -189,6 +255,8 @@ namespace ExpressPackingMonitoring
                     AppConfig.NormalizeAfterLoad(draft);
                     config = draft;
                     startupPreset = draft.DeploymentPreset;
+                    startupEnvironment =
+                        RuntimeCapabilityEnvironment.FromConfig(config);
                     requiresDeploymentSetup = false;
                 }
 
@@ -244,7 +312,7 @@ namespace ExpressPackingMonitoring
                 break;
             }
 
-            if (DeploymentCapabilities.ForPreset(startupPreset).IsHost)
+            if (ProductCapabilityRuntime.ForPreset(startupPreset).IsHost)
             {
                 string? hostLeaseScope = Environment.GetEnvironmentVariable("EPM_HOST_LEASE_SCOPE");
                 if (!WorkstationInstanceCoordinator.TryAcquireHostLease(out _hostLease, hostLeaseScope))
@@ -255,10 +323,12 @@ namespace ExpressPackingMonitoring
                     var hostConflictSelector = new WorkstationSelectionWindow(
                         startupPreset,
                         confirmCurrentPreset: true,
-                        hostUnavailable: true);
+                        hostUnavailable: true,
+                        runtimeEnvironment: startupEnvironment);
                     if (hostConflictSelector.ShowDialog() != true ||
                         string.IsNullOrWhiteSpace(hostConflictSelector.SelectedPreset) ||
-                        DeploymentCapabilities.ForPreset(hostConflictSelector.SelectedPreset).IsHost)
+                        ProductCapabilityRuntime.ForPreset(
+                            hostConflictSelector.SelectedPreset).IsHost)
                     {
                         RuntimeLog.RecordShutdownRequest("HostLeaseFallbackCancelled", startupPreset);
                         Shutdown(0);

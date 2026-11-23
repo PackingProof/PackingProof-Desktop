@@ -1,18 +1,25 @@
 param(
     [string]$Configuration = "Release",
-    [ValidateSet("include", "exclude")]
-    [string]$VisionObb = "include"
+    [ValidateSet("auto", "include", "exclude")]
+    [string]$VisionObb = "auto"
 )
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "Branding.Common.ps1")
+. (Join-Path $PSScriptRoot "BrandResourcePolicy.Common.ps1")
+$brand = Get-BrandProfile -RepoRoot $repoRoot
+$resourcePolicy = Get-BrandResourcePolicy -Brand $brand
+$includeVisionObb = Resolve-BrandOptionalResource `
+    -Requested $VisionObb `
+    -Enabled $resourcePolicy.VisionObb `
+    -ResourceName "inputs.visionObb"
 $solution = Join-Path $repoRoot "ExpressPackingMonitoring.sln"
 $testsProject = Join-Path $repoRoot "tests\ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj"
 $encodingTestScript = Join-Path $repoRoot "tools\Test-EncodingCodecs.ps1"
 $webPage = Join-Path $repoRoot "src\ExpressPackingMonitoring\Web\index.html"
 $artifactsRoot = Join-Path $repoRoot "TestResults\ReleaseBuild\$Configuration"
-$includeVisionObb = $VisionObb -eq "include"
 $visionArguments = @(
     "-p:IncludeVisionObb=$($includeVisionObb.ToString().ToLowerInvariant())"
 )
@@ -59,6 +66,27 @@ $requiredCoreTests = @(
     "MobileConnectionTests.ProtectedEndpointRejectsUnauthorizedAndAcceptsQueryThenCookie"
 )
 
+$wpfTestClasses = @(
+    "BarcodePrintLayoutTests",
+    "BarcodeRenderRoundTripTests",
+    "CameraChannelChoiceUiTests",
+    "CameraVisionGuideRoiTests",
+    "ClipboardHelperTests",
+    "ExtensionMarketWindowTests",
+    "InputClearButtonRenderTests",
+    "InputPasteButtonRenderTests",
+    "MenuThemeRenderTests",
+    "PhotoEvidenceTests",
+    "PlaybackWindowRenderTests",
+    "PlaybackWindowVideoHostSmokeTests",
+    "SettingsCardSpacingTests",
+    "SettingsWindowRenderTests",
+    "ThemeManagerTests",
+    "UiScreenshotTests",
+    "WindowConstructionTests",
+    "ZoomGuideEditingRenderTests"
+)
+
 function Invoke-DotNet {
     param([string[]]$Arguments)
 
@@ -100,12 +128,50 @@ foreach ($requiredTest in $requiredCoreTests) {
     }
 }
 
-Write-Host "Running complete release test suite..."
+Write-Host "Running release business tests..."
+$businessTestFilter = ($wpfTestClasses |
+    ForEach-Object { "FullyQualifiedName!~.$_." }) -join "&"
 Invoke-DotNet -Arguments (@(
     "test", $testsProject, "-c", $Configuration, "--nologo",
     "--no-build", "--no-restore", "--artifacts-path", $artifactsRoot,
-    "--blame-hang-timeout", "5m", "--blame-hang-dump-type", "none"
+    "--blame-hang-timeout", "5m", "--blame-hang-dump-type", "none",
+    "--filter", $businessTestFilter
 ) + $visionArguments)
+
+Write-Host "Running isolated WPF test classes..."
+foreach ($testClass in $wpfTestClasses) {
+    Write-Host "  $testClass"
+    $previousPlaybackSmoke = $env:EPM_PLAYBACK_SMOKE
+    try {
+        if ($testClass -eq "PlaybackWindowVideoHostSmokeTests") {
+            $env:EPM_PLAYBACK_SMOKE = "1"
+        }
+        # WPF 的 Application、资源字典和窗口生命周期是进程级状态；同一测试进程连续
+        # 执行多个 WPF 用例时，先关闭的 Application 会让后续资源 URI 和窗口失效。
+        # 因此所有 WPF 用例都按方法分别启进程，保证每个用例都有干净的应用生命周期。
+        $methodPrefix = "ExpressPackingMonitoring.Tests.$testClass."
+        $windowTests = [regex]::Matches(
+            $testList,
+            [regex]::Escape($methodPrefix) + "[A-Za-z0-9_]+") |
+            ForEach-Object { $_.Value } |
+            Sort-Object -Unique
+        if ($windowTests.Count -eq 0) {
+            throw "$testClass discovery returned no test methods"
+        }
+        foreach ($windowTest in $windowTests) {
+            Write-Host "    $($windowTest.Substring($methodPrefix.Length))"
+            Invoke-DotNet -Arguments (@(
+                "test", $testsProject, "-c", $Configuration, "--nologo",
+                "--no-build", "--no-restore", "--artifacts-path", $artifactsRoot,
+                "--blame-hang-timeout", "2m", "--blame-hang-dump-type", "none",
+                "--filter", "FullyQualifiedName=$windowTest"
+            ) + $visionArguments)
+        }
+    }
+    finally {
+        $env:EPM_PLAYBACK_SMOKE = $previousPlaybackSmoke
+    }
+}
 
 Write-Host "Running hardware-aware FFmpeg encoder round trips..."
 & $encodingTestScript -Configuration $Configuration -ArtifactsPath $artifactsRoot -NoBuild
@@ -116,21 +182,27 @@ if ($null -eq $node) {
     throw "Node.js is required for release Web JavaScript validation."
 }
 $html = [System.IO.File]::ReadAllText($webPage, [System.Text.Encoding]::UTF8)
-$scriptStart = $html.IndexOf("<script>", [System.StringComparison]::Ordinal)
-$scriptEnd = $html.LastIndexOf("</script>", [System.StringComparison]::Ordinal)
-if ($scriptStart -lt 0 -or $scriptEnd -le $scriptStart) {
-    throw "Web page script block was not found."
+$scriptBlocks = [regex]::Matches(
+    $html,
+    '<script\b(?<attributes>[^>]*)>(?<code>[\s\S]*?)</script>',
+    [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+$inlineScripts = @($scriptBlocks | Where-Object {
+    $_.Groups["attributes"].Value -notmatch '\bsrc\s*='
+})
+if ($inlineScripts.Count -eq 0) {
+    throw "Web page inline script block was not found."
 }
-$scriptStart += "<script>".Length
 $tempScript = Join-Path ([System.IO.Path]::GetTempPath()) "ExpressPackingMonitoring-release-$([Guid]::NewGuid().ToString('N')).js"
 try {
-    [System.IO.File]::WriteAllText(
-        $tempScript,
-        $html.Substring($scriptStart, $scriptEnd - $scriptStart),
-        [System.Text.UTF8Encoding]::new($false))
-    & $node.Source --check $tempScript
-    if ($LASTEXITCODE -ne 0) {
-        throw "Web JavaScript syntax validation failed with exit code $LASTEXITCODE"
+    foreach ($script in $inlineScripts) {
+        [System.IO.File]::WriteAllText(
+            $tempScript,
+            $script.Groups["code"].Value,
+            [System.Text.UTF8Encoding]::new($false))
+        & $node.Source --check $tempScript
+        if ($LASTEXITCODE -ne 0) {
+            throw "Web JavaScript syntax validation failed with exit code $LASTEXITCODE"
+        }
     }
 }
 finally {

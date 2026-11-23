@@ -19,12 +19,14 @@ public sealed class TaskbarIdentityTests
     [Fact]
     public void ApplicationIconProvidesFullBrandingAtTaskbarSizes()
     {
-        string projectDirectory = Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "ExpressPackingMonitoring");
-        byte[] icon = File.ReadAllBytes(
-            Path.Combine(projectDirectory, "app.ico"));
+        string repositoryRoot = FindRepositoryRoot();
+        string projectDirectory = Path.Combine(repositoryRoot, "src", "ExpressPackingMonitoring");
+        byte[] icon = File.ReadAllBytes(Path.Combine(
+            repositoryRoot,
+            "branding",
+            "profiles",
+            "packingproof",
+            "app.ico"));
         int frameCount = BinaryPrimitives.ReadUInt16LittleEndian(icon.AsSpan(4, 2));
         var sizes = new HashSet<int>();
         for (int index = 0; index < frameCount; index++)

@@ -58,13 +58,16 @@ pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 ## 本地环境与安全边界
 
 - 日常构建和测试优先使用本机或局域网编译机，不依赖 GitHub CI。机器地址、账号和连接方式只保存在本机笔记，禁止提交或推送。
-- 所有远端写操作必须使用独立机器人：GitHub 只能使用组织级 App `PackingProof Release Bot`（配置目录位于 `%USERPROFILE%\.config\PackingProof\github-apps\packingproof-release-bot`，运行时动态换取 installation token）；Gitee 只能使用 `PackingProof-Release-Bot` 的仓库外 token 文件 `%USERPROFILE%\.config\PackingProof\gitee-release-bot\token.txt`。禁止使用个人 `gh` / `gitee` 登录态、个人 HTTPS 凭据、`.env` 普通令牌或个人身份推送分支、删除 tag、创建/合并 PR、创建 Release 或上传附件。`.env` 已被 Git 忽略，禁止提交 token、App 私钥或安装令牌。
+- 所有远端写操作必须使用独立发布身份。默认 `packingproof` 软件配置继续使用组织级 GitHub App `PackingProof Release Bot` 和 `PackingProof-Release-Bot` 的仓库外 token 文件；外置软件配置可以通过 `BrandGitHubReleaseTokenFile`、`BrandGiteeReleaseTokenFile` 指向该配置自己的仓库外专用机器人 token。禁止使用个人 `gh` / `gitee` 登录态、个人 HTTPS 凭据、`.env` 普通令牌或个人身份推送分支、删除 tag、创建/合并 PR、创建 Release 或上传附件。`.env` 已被 Git 忽略，禁止提交 token、App 私钥或安装令牌。
+- 公共仓库推送前必须通过 `tools\Test-PrivateBrandLeak.ps1`：它从仓库外定制档案自动提取真实身份并扫描已跟踪文件，防止客户名称、安装标识、私有地址和签名信息进入公共树；`Push-ReleaseBot.ps1` 已强制执行，不得只靠人工检查或硬编码客户名单。
 - Mac 负责 iOS/Xcode 与 macOS 保存主机（`tools/Publish-MacHost.sh`、`tools/Publish-MacRelease.sh`）；Windows 负责桌面端构建与测试。双机同步优先 rebase，禁止为同步制造本地 merge 提交。
 - 不提交配置、数据库、日志、缓存、录像、`.env`、证书、签名材料、密钥或其他本机状态。运行时数据属于 `%LOCALAPPDATA%\ExpressPackingMonitoring\`。
+- 用户可见软件名称、图标、安装身份和更新渠道统一从 `branding/Brand.props` 选择的软件配置读取；新增软件身份硬编码前先检查对应配置字段。默认 `packingproof` 配置中的兼容身份、数据目录和扩展协议不得仅因换名而修改；多个应用版本并行安装必须使用独立的软件配置和身份字段。
 - 本机工具链固定为 .NET 10 SDK（`global.json` 钉在 10.0.404，`tools\Build-SharedRuntimeLayout.ps1` 等脚本按它取运行时）。.NET 10 的 `minimumMSBuildVersion` 是 18.0.0，所以 IDE 必须是 Visual Studio 2026（18.x）；用 VS 2022 打开解决方案会报"未能正确加载解决方案中的一个或多个项目"，命令行 `dotnet` 构建与发布脚本不受影响，别去改 `.sln` 或回退 TFM 掩盖它。
 
 ## 代码与界面
 
+- **UI 渲染确认硬规则**：任何用户可见 UI 修改都必须生成真实渲染截图并交由用户进行人工视觉确认。C# 使用 WPF UI 测试或截图工具；HTML 使用 `Test-WebUi.ps1` 或 Playwright。构建、单元测试和 DOM 几何断言不能替代人工视觉确认；没有截图证据和用户确认，不得把 UI 任务视为完成，也不得正式发布。
 - **UI 响应性是全项目总约束，不局限于扫码或某个功能。** UI 线程只允许轻量的状态更新、数据绑定、布局和必要的事件处理；任何可能阻塞、耗时、等待外部资源或产生明显 I/O 的工作都必须移到后台任务或独立工作线程。
 - UI 线程禁止执行同步数据库操作、文件读写/复制/删除、目录递归扫描、网络请求、进程启动和等待、FFmpeg/媒体探测、压缩解压、大文件哈希、图片或视频编码解码、批量序列化和长时间 CPU 计算。必须使用 `await Task.Run(...)`、专用后台服务或后台队列，并在完成后再把必要的最终状态切回 UI。
 - UI 线程禁止使用 `.Result`、`.Wait()`、同步 `GetAwaiter().GetResult()` 等待可能耗时的任务，也不得用 `Thread.Sleep`、同步网络/数据库超时或阻塞式设备等待制造假响应。
@@ -84,6 +87,8 @@ pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 - 长内容对话框或选择窗口的操作按钮必须固定在滚动区外，内容过高时只让主体滚动；用回归测试确认按钮的可视父链中没有 `ScrollViewer`。
 - LibVLC 回放 UNC/NAS 路径必须走 `PlaybackMediaSource` 的 `FileStream` + `StreamMediaInput`（`imem`），沿用 Windows SMB 凭据；不要把 UNC 直接转成 `new Uri` 交给 `filesystem`，也不要为 NAS 回放重新加入 `libsmb_plugin.dll`。
 - 新增设置项时必须先定归属，并在提交说明里交代四件事：放在哪个页签/卡片、按哪个 `SettingsCapabilities` 能力门控（没有合适的能力就先补一个派生属性）、是否受高级模式控制、三语文案是否补齐。只有四个角色都该看到时才允许不加门控；不要靠事后补守卫测试来兜底。
+- C# UI 改动必须通过现有 WPF 渲染测试或截图入口生成真实图片，覆盖受影响状态（正常、空、错误、禁用、弹窗、长文本等）和必要窗口尺寸；截图必须实际打开检查，并在交付或发版前以本地文件链接展示给用户确认。
+- HTML/网页 UI 改动必须在真实浏览器中打开对应页面和交互状态，用 Playwright 或 `tools\Test-WebUi.ps1` 生成截图；必须覆盖需求涉及的桌面、中屏和手机断点，不能只依赖选择器、坐标断言或“页面无异常”的测试结果。截图必须实际检查并展示给用户确认。
 
 ## 国际化与运行时文案
 

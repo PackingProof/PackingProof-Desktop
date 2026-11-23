@@ -466,7 +466,10 @@ public sealed class RecordingWorkstationCacheTests
             cacheTab,
             StringComparison.Ordinal);
         Assert.Contains("Content=\"更改磁盘\"", cacheTab, StringComparison.Ordinal);
-        Assert.Contains("IsEnabled=\"{Binding Capabilities.CanConfigureStorage}\"", cacheTab, StringComparison.Ordinal);
+        Assert.Contains(
+            "Visibility=\"{Binding Capabilities.CanConfigureStorage",
+            cacheTab,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("<StackPanel IsEnabled=\"{Binding Capabilities.CanConfigureStorage}\">", cacheTab, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding Context.RequestHostStorageCommand}\"", cacheTab, StringComparison.Ordinal);
         Assert.Contains("RecordingCacheLocationConverter", cacheTab, StringComparison.Ordinal);

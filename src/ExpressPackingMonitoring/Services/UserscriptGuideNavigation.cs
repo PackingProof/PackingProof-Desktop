@@ -28,7 +28,7 @@ internal static class UserscriptGuideNavigation
         string url = BuildUrl(hostAddress);
         if (url.Length == 0)
         {
-            error = "PackingProof 主机地址无效";
+            error = ExpressPackingMonitoring.UpdateCore.BrandText.Apply("PackingProof 主机地址无效");
             return false;
         }
 

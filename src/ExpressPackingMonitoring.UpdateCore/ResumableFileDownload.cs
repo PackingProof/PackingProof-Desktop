@@ -35,7 +35,7 @@ public static class ResumableFileDownload
     public const string PartialFileSuffix = ".partial";
     public const string InFlightMarker = ".inflight-";
 
-    private const string UserAgent = "ExpressPackingMonitoring";
+    private static string UserAgent => BrandMetadata.ArtifactPrefix;
 
     /// <summary>停滞判据：这么久没收到任何新字节就认为这条连接已经死了（字节留着下次接着下）。</summary>
     public static readonly TimeSpan DefaultStallTimeout = TimeSpan.FromSeconds(60);

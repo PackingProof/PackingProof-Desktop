@@ -487,7 +487,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
             ShowSampleContributionPrompt(
                 owner,
-                "帮助 PackingProof 变得更好",
+                Localization.AppLanguage.Get("帮助 PackingProof 变得更好"),
                 [
                     "你可以贡献一些本机识别样本，帮助我们把面单识别做得更可靠",
                     "我们不会主动上传。生成样本包后，需要你发送到邮箱或维护者",
@@ -557,7 +557,9 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private async Task RunMobileConnectionSetupPromptIfNeededAsync(System.Windows.Window owner)
         {
-            if (_isDisposed || !AppConfig.ShouldPromptMobileConnection(Config))
+            if (_isDisposed
+                || !ProductCapabilityRuntime.CurrentFeatures.MobileApp
+                || !AppConfig.ShouldPromptMobileConnection(Config))
                 return;
 
             Task<bool> startupTask = _webServerStartupTask;

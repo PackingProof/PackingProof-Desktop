@@ -62,7 +62,7 @@ if (git status --porcelain --untracked-files=all) {
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $versionFile = Join-Path $repoRoot "Directory.Build.props"
-    $match = Select-String -LiteralPath $versionFile -Pattern "<Version>([^<]+)</Version>" | Select-Object -First 1
+    $match = Select-String -LiteralPath $versionFile -Pattern "<Version(?:\s+[^>]*)?>\s*([^<]+?)\s*</Version>" | Select-Object -First 1
     if (-not $match) {
         throw "读不到 Directory.Build.props 里的 <Version>，请用 -Version 显式指定"
     }

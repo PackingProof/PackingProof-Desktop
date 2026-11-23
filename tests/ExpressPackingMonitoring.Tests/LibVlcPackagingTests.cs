@@ -44,6 +44,7 @@ public sealed class LibVlcPackagingTests
             "packetizer\\libpacketizer_h264_plugin.dll",
             "packetizer\\libpacketizer_hevc_plugin.dll",
             "packetizer\\libpacketizer_av1_plugin.dll",
+            "video_output\\libdrawable_plugin.dll",
             "video_output\\libdirect3d11_plugin.dll",
             "video_output\\libdirect3d9_plugin.dll",
             "audio_output\\libwasapi_plugin.dll",
@@ -55,6 +56,38 @@ public sealed class LibVlcPackagingTests
         foreach (string plugin in requiredPlugins)
             Assert.Contains(plugin, project);
         Assert.Contains("video_chroma\\*.dll", project);
+    }
+
+    [Fact]
+    public void Publish_KeepsEmbedHwndWindowProvider()
+    {
+        string project = ReadProject();
+
+        Assert.Contains(
+            "video_output\\libdrawable_plugin.dll",
+            project,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PackagingScripts_RequireDrawablePluginInPayload()
+    {
+        string cleanPackage = ReadRepositoryFile(
+            "tools", "Publish-CleanPackage.ps1");
+        string storePackage = ReadRepositoryFile(
+            "tools", "Publish-StorePackage.ps1");
+
+        foreach (string script in new[] { cleanPackage, storePackage })
+        {
+            Assert.Contains(
+                "libvlc\\win-x64\\plugins\\video_output\\libdrawable_plugin.dll",
+                script,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                "缺少 LibVLC 内嵌窗口模块",
+                script,
+                StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -108,6 +141,64 @@ public sealed class LibVlcPackagingTests
         Assert.Contains("class VlcVideoHost : HwndHost", host, StringComparison.Ordinal);
         Assert.Contains("player.Hwnd = _videoHwnd", host, StringComparison.Ordinal);
         Assert.DoesNotContain("new ForegroundWindow", host, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PlaybackWindow_UsesStableEmbeddedOutputBeforeEveryPlay()
+    {
+        string options = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "PlaybackLibVlc.cs");
+        string preparation = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "PlaybackWindow.Preparation.cs");
+        string window = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs");
+        string playback = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "PlaybackWindow.Playback.cs");
+        string xaml = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml");
+        string controls = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "PlaybackWindow.Controls.cs");
+        string host = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "VlcVideoHost.cs");
+
+        Assert.DoesNotContain("-vv", options, StringComparison.Ordinal);
+        Assert.Contains("--avcodec-hw=any", options, StringComparison.Ordinal);
+        Assert.DoesNotContain("--vout=direct3d9", options, StringComparison.Ordinal);
+        Assert.Contains("--no-video-title-show", options, StringComparison.Ordinal);
+        Assert.DoesNotContain("libVlc.Log +=", options, StringComparison.Ordinal);
+        Assert.Contains("PlaybackLibVlc.Create()", window, StringComparison.Ordinal);
+
+        int attachIndex = preparation.IndexOf(
+            "PlayerView.Attach(",
+            StringComparison.Ordinal);
+        int playIndex = preparation.IndexOf(
+            "_mediaPlayer!.Play(",
+            attachIndex,
+            StringComparison.Ordinal);
+        Assert.True(
+            attachIndex >= 0 && playIndex > attachIndex,
+            "每次起播前都必须重新绑定内嵌视频 HWND");
+        Assert.Contains("VideoArea.ActualWidth", preparation, StringComparison.Ordinal);
+        Assert.DoesNotContain(":vout=", preparation, StringComparison.Ordinal);
+        int playerViewIndex = xaml.IndexOf(
+            "x:Name=\"PlayerView\"",
+            StringComparison.Ordinal);
+        Assert.True(playerViewIndex >= 0, "回放窗口必须包含 PlayerView");
+        string playerViewMarkup = xaml.Substring(
+            playerViewIndex,
+            Math.Min(260, xaml.Length - playerViewIndex));
+        Assert.Contains(
+            "Visibility=\"Hidden\"",
+            playerViewMarkup,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "PlayerView.Visibility = Visibility.Hidden;",
+            controls,
+            StringComparison.Ordinal);
+        Assert.Contains("SetWindowPos(", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetParent(", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetWindowLongPtr(", host, StringComparison.Ordinal);
+        Assert.Contains("Task.Run(", playback, StringComparison.Ordinal);
     }
 
     [Theory]

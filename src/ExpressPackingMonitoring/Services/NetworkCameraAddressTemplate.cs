@@ -65,7 +65,7 @@ internal sealed record NetworkCameraAddress(
 /// 品牌预置的 RTSP 地址模板。只负责"字段 → 完整地址"和"完整地址 → 字段"，
 /// 不碰配置、界面和拉流；设置页与首用向导共用，避免两边各拼一套。
 ///
-/// 预置只是常见型号的捷径：贴牌机、老固件、非标准端口都可能不匹配，
+/// 预置只是常见型号的捷径：兼容设备、老固件、非标准端口都可能不匹配，
 /// 所以"其他"永远保留完整地址手动填写。
 /// </summary>
 internal static class NetworkCameraAddressTemplate

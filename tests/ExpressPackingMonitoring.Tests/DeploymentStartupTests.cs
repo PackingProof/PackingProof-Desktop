@@ -77,7 +77,10 @@ public sealed class DeploymentStartupTests
         Assert.Equal(3, Regex.Matches(xaml, "SharedSizeGroup=\"ConnectionCardActions\"").Count);
         Assert.Contains("Text=\"下载手机 App\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"iOS 内测\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("使用 Android 手机扫码", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "AppLanguage.Get(\"使用 Android 手机扫码，下载 PackingProof 手机录像 App\")",
+            source,
+            StringComparison.Ordinal);
         Assert.Contains("下载完成后按手机提示安装", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"OpenMobileAppDownloadButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Click=\"OpenTestFlight_Click\"", xaml, StringComparison.Ordinal);
@@ -766,11 +769,10 @@ public sealed class DeploymentStartupTests
             mobileBackupXaml);
 
         Assert.Contains("StaticResource FluentDataIcon", recordingXaml, StringComparison.Ordinal);
-        foreach (string xaml in new[] { recordingXaml, mobileBackupXaml })
-        {
-            Assert.Contains("StaticResource FluentVideoIcon", xaml, StringComparison.Ordinal);
-            Assert.Contains("StaticResource FluentSettingsIcon", xaml, StringComparison.Ordinal);
-        }
+        Assert.Contains("StaticResource FluentHistoryIcon", recordingXaml, StringComparison.Ordinal);
+        Assert.Contains("StaticResource FluentVideoIcon", mobileBackupXaml, StringComparison.Ordinal);
+        Assert.Contains("StaticResource FluentSettingsIcon", recordingXaml, StringComparison.Ordinal);
+        Assert.Contains("StaticResource FluentSettingsIcon", mobileBackupXaml, StringComparison.Ordinal);
 
         Assert.Contains("Text=\"打开网页回放\"", viewerXaml, StringComparison.Ordinal);
         Assert.DoesNotContain("打开录像网页", viewerXaml, StringComparison.Ordinal);
@@ -816,7 +818,7 @@ public sealed class DeploymentStartupTests
         Assert.Contains("Click=\"SwitchPurpose_Click\"", viewerXaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"切换用途\"", mobileBackupXaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding SwitchWorkstationButtonText}\"", recordingXaml, StringComparison.Ordinal);
-        Assert.Contains("IsEnabled=\"{Binding CanSwitchWorkstation}\"", recordingXaml, StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"{Binding CanInvokePurposeSwitch}\"", recordingXaml, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding Context.RequestHostStorageCommand}\"", settingsXaml, StringComparison.Ordinal);
         Assert.Contains("CommandParameter=\"{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}}\"", settingsXaml, StringComparison.Ordinal);
         Assert.Contains("SwitchWorkstationAsync(System.Windows.Window owner)", recordingSource, StringComparison.Ordinal);
@@ -855,7 +857,7 @@ public sealed class DeploymentStartupTests
         int recordingWait = recordingSwitch.IndexOf("await _webServer.WaitForMobileBackupsAsync", StringComparison.Ordinal);
         int recordingSave = recordingSwitch.IndexOf("if (!SaveConfig(nextConfig", StringComparison.Ordinal);
         Assert.True(recordingWait >= 0 && recordingWait < recordingSave);
-        Assert.Contains("while (IsRecording)", recordingSwitch, StringComparison.Ordinal);
+        Assert.Contains("ModeTransitionPolicy.FindBlockers", recordingSwitch, StringComparison.Ordinal);
         Assert.Contains("_purposeSwitchCts.Cancel()", recordingSource, StringComparison.Ordinal);
     }
 
@@ -876,7 +878,6 @@ public sealed class DeploymentStartupTests
             "FluentIcons.xaml");
 
         Assert.Contains("\"FluentDatabaseIcon\"", selectorSource, StringComparison.Ordinal);
-        Assert.Contains("Data=\"{StaticResource FluentDatabaseIcon}\"", settings, StringComparison.Ordinal);
         Assert.Contains("x:Key=\"FluentDatabaseIcon\"", icons, StringComparison.Ordinal);
     }
 
@@ -919,34 +920,23 @@ public sealed class DeploymentStartupTests
             "UI",
             "SettingsWindow.xaml");
 
-        foreach ((string tag, string text) in new[]
-        {
-            ("RecordingHost", "录像主机"),
-            ("RecordingWorkstation", "录像从机"),
-            ("MobileBackupHost", "备份主机"),
-            ("ViewerClient", "录像查看端")
-        })
-        {
-            Assert.Contains($"Tag=\"{tag}\"", settings, StringComparison.Ordinal);
-            Assert.Contains($"Text=\"{text}\"", settings, StringComparison.Ordinal);
-        }
+        string settingsContext = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring",
+            "UI",
+            "SettingsContext.cs");
+        Assert.Contains("x:Name=\"PurposeComboBox\"", settings, StringComparison.Ordinal);
+        Assert.Contains("AvailablePurposes", settingsContext, StringComparison.Ordinal);
+        string settingsSource = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "SettingsWindow.xaml.cs");
+        Assert.Contains(
+            "SettingsPurposeSelector.Apply(PurposeComboBox, Context.AvailablePurposes)",
+            settingsSource,
+            StringComparison.Ordinal);
 
         Assert.DoesNotContain(
             "更改用途后程序会自动重启，并切换到对应界面",
             settings,
             StringComparison.Ordinal);
-        Assert.Matches(
-            "Tag=\"RecordingHost\"[\\s\\S]*?FluentVideoIcon",
-            settings);
-        Assert.Matches(
-            "Tag=\"RecordingWorkstation\"[\\s\\S]*?FluentWifiIcon",
-            settings);
-        Assert.Matches(
-            "Tag=\"ViewerClient\"[\\s\\S]*?FluentPlayIcon",
-            settings);
-        Assert.Matches(
-            "Tag=\"MobileBackupHost\"[\\s\\S]*?FluentDatabaseIcon",
-            settings);
     }
 
     [Theory]

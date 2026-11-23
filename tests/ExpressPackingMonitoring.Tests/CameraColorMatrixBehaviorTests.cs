@@ -141,7 +141,7 @@ public sealed class CameraColorMatrixBehaviorTests
         return result;
     }
 
-    /// <summary>与产品代码同一组系数（BGR 顺序），用于对照。</summary>
+    /// <summary>与正式软件代码同一组系数（BGR 顺序），用于对照。</summary>
     private static Mat CreateReferenceMatrix()
     {
         var matrix = new Mat(3, 3, MatType.CV_32FC1);

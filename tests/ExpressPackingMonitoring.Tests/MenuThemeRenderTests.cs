@@ -23,29 +23,7 @@ public sealed class MenuThemeRenderTests
     /// </summary>
     private static void RunOnStaThread(Action action)
     {
-        Exception? failure = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                // pack:// 方案要有 Application 实例才注册得上；
-                // 测试宿主不是 WPF 程序，这里自己建一个。
-                if (Application.Current == null)
-                    _ = new Application();
-                action();
-            }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA 线程执行超时");
-        if (failure != null)
-        {
-            var detail = new System.Text.StringBuilder();
-            for (Exception? current = failure; current != null; current = current.InnerException)
-                detail.AppendLine($"{current.GetType().Name}: {current.Message}");
-            throw new Xunit.Sdk.XunitException($"菜单主题渲染失败：{detail}");
-        }
+        WpfTestHost.Run(action, TimeSpan.FromSeconds(60), "STA 线程执行超时");
     }
 
     /// <summary>

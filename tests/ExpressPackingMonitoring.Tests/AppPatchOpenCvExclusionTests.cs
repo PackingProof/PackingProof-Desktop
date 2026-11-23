@@ -109,6 +109,10 @@ public sealed class AppPatchOpenCvExclusionTests
                 RepositoryRoot,
                 "tools",
                 "LauncherBaseline.Common.ps1");
+            string brandingCommonScript = Path.Combine(
+                RepositoryRoot,
+                "tools",
+                "Branding.Common.ps1");
             string installerCmd = Path.Combine(RepositoryRoot, "tools", "Install-AppPatch.cmd");
             string installerScript = Path.Combine(RepositoryRoot, "tools", "Apply-AppPatch.ps1");
             string retireList = Path.Combine(Root, "retire.json");
@@ -116,6 +120,7 @@ public sealed class AppPatchOpenCvExclusionTests
                 $ErrorActionPreference = 'Stop'
                 . '{{Escape(compatibilityScript)}}'
                 . '{{Escape(launcherCommonScript)}}'
+                . '{{Escape(brandingCommonScript)}}'
                 $tokens = $null
                 $errors = $null
                 $ast = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -127,6 +132,7 @@ public sealed class AppPatchOpenCvExclusionTests
                 }, $true))
                 . ([scriptblock]::Create(($functions | ForEach-Object { $_.Extent.Text }) -join [Environment]::NewLine))
                 $repoRoot = '{{Escape(RepositoryRoot)}}'
+                $brand = Get-BrandProfile -RepoRoot $repoRoot
                 $ZipCompressionLevel = 'Optimal'
                 $appPatchInstallerCmdName = '双击更新主程序.cmd'
                 $appPatchInstallerScriptName = 'apply_app_patch.ps1'

@@ -341,25 +341,10 @@ public sealed class BarcodeRenderRoundTripTests
     /// <summary>WPF 渲染必须在 STA 线程，且要能解析到 App 的资源（BarcodeHelper 取画刷）</summary>
     private static void RunOnStaThread(Action action)
     {
-        Exception? failure = null;
-        var thread = new Thread(() =>
+        WpfTestHost.Run(() =>
         {
-            try
-            {
-                if (Application.Current == null)
-                    _ = new Application();
-                LoadAppResources();
-                action();
-            }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA 线程执行超时");
-        if (failure != null)
-        {
-            throw new Xunit.Sdk.XunitException($"测试条码渲染失败：{failure}");
-        }
+            action();
+        }, TimeSpan.FromSeconds(60), "STA 线程执行超时");
     }
 
     /// <summary>与 App.xaml 相同的合并顺序，否则条码画刷取不到</summary>

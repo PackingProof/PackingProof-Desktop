@@ -5,7 +5,7 @@ param(
     [string]$AppRootPath = "",
     [switch]$SkipProcessCheck,
     [switch]$SkipVersionCheck,
-    [string]$MutexName = "Local\ExpressPackingMonitoring.ManualPatch"
+    [string]$MutexName = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,6 +23,7 @@ if ([string]::IsNullOrEmpty($PatchRoot)) {
         throw "无法确定补丁根目录，请通过 -PatchRoot 指定"
     }
 }
+$PatchRoot = [System.IO.Path]::GetFullPath($PatchRoot)
 
 function Write-UpdateHost {
     param(
@@ -108,7 +109,7 @@ function Test-IsPackagedInstallRoot {
         return $false
     }
     return (Test-Path -LiteralPath (Join-Path $normalized "AppxManifest.xml") -PathType Leaf) -or
-        (Test-Path -LiteralPath (Join-Path $normalized "PackingProof.PackageEdition.json") -PathType Leaf)
+        ((Get-ChildItem -LiteralPath $normalized -Filter "*.PackageEdition.json" -File -ErrorAction SilentlyContinue | Select-Object -First 1) -ne $null)
 }
 
 function Test-IsPackagedUserDataPath {
@@ -162,7 +163,47 @@ function Get-JsonProperty {
     return $null
 }
 
+function Get-RequiredJsonProperty {
+    param($Object, [string]$Name)
+    $value = [string](Get-JsonProperty $Object $Name)
+    if (Test-IsNullOrWhiteSpace $value) {
+        throw "补丁软件配置清单缺少 $Name"
+    }
+    return $value.Trim()
+}
+
+function Get-PatchBrandContract {
+    param($Manifest)
+    $brand = Get-JsonProperty $Manifest "brand"
+    if ($null -eq $brand) {
+        # 本次软件配置隔离之前发布的手动补丁只可能属于默认 PackingProof。
+        # 兼容旧包时仍把目标限定为默认软件名，独立软件目录会被后续配置校验拒绝。
+        return (New-Object PSObject -Property @{
+            ProfileId = "packingproof"
+            ProductName = "PackingProof"
+            DisplayName = "PackingProof 快递打包监控"
+            ArtifactPrefix = "PackingProof"
+            CompatibilityId = "PackingProof"
+            DataDirectoryName = "ExpressPackingMonitoring"
+            InstanceNamePrefix = "ExpressPackingMonitoring"
+            PackageEditionMarker = "PackingProof.PackageEdition.json"
+            IsLegacy = $true
+        })
+    }
+    return (New-Object PSObject -Property @{
+        ProfileId = Get-RequiredJsonProperty $brand "profile_id"
+        ProductName = Get-RequiredJsonProperty $brand "product_name"
+        DisplayName = Get-RequiredJsonProperty $brand "display_name"
+        ArtifactPrefix = Get-RequiredJsonProperty $brand "artifact_prefix"
+        CompatibilityId = Get-RequiredJsonProperty $brand "compatibility_id"
+        DataDirectoryName = Get-RequiredJsonProperty $brand "data_directory_name"
+        InstanceNamePrefix = Get-RequiredJsonProperty $brand "instance_name_prefix"
+        PackageEditionMarker = Get-RequiredJsonProperty $brand "package_edition_marker"
+    })
+}
+
 function Get-DefaultConfigPath {
+    param([string]$DirectoryName)
     $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
     if (Test-IsNullOrWhiteSpace $localAppData) {
         $localAppData = $env:LOCALAPPDATA
@@ -170,7 +211,7 @@ function Get-DefaultConfigPath {
     if (Test-IsNullOrWhiteSpace $localAppData) {
         throw "无法定位 Windows 用户数据目录"
     }
-    return Join-Path $localAppData "ExpressPackingMonitoring\config.json"
+    return Join-Path $localAppData ($DirectoryName + "\config.json")
 }
 
 function Remove-ReadOnlyAttribute {
@@ -356,14 +397,23 @@ function Test-PathWithinDirectory {
 function Get-AppPatchPayloadViolation {
     param(
         [string]$RelativePath,
+        [string]$Root = "app",
         [switch]$IsDelete
     )
 
     if (Test-IsNullOrWhiteSpace $RelativePath) { return "Patch 条目缺少相对路径" }
     $normalized = $RelativePath.Trim().Replace('/', '\').Trim([char[]]'\/')
-    if ([string]::Equals($normalized, 'tools\ffmpeg.exe', [System.StringComparison]::OrdinalIgnoreCase) -or
+    $normalizedRoot = if (Test-IsNullOrWhiteSpace $Root) { "app" } else { $Root.Trim().ToLowerInvariant() }
+    $approvedVlcAddition = -not $IsDelete -and
+        $normalizedRoot -eq 'app' -and
+        [string]::Equals(
+            $normalized,
+            'libvlc\win-x64\plugins\video_output\libdrawable_plugin.dll',
+            [System.StringComparison]::OrdinalIgnoreCase)
+    if (-not $approvedVlcAddition -and
+        ([string]::Equals($normalized, 'tools\ffmpeg.exe', [System.StringComparison]::OrdinalIgnoreCase) -or
         [string]::Equals($normalized, 'libvlc', [System.StringComparison]::OrdinalIgnoreCase) -or
-        $normalized.StartsWith('libvlc\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $normalized.StartsWith('libvlc\', [System.StringComparison]::OrdinalIgnoreCase))) {
         return "用户可替换的运行时文件不能由增量包改动：$RelativePath"
     }
     if (-not $IsDelete) { return "" }
@@ -403,6 +453,18 @@ function Get-InstalledVersion {
         }
     }
     throw "无法读取当前程序版本：$DllPath"
+}
+
+function Test-TargetBrandProduct {
+    param([string]$DllPath, [string]$ExpectedProductName)
+    $actualProductName = [string]([Diagnostics.FileVersionInfo]::GetVersionInfo($DllPath).ProductName)
+    if ($null -eq $actualProductName) {
+        $actualProductName = ""
+    }
+    $actualProductName = $actualProductName.Trim()
+    # 合成夹具没有真实文件版本；真实安装目录里的主程序一定带 ProductName。
+    return (Test-IsNullOrWhiteSpace $actualProductName) -or
+        [string]::Equals($actualProductName, $ExpectedProductName.Trim(), [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 function Get-FileSha256 {
@@ -469,12 +531,20 @@ function Write-UpdateLog {
     }
 }
 
+$manifestPath = Join-Path $PatchRoot "patch_manifest.json"
+if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+    throw "增量更新包缺少 patch_manifest.json"
+}
+$manifest = ConvertFrom-Json35 -Json ([System.IO.File]::ReadAllText($manifestPath, [System.Text.Encoding]::UTF8))
+$patchBrand = Get-PatchBrandContract $manifest
 if (Test-IsNullOrWhiteSpace $ConfigPath) {
-    $ConfigPath = Get-DefaultConfigPath
+    $ConfigPath = Get-DefaultConfigPath -DirectoryName $patchBrand.DataDirectoryName
+}
+if (Test-IsNullOrWhiteSpace $MutexName) {
+    $MutexName = "Local\$($patchBrand.InstanceNamePrefix).ManualPatch"
 }
 
 $ConfigPath = [System.IO.Path]::GetFullPath($ConfigPath)
-$PatchRoot = [System.IO.Path]::GetFullPath($PatchRoot)
 $userDataDirectory = Split-Path -Parent $ConfigPath
 $logPath = Join-Path $userDataDirectory "log\manual_update.log"
 $mutex = New-Object System.Threading.Mutex($false, $MutexName)
@@ -531,23 +601,22 @@ try {
     $targetExePath = Join-Path $appRoot "ExpressPackingMonitoring.exe"
     $targetDllPath = Join-Path $appRoot "ExpressPackingMonitoring.dll"
 
-    $manifestPath = Join-Path $PatchRoot "patch_manifest.json"
     $patchFilesRoot = Join-Path $PatchRoot "files"
     # 过渡补丁会把共享运行时投递到安装目录的 runtime\（物理文件在 files\.runtime\ 下），
     # 老装机因此不用下载完整包；普通补丁仍然只往 app\ 里写。
     $installRoot = Split-Path -Parent ([System.IO.Path]::GetFullPath($appRoot))
     $runtimeRoot = Join-Path $installRoot "runtime"
     $runtimeFilesRoot = Join-Path $patchFilesRoot ".runtime"
-    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
-        throw "增量更新包缺少 patch_manifest.json"
-    }
     if (-not (Test-Path -LiteralPath $patchFilesRoot -PathType Container)) {
         throw "增量更新包缺少 files 目录"
     }
 
-    $manifest = ConvertFrom-Json35 -Json ([System.IO.File]::ReadAllText($manifestPath, [System.Text.Encoding]::UTF8))
     if (-not [string]::Equals([string](Get-JsonProperty $manifest "type"), "baseline_patch", [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "不支持的增量更新包类型"
+    }
+
+    if (-not (Test-TargetBrandProduct -DllPath $targetDllPath -ExpectedProductName $patchBrand.ProductName)) {
+        throw "补丁属于 $($patchBrand.DisplayName)，与所选安装目录的软件配置不匹配；请确认没有把独立软件配置补丁装到其他版本上"
     }
 
     $baselineVersion = Get-VersionNumber -Value ([string](Get-JsonProperty $manifest "patch_baseline_version"))
@@ -595,7 +664,10 @@ try {
         $sourceBase = if ($targetRootName -eq "runtime") { $runtimeFilesRoot } else { $patchFilesRoot }
         $targetBase = if ($targetRootName -eq "runtime") { $runtimeRoot } else { $appRoot }
 
-        $payloadViolation = Get-AppPatchPayloadViolation -RelativePath $relativePath -IsDelete:$false
+        $payloadViolation = Get-AppPatchPayloadViolation `
+            -RelativePath $relativePath `
+            -Root $targetRootName `
+            -IsDelete:$false
         if (-not (Test-IsNullOrWhiteSpace $payloadViolation)) {
             throw "Patch 载荷不合规：$payloadViolation"
         }
@@ -620,6 +692,15 @@ try {
         $actualHash = Get-FileSha256 -Path $sourcePath
         if ((Test-IsNullOrWhiteSpace $expectedHash) -or $actualHash -ne $expectedHash) {
             throw "补丁文件 SHA256 校验失败：$relativePath"
+        }
+        if ($targetRootName -eq 'app' -and
+            [string]::Equals(
+                $relativePath,
+                'libvlc\win-x64\plugins\video_output\libdrawable_plugin.dll',
+                [System.StringComparison]::OrdinalIgnoreCase) -and
+            (Test-Path -LiteralPath $destinationPath -PathType Leaf) -and
+            (Get-FileSha256 -Path $destinationPath) -ne $actualHash) {
+            throw "目标电脑已有不同的 libdrawable_plugin.dll，无法安全覆盖；请改用完整安装包"
         }
 
         $validatedFiles.Add((New-Object PSObject -Property @{
@@ -657,7 +738,10 @@ try {
             throw "补丁清理列表包含不支持的安装位置：$targetRootName"
         }
 
-        $payloadViolation = Get-AppPatchPayloadViolation -RelativePath $relativePath -IsDelete
+        $payloadViolation = Get-AppPatchPayloadViolation `
+            -RelativePath $relativePath `
+            -Root $targetRootName `
+            -IsDelete
         if (-not (Test-IsNullOrWhiteSpace $payloadViolation)) {
             throw "Patch 载荷不合规：$payloadViolation"
         }

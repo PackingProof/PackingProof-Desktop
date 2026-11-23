@@ -83,9 +83,10 @@ public partial class MainViewModel
         if (_isDisposed || config == null)
             return;
 
-        bool visible = ArchiveBackupCardModel.ShouldShowArchiveBackupCard(
-            config,
-            IsRecordingWorkstation);
+        bool visible = Capabilities.CanConfigureNasArchive
+            && ArchiveBackupCardModel.ShouldShowArchiveBackupCard(
+                config,
+                IsRecordingWorkstation);
         ArchiveQueueSummary summary = new(0, 0, 0, 0, 0, 0, 0, 0, 0);
         if (visible && database != null)
         {
@@ -407,9 +408,13 @@ public partial class MainViewModel
             records = database.GetRecentCompletedVideos(DateTime.Today, 20, "pc")
                 .Select(record => new ScanRecord(
                     record.OrderId,
-                    "已保存",
+                    ScanRecord.FormatDuration(record.DurationSeconds),
                     record.StartTime.ToString("HH:mm:ss"),
-                    record.Mode))
+                    record.Mode,
+                    videoRecordId: record.Id,
+                    generatedName: System.IO.Path.GetFileNameWithoutExtension(
+                        record.FilePath),
+                    saveStatusText: AppLanguage.Get("已保存")))
                 .ToArray();
         }
         catch (Exception ex)

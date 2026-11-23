@@ -14,6 +14,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "Branding.Common.ps1")
+$brand = Get-BrandProfile -RepoRoot $repoRoot
 $installerScript = Join-Path $repoRoot "tools\Installer\ExpressPackingMonitoring.iss"
 $sourceFullPath = [System.IO.Path]::GetFullPath($SourceDir)
 $outputFullPath = [System.IO.Path]::GetFullPath($OutputDir)
@@ -23,7 +25,7 @@ if ($normalizedVersion -notmatch "^\d+\.\d+\.\d+(?:\.\d+)?$") {
 }
 $versionParts = @($normalizedVersion.Split("."))
 $version4 = if ($versionParts.Count -eq 3) { "$normalizedVersion.0" } else { $normalizedVersion }
-$generatedSetupFileName = "PackingProof_Setup_v$normalizedVersion.exe"
+$generatedSetupFileName = "$($brand.ArtifactPrefix)_Setup_v$normalizedVersion.exe"
 $setupFileName = if ([string]::IsNullOrWhiteSpace($OutputFileName)) {
     $generatedSetupFileName
 } else {
@@ -34,6 +36,9 @@ if ([System.IO.Path]::GetFileName($setupFileName) -ne $setupFileName -or
     throw "Installer output file name must be a leaf .exe name: $setupFileName"
 }
 $setupPath = Join-Path $outputFullPath $setupFileName
+$brandWebsiteUrl = $brand.WebsiteUrl
+$brandSupportUrl = $brand.SupportUrl
+$brandUpdatesUrl = $brand.UpdatesUrl
 
 if (-not (Test-Path -LiteralPath $installerScript -PathType Leaf)) {
     throw "Inno Setup script not found: $installerScript"
@@ -86,7 +91,7 @@ if (Test-Path -LiteralPath $setupPath) {
 
 $temporaryBuildRoot = Join-Path (
     [System.IO.Path]::GetTempPath()
-) ("ExpressPackingMonitoring-Installer-" + [Guid]::NewGuid().ToString("N"))
+) ($brand.ArtifactPrefix + "-Installer-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $temporaryBuildRoot | Out-Null
 $temporarySetupPath = Join-Path $temporaryBuildRoot $generatedSetupFileName
 
@@ -96,7 +101,20 @@ $compilerArguments = @(
     "/DMyAppVersion4=$version4",
     "/DSourceDir=$sourceFullPath",
     "/DOutputDir=$temporaryBuildRoot",
-    "/DInstallerCompression=$InstallerCompression"
+    "/DInstallerCompression=$InstallerCompression",
+    "/DMyBrandAppName=$($brand.DisplayName)",
+    "/DMyBrandAppId=$($brand.SetupAppId)",
+    "/DMyBrandInstallDirectoryName=$($brand.InstallDirectoryName)",
+    "/DMyBrandInstanceNamePrefix=$($brand.InstanceNamePrefix)",
+    "/DMyBrandCompatibilityId=$($brand.CompatibilityId)",
+    "/DMyBrandArtifactPrefix=$($brand.ArtifactPrefix)",
+    "/DMyBrandAppUserModelId=$($brand.AppUserModelId)",
+    "/DMyBrandStoreIdentityName=$($brand.StoreIdentityName)",
+    "/DMyBrandSetupIconPath=$($brand.AppIconPath)",
+    "/DMyBrandWebsiteUrl=$brandWebsiteUrl",
+    "/DMyBrandSupportUrl=$brandSupportUrl",
+    "/DMyBrandUpdatesUrl=$brandUpdatesUrl",
+    "/DMyBrandPublisher=$($brand.StorePublisherDisplayName)"
 )
 
 $certificateThumbprint = ($env:WINDOWS_SIGN_CERT_THUMBPRINT ?? "").Trim()
@@ -107,7 +125,7 @@ if (-not [string]::IsNullOrWhiteSpace($certificateThumbprint)) {
     }
     $timestampUrl = ($env:WINDOWS_SIGN_TIMESTAMP_URL ?? "http://timestamp.digicert.com").Trim()
     $signToolDefinition =
-        "`"$signToolPath`" sign /sha1 `"$certificateThumbprint`" /fd SHA256 /td SHA256 /tr `"$timestampUrl`" /d `"ExpressPackingMonitoring`" `$f"
+        "`"$signToolPath`" sign /sha1 `"$certificateThumbprint`" /fd SHA256 /td SHA256 /tr `"$timestampUrl`" /d `"$($brand.ProductName)`" `$f"
     $compilerArguments += "/DSignToolName=epm_authenticode"
     $compilerArguments += "/Sepm_authenticode=$signToolDefinition"
 }

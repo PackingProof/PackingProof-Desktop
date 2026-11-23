@@ -10,11 +10,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <AssemblyName>ExpressPackingMonitoring</AssemblyName>
-    <ApplicationIcon>..\ExpressPackingMonitoring\app.ico</ApplicationIcon>
+    <ApplicationIcon>$(BrandAppIcon)</ApplicationIcon>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <StripSymbols>true</StripSymbols>
-    <LauncherDefaultUpdateCheckUrl Condition="'$(LauncherDefaultUpdateCheckUrl)' == ''">https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest</LauncherDefaultUpdateCheckUrl>
+    <LauncherDefaultUpdateCheckUrl Condition="'$(LauncherDefaultUpdateCheckUrl)' == ''">$(BrandUpdateGiteeCheckUrl)</LauncherDefaultUpdateCheckUrl>
     <DefaultItemExcludes>$(DefaultItemExcludes);bin_publish_tmp\**;obj_publish_tmp\**</DefaultItemExcludes>
   </PropertyGroup>
 

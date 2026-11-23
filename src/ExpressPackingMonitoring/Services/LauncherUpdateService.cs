@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.UpdateCore;
 using ExpressPackingMonitoring.Logging;
 using System.Diagnostics;
 using System.IO;
@@ -10,7 +11,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -73,7 +73,8 @@ internal sealed class LauncherUpdateService
     internal const string ManualInstallerScriptName = "apply_launcher_patch.ps1";
     internal const string ManualInstallerManifestName = "launcher_patch_manifest.json";
     internal const string ManualInstallerNoticeName = "启动器更新说明.txt";
-    internal const string UpdateMutexName = @"Local\ExpressPackingMonitoring.Launcher.Update";
+    internal static readonly string UpdateMutexName =
+        $@"Local\{BrandMetadata.InstanceNamePrefix}.Launcher.Update";
     internal const string PendingDescriptorFileName = "launcher-package.json";
     internal const string CheckStateFileName = "launcher-check-state.json";
     internal const string DownloadFailureStateFileName = "launcher-download-failures.json";
@@ -84,8 +85,7 @@ internal sealed class LauncherUpdateService
     /// 没有窗口的话，应用版本与启动器文件都不变的机器会永久跳过，永远拿不到新启动器。
     /// </summary>
     internal static readonly TimeSpan SuccessfulCheckWindow = TimeSpan.FromHours(6);
-    internal const string DefaultGithubDownloadBaseUrl =
-        "https://github.com/PackingProof/PackingProof-Desktop/releases/download";
+    internal static string DefaultGithubDownloadBaseUrl => BrandMetadata.PatchDownloadBaseUrl;
     internal const int MaxRetainedBackups = 3;
     internal static readonly TimeSpan LauncherExitWaitTimeout = TimeSpan.FromSeconds(5);
 
@@ -619,7 +619,7 @@ internal sealed class LauncherUpdateService
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.UserAgent.ParseAdd("ExpressPackingMonitoring");
+        request.Headers.UserAgent.ParseAdd(BrandMetadata.ArtifactPrefix);
         using HttpResponseMessage response = await HttpClient.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
@@ -926,7 +926,7 @@ internal sealed class LauncherUpdateService
         if (string.IsNullOrWhiteSpace(fileName) ||
             !fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
-            fileName = $"PackingProof_LauncherPatch_v{package.Version}.zip";
+            fileName = $"{BrandMetadata.ArtifactPrefix}_LauncherPatch_v{package.Version}.zip";
         }
 
         string tag = "v" + package.Version.Trim().TrimStart('v', 'V');

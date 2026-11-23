@@ -1,8 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { chromium } from 'playwright-core';
 
 const baseUrl = process.env.EPM_AUTOMATION_BASE_URL;
+const screenshotsDir = process.env.EPM_AUTOMATION_SCREENSHOTS_DIR || '';
+
+async function captureScreenshot(page, name) {
+  if (!screenshotsDir) return;
+  await fs.mkdir(screenshotsDir, { recursive: true });
+  await page.screenshot({
+    path: path.join(screenshotsDir, `${name}.png`),
+    fullPage: true
+  });
+}
 
 // 二维码格式随宿主不同：WPF 宿主输出 PNG，无头自动化宿主与 macOS 备份主机输出内置 SVG。
 // 断言只要求"真的渲染出一张二维码图片"，不锁死格式；同时确认图片已经解码成功。
@@ -257,6 +269,38 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     await assert.doesNotReject(() => page.getByRole('heading', { name: 'PackingProof 包裹留证' }).waitFor());
     await page.waitForFunction(() => /^第 \d+ \/ \d+ 页$/.test(
       document.querySelector('#resultsInfo')?.textContent?.trim() || ''));
+    const productFeatures = await page.evaluate(() => window.__productFeatures);
+    assert.equal(productFeatures.schemaVersion, 1);
+    assert.equal(productFeatures.capabilities.mediaLibrary, true);
+    assert.ok(productFeatures.routeGroups.includes('media-library'));
+    const capabilityChrome = await page.evaluate(() => {
+      const previous = {
+        mobileApp: window.__productFeatures.capabilities.mobileApp,
+        userscript: window.__productFeatures.capabilities.userscript,
+        routeGroups: [...window.__productFeatures.routeGroups]
+      };
+      window.__productFeatures.capabilities.mobileApp = false;
+      window.__productFeatures.capabilities.userscript = false;
+      window.__productFeatures.routeGroups = window.__productFeatures.routeGroups
+        .filter(group => group !== 'userscript');
+      applyProductFeatureChrome();
+      const hidden = {
+        mobile: document.getElementById('mobileAppDownload')?.hidden,
+        desktop: document.getElementById('desktopAppDownload')?.hidden,
+        userscript: document.querySelector('.install-card')?.hidden
+      };
+      window.__productFeatures.capabilities.mobileApp = previous.mobileApp;
+      window.__productFeatures.capabilities.userscript = previous.userscript;
+      window.__productFeatures.routeGroups = previous.routeGroups;
+      applyProductFeatureChrome();
+      return hidden;
+    });
+    assert.deepEqual(capabilityChrome, {
+      mobile: true,
+      desktop: true,
+      userscript: true
+    });
+    await captureScreenshot(page, 'web-desktop-1280');
     await assertMetadataOrderedAsTwoRows(page);
 
     // 存储盘在线时不得出现拔盘提示条
@@ -340,6 +384,7 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     assert.equal(await page.locator('#mobileConnectQr').isVisible(), false);
     assert.equal(await page.locator('#desktopAndroidDownloadQr').isVisible(), false);
     assert.equal(await page.locator('#desktopIosDownloadQr').isVisible(), false);
+    await captureScreenshot(page, 'web-medium-811');
     assert.equal(
       await page.locator('#languageFloat').evaluate(element => element.parentElement?.classList.contains('top-actions')),
       true
@@ -379,6 +424,7 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(
       () => requestAnimationFrame(resolve))));
     await assertMetadataOrderedAsSingleRow(page);
+    await captureScreenshot(page, 'web-narrow-669');
     await page.setViewportSize({ width: 1280, height: 900 });
 
     const androidContext = await browser.newContext({
@@ -394,6 +440,7 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     await mobilePage.goto(baseUrl, { waitUntil: 'networkidle' });
     await assertMetadataOrderedAsTwoRows(mobilePage);
     await assertCompactMobileVideoItemLayout(mobilePage);
+    await captureScreenshot(mobilePage, 'web-mobile-390');
     const androidDownload = mobilePage.getByRole('link', { name: '下载 Android App' });
     assert.equal(await androidDownload.isVisible(), true);
     assert.match(
@@ -808,6 +855,80 @@ test('Web UI loads the recording list in Japanese', { skip: !baseUrl }, async ()
     // 简体中文独有的字（货/删/录）不应残留在日语界面里
     assert.doesNotMatch(await page.locator('.toolbar').innerText(), /货|删|录/);
     assert.deepEqual(pageErrors, [], '页面不应有未捕获的脚本异常');
+  } finally {
+    await browser.close();
+  }
+});
+
+test('photo evidence library renders across desktop and mobile widths', { skip: !baseUrl }, async () => {
+  const executablePath = process.env.EPM_BROWSER_EXECUTABLE;
+  assert.ok(executablePath, 'EPM_BROWSER_EXECUTABLE is required');
+  const browser = await chromium.launch({ executablePath, headless: true });
+  try {
+    const context = await browser.newContext({ locale: 'zh-CN' });
+    const page = await context.newPage();
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(String(error)));
+    await page.goto(baseUrl, { waitUntil: 'networkidle' });
+    const features = await page.evaluate(() => window.__productFeatures);
+    assert.equal(features.capabilities.photoCapture, true);
+    assert.ok(features.routeGroups.includes('photos'));
+    assert.equal(await page.locator('#photoPanel').isVisible(), true);
+    await assert.doesNotReject(() => page.locator('.photo-card').filter({ hasText: 'AUTO_PHOTO_001' }).waitFor());
+    assert.match(await page.locator('#photoResultsInfo').innerText(), /共 \d+ 张照片/);
+    const thumbnail = page.locator('.photo-card .photo-preview').first();
+    await page.waitForFunction(() => {
+      const image = document.querySelector('.photo-card .photo-preview');
+      return !!image && image.complete && image.naturalWidth > 0;
+    });
+    await captureScreenshot(page, 'web-photos-desktop');
+
+    const photoSearch = page.locator('#photoKeyword');
+    await photoSearch.fill('AUTO_PHOTO_001');
+    const responsePromise = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname === '/api/photos'
+        && url.searchParams.get('keyword') === 'AUTO_PHOTO_001'
+        && response.ok();
+    });
+    await photoSearch.press('Enter');
+    await responsePromise;
+    await assert.doesNotReject(() => page.locator('.photo-card').filter({ hasText: 'AUTO_PHOTO_001' }).waitFor());
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await captureScreenshot(page, 'web-photos-mobile');
+    const cardMetrics = await page.locator('.photo-card').first().evaluate(card => {
+      const bounds = element => element.getBoundingClientRect();
+      const cardRect = bounds(card);
+      const image = bounds(card.querySelector('.photo-preview'));
+      const copy = bounds(card.querySelector('.photo-copy'));
+      const actions = bounds(card.querySelector('.photo-actions'));
+      return {
+        left: cardRect.left,
+        right: cardRect.right,
+        viewportWidth: window.innerWidth,
+        image: { top: image.top, bottom: image.bottom },
+        copy: { top: copy.top, bottom: copy.bottom },
+        actions: { top: actions.top, bottom: actions.bottom },
+        buttons: [...card.querySelectorAll('.photo-actions .btn')].map(button => {
+          const box = button.getBoundingClientRect();
+          return { left: box.left, right: box.right };
+        })
+      };
+    });
+    assert.ok(cardMetrics.left >= 0 && cardMetrics.right <= cardMetrics.viewportWidth);
+    for (const button of cardMetrics.buttons) {
+      assert.ok(button.left >= cardMetrics.left && button.right <= cardMetrics.right);
+    }
+    assert.ok(
+      cardMetrics.image.bottom <= cardMetrics.copy.top + 1,
+      `photo details must not overlap the preview: ${JSON.stringify(cardMetrics)}`
+    );
+    assert.ok(
+      cardMetrics.copy.bottom <= cardMetrics.actions.top + 1,
+      `photo actions must sit below the details: ${JSON.stringify(cardMetrics)}`
+    );
+    assert.deepEqual(pageErrors, [], '照片库页面不应有未捕获的脚本异常');
   } finally {
     await browser.close();
   }

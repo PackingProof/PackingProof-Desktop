@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.UpdateCore;
 using System.IO;
 using System.Runtime.InteropServices;
 
@@ -7,7 +8,7 @@ namespace ExpressPackingMonitoring.Services;
 
 internal static class TaskbarIdentityService
 {
-    internal const string AppUserModelId = "PackingProof.ExpressPackingMonitoring";
+    internal static string AppUserModelId => BrandMetadata.AppUserModelId;
 
     internal static void TryApply()
     {

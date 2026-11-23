@@ -1,6 +1,22 @@
 $script:LauncherBaselineSchemaVersion = 1
 $script:LauncherUpdateProtocolVersion = 1
-# 启动器指纹的输入：启动器自己的源码与清单，加上它链接的整个 UpdateCore 项目的 .cs。
+
+function Get-LauncherBaselineTag {
+    param(
+        [Parameter(Mandatory = $true)][string]$Version,
+        [string]$ArtifactPrefix = "PackingProof"
+    )
+
+    $normalizedVersion = $Version.Trim().TrimStart('v', 'V')
+    if ([string]::IsNullOrWhiteSpace($ArtifactPrefix) -or
+        [string]::Equals($ArtifactPrefix, "PackingProof", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return "launcher-v$normalizedVersion"
+    }
+    return "launcher-$ArtifactPrefix-v$normalizedVersion"
+}
+# 启动器指纹的输入：启动器自己的源码与清单，加上它链接的整个 UpdateCore 项目的 .cs，
+# 以及软件配置选择器。当前配置目录由 brand_profile_sha256 单独计算，避免把其它软件配置
+# 或软件配置模板误算进公开发行基线。
 # 这里原来是手写清单，漏了 SharedRuntimeLayout.cs（启动器启动前就用它处理共享运行时）以及后来
 # 新增的 ResumableFileDownload.cs；只改这些文件时前置检查会以为基线还新鲜，发布包里就可能夹着
 # 与源码不一致的启动器。改成按项目取全部 .cs，新增文件自动纳入。
@@ -12,6 +28,7 @@ $script:LauncherFingerprintPathMap = [ordered]@{
     "ExpressPackingMonitoring.Launcher\" = "src\ExpressPackingMonitoring.Launcher\"
     "ExpressPackingMonitoring.UpdateCore\" = "src\ExpressPackingMonitoring.UpdateCore\"
     "ExpressPackingMonitoring\" = "src\ExpressPackingMonitoring\"
+    "Branding\" = "branding\"
 }
 
 function Resolve-LauncherFingerprintPath {
@@ -31,9 +48,9 @@ $script:LauncherFingerprintFiles = @(
     "ExpressPackingMonitoring.Launcher\Program.cs",
     "ExpressPackingMonitoring.Launcher\ExpressPackingMonitoring.Launcher.csproj",
     "ExpressPackingMonitoring.UpdateCore\ExpressPackingMonitoring.UpdateCore.csproj",
-    "ExpressPackingMonitoring\app.ico",
     "Tools\Install-LauncherPatch.cmd",
-    "Tools\Apply-LauncherPatch.ps1"
+    "Tools\Apply-LauncherPatch.ps1",
+    "Branding\Brand.props"
 ) + @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot "..\src\ExpressPackingMonitoring.UpdateCore") `
         -Filter "*.cs" -File |
     Sort-Object -Property Name |
@@ -50,7 +67,9 @@ function Get-LauncherLogicalFingerprint {
     param(
         [Parameter(Mandatory = $true)][string]$RepositoryRoot,
         [Parameter(Mandatory = $true)][string]$Runtime,
-        [Parameter(Mandatory = $true)][string]$UpdateCheckUrl
+        [Parameter(Mandatory = $true)][string]$UpdateCheckUrl,
+        [string]$BrandProfileId = "",
+        [string]$BrandProfileContentSha256 = ""
     )
 
     $sha = [System.Security.Cryptography.SHA256]::Create()
@@ -79,6 +98,12 @@ function Get-LauncherLogicalFingerprint {
         Add-LauncherFingerprintValue -Hasher $sha -Value "runtime=$($Runtime.Trim().ToLowerInvariant())"
         Add-LauncherFingerprintValue -Hasher $sha -Value "update_check_url=$($UpdateCheckUrl.Trim())"
         Add-LauncherFingerprintValue -Hasher $sha -Value "protocol=$script:LauncherUpdateProtocolVersion"
+        if (-not [string]::IsNullOrWhiteSpace($BrandProfileId)) {
+            Add-LauncherFingerprintValue -Hasher $sha -Value "brand_profile=$($BrandProfileId.Trim())"
+        }
+        if (-not [string]::IsNullOrWhiteSpace($BrandProfileContentSha256)) {
+            Add-LauncherFingerprintValue -Hasher $sha -Value "brand_profile_sha256=$($BrandProfileContentSha256.Trim().ToLowerInvariant())"
+        }
         $empty = [byte[]]::new(0)
         $sha.TransformFinalBlock($empty, 0, 0) | Out-Null
         return [System.BitConverter]::ToString($sha.Hash).Replace("-", "").ToLowerInvariant()
@@ -109,10 +134,17 @@ function Add-LauncherFingerprintSeparator {
 function Copy-NormalizedCommandFile {
     param(
         [Parameter(Mandatory = $true)][string]$SourcePath,
-        [Parameter(Mandatory = $true)][string]$DestinationPath
+        [Parameter(Mandatory = $true)][string]$DestinationPath,
+        [string]$ArtifactPrefix = ""
     )
 
     $text = [System.IO.File]::ReadAllText($SourcePath, [System.Text.Encoding]::UTF8)
+    if (-not [string]::IsNullOrWhiteSpace($ArtifactPrefix)) {
+        $text = $text.Replace("__BRAND_ARTIFACT_PREFIX__", $ArtifactPrefix.Trim())
+    }
+    if ($text.Contains("__BRAND_", [System.StringComparison]::Ordinal)) {
+        throw "Command wrapper still contains an unresolved brand token: $SourcePath"
+    }
     if ($null -ne ($text.ToCharArray() | Where-Object { [int]$_ -gt 127 } | Select-Object -First 1)) {
         throw "Command wrapper must contain ASCII characters only: $SourcePath"
     }
@@ -143,14 +175,21 @@ function Assert-LauncherBaselineManifest {
 
     $version = [string]$Manifest.version
     $package = $Manifest.package
+    $artifactPrefix = if ($null -ne $Manifest.PSObject.Properties["artifact_prefix"]) {
+        [string]$Manifest.artifact_prefix
+    }
+    else {
+        "PackingProof"
+    }
     if (([int]$Manifest.schema_version) -ne $script:LauncherBaselineSchemaVersion -or
         ([int]$Manifest.protocol_version) -ne $script:LauncherUpdateProtocolVersion -or
         [string]::IsNullOrWhiteSpace($version) -or
-        ([string]$Manifest.tag) -ne "launcher-v$version" -or
+        ([string]$Manifest.tag) -ne (Get-LauncherBaselineTag -Version $version -ArtifactPrefix $artifactPrefix) -or
         [string]::IsNullOrWhiteSpace([string]$Manifest.release_tag) -or
         [string]::IsNullOrWhiteSpace([string]$Manifest.runtime) -or
         [string]::IsNullOrWhiteSpace([string]$Manifest.update_check_url) -or
         -not (Test-LauncherSha256 ([string]$Manifest.source_fingerprint)) -or
+        -not (Test-LauncherSha256 ([string]$Manifest.brand_profile_sha256)) -or
         $null -eq $Manifest.package -or
         [string]::IsNullOrWhiteSpace([string]$package.file) -or
         ([long]$package.size) -le 0 -or
@@ -278,8 +317,18 @@ function Test-LauncherBaselineSourceUnchanged {
     param(
         [Parameter(Mandatory = $true)][string]$RepositoryRoot,
         [Parameter(Mandatory = $true)][string]$Tag,
-        [Parameter(Mandatory = $true)]$Baseline
+        [Parameter(Mandatory = $true)]$Baseline,
+        [string]$BrandProfileContentSha256 = ""
     )
+
+    $baselineBrandProfileHash = [string]$Baseline.brand_profile_sha256
+    if (-not [string]::IsNullOrWhiteSpace($baselineBrandProfileHash) -and
+        -not [string]::Equals(
+            $baselineBrandProfileHash,
+            $BrandProfileContentSha256,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
 
     $logicalFiles = @(Get-LauncherFingerprintFiles)
     $baselineFiles = @($Baseline.fingerprint_files | ForEach-Object { ([string]$_).Replace('/', '\') })

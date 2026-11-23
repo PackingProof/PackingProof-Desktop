@@ -20,6 +20,8 @@ Set-Location $repoRoot
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
 . (Join-Path $PSScriptRoot "ReleaseAuth.Common.ps1")
+. (Join-Path $PSScriptRoot "Branding.Common.ps1")
+$brand = Get-BrandProfile -RepoRoot $repoRoot
 
 function Read-DotEnvValue {
     param([Parameter(Mandatory = $true)][string]$Key)
@@ -152,7 +154,12 @@ if ($DryRun) {
     return
 }
 
-Enable-ReleaseBotGitTransport -Platforms $targets
+& pwsh -NoProfile -File (Join-Path $PSScriptRoot "Test-PrivateBrandLeak.ps1") -RepoRoot $repoRoot
+if ($LASTEXITCODE -ne 0) {
+    throw "私有定制身份泄漏检查未通过，已停止远端推送"
+}
+
+Enable-ReleaseBotGitTransport -Platforms $targets -Brand $brand
 
 foreach ($platform in $targets) {
     $remote = Get-RemoteName $platform

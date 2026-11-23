@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Config;
 
@@ -19,7 +20,7 @@ internal static class EditionCoexistenceDetector
 
     internal static bool HasSetupEditionData(string localAppDataRoot)
     {
-        string dataRoot = Path.Combine(localAppDataRoot, "ExpressPackingMonitoring");
+        string dataRoot = Path.Combine(localAppDataRoot, BrandMetadata.DataDirectoryName);
         return File.Exists(Path.Combine(dataRoot, "config.json"))
             || File.Exists(Path.Combine(dataRoot, "videos.db"));
     }
@@ -36,7 +37,7 @@ internal static class EditionCoexistenceDetector
                 string dataRoot = Path.Combine(
                     packageDirectory,
                     "LocalState",
-                    "ExpressPackingMonitoring");
+                    BrandMetadata.DataDirectoryName);
                 if (File.Exists(Path.Combine(dataRoot, "config.json"))
                     || File.Exists(Path.Combine(dataRoot, "videos.db")))
                 {

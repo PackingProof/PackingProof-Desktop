@@ -1,4 +1,5 @@
 using System.IO;
+using ExpressPackingMonitoring.UpdateCore;
 using System.Windows.Input;
 
 namespace ExpressPackingMonitoring.UI;
@@ -62,7 +63,7 @@ internal static class PlaybackInteractionPolicy
         string root = string.IsNullOrWhiteSpace(temporaryDirectory)
             ? Path.GetTempPath()
             : temporaryDirectory;
-        return Path.Combine(root, "PackingProof Screenshot Preview");
+        return Path.Combine(root, BrandMetadata.ArtifactPrefix + " Screenshot Preview");
     }
 
     internal static string BuildFileName(string? orderId, DateTime capturedAt)

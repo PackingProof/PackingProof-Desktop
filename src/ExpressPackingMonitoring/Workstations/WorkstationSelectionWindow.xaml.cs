@@ -2,6 +2,7 @@ using System.Windows;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring;
 
@@ -16,6 +17,8 @@ public partial class WorkstationSelectionWindow : Window
     private readonly string _currentPreset;
     private readonly bool _confirmCurrentPreset;
     private readonly bool _hostUnavailable;
+    private readonly IReadOnlyList<RoleCapabilities> _availableRoles;
+    private readonly ProductFeatures _productFeatures;
     private bool? _recordOnThisComputer;
     private bool? _useAsStorageHost;
 
@@ -24,17 +27,41 @@ public partial class WorkstationSelectionWindow : Window
     public WorkstationSelectionWindow(
         string? currentPreset = null,
         bool confirmCurrentPreset = false,
-        bool hostUnavailable = false)
+        bool hostUnavailable = false,
+        RuntimeEnvironment? runtimeEnvironment = null)
+        : this(
+            currentPreset,
+            confirmCurrentPreset,
+            hostUnavailable,
+            ProductCapabilityRuntime.AvailableRoles(runtimeEnvironment),
+            ProductCapabilityRuntime.CurrentFeatures)
     {
+    }
+
+    internal WorkstationSelectionWindow(
+        string? currentPreset,
+        bool confirmCurrentPreset,
+        bool hostUnavailable,
+        IReadOnlyList<RoleCapabilities> availableRoles,
+        ProductFeatures productFeatures)
+    {
+        ArgumentNullException.ThrowIfNull(availableRoles);
+        ArgumentNullException.ThrowIfNull(productFeatures);
         _currentPreset = DeploymentPresets.IsKnown(currentPreset)
             ? DeploymentPresets.Normalize(currentPreset)
             : "";
         _confirmCurrentPreset = confirmCurrentPreset;
         _hostUnavailable = hostUnavailable;
+        _availableRoles = availableRoles
+            .Where(role => !hostUnavailable || !role.IsHost)
+            .DistinctBy(role => role.DeploymentPreset)
+            .ToArray();
+        _productFeatures = productFeatures;
 
         InitializeComponent();
         DialogWindowChrome.UseCloseButtonOnly(this);
         RestoreCurrentAnswers();
+        ApplyAvailability();
         if (_hostUnavailable)
         {
             HostUnavailableNotice.Visibility = Visibility.Visible;
@@ -43,6 +70,90 @@ public partial class WorkstationSelectionWindow : Window
             _useAsStorageHost = false;
         }
         UpdateResult();
+    }
+
+    private void ApplyAvailability()
+    {
+        bool canRecord = _availableRoles.Any(role =>
+            TryResolveAnswers(role.DeploymentPreset, out bool record, out _)
+            && record);
+        bool cannotRecord = _availableRoles.Any(role =>
+            TryResolveAnswers(role.DeploymentPreset, out bool record, out _)
+            && !record);
+        bool canStore = _availableRoles.Any(role =>
+            TryResolveAnswers(role.DeploymentPreset, out _, out bool store)
+            && store);
+        bool cannotStore = _availableRoles.Any(role =>
+            TryResolveAnswers(role.DeploymentPreset, out _, out bool store)
+            && !store);
+
+        RecordYesChoice.IsEnabled = canRecord;
+        RecordNoChoice.IsEnabled = cannotRecord;
+        StorageYesChoice.IsEnabled = canStore && !_hostUnavailable;
+        StorageNoChoice.IsEnabled = cannotStore;
+        ApplyChoiceCopy();
+
+        if (_availableRoles is [RoleCapabilities only]
+            && TryResolveAnswers(
+                only.DeploymentPreset,
+                out bool onlyRecord,
+                out bool onlyStore))
+        {
+            _recordOnThisComputer = onlyRecord;
+            _useAsStorageHost = onlyStore;
+            RecordYesChoice.IsChecked = onlyRecord;
+            RecordNoChoice.IsChecked = !onlyRecord;
+            StorageYesChoice.IsChecked = onlyStore;
+            StorageNoChoice.IsChecked = !onlyStore;
+        }
+    }
+
+    private void ApplyChoiceCopy()
+    {
+        var recordingInputs = new List<string>();
+        if (_productFeatures.Inputs.Camera)
+            recordingInputs.Add("摄像头");
+        if (_productFeatures.Inputs.Microphone)
+            recordingInputs.Add("麦克风");
+        if (_productFeatures.Inputs.VisionObb)
+            recordingInputs.Add("面单识别");
+        if (_productFeatures.Inputs.Scanner)
+            recordingInputs.Add("扫码枪");
+        if (_productFeatures.Inputs.CameraBarcode)
+            recordingInputs.Add("摄像头扫码");
+        if (_productFeatures.OrderReceiver)
+            recordingInputs.Add("订单联动");
+        if (_productFeatures.Tts)
+            recordingInputs.Add("语音提醒");
+        RecordYesDescriptionText.Text = _productFeatures.PhotoCapture
+            && !_productFeatures.VideoRecording
+            ? "拍照并保存到本机资料库"
+            : recordingInputs.Count > 0
+                ? "启用" + string.Join("、", recordingInputs)
+                : "当前软件未开放本机录像";
+
+        RecordNoDescriptionText.Text = _productFeatures.MediaLibrary
+            ? "不初始化本机录像设备，仍可保存其他设备录像或只连接主机查看"
+            : "当前软件未开放不录像模式";
+
+        StorageYesTitleText.Text = _productFeatures.NasArchive
+            ? "要，作为备份主机（支持 NAS）"
+            : "要，长期保存在这台电脑";
+        var storageFeatures = new List<string>();
+        if (_productFeatures.NasArchive)
+            storageFeatures.Add("可配置 NAS／网络共享备份");
+        if (_productFeatures.MobileBackupReceive)
+            storageFeatures.Add("可接收手机录像");
+        if (_productFeatures.ComputerBackupReceive)
+            storageFeatures.Add("可接收其他电脑上传的录像");
+        StorageYesDescriptionText.Text = "这台电脑负责长期保存录像"
+            + (storageFeatures.Count > 0
+                ? "，" + string.Join("，", storageFeatures)
+                : "");
+
+        StorageNoDescriptionText.Text = _productFeatures.LanCollaboration
+            ? "本机录像时作为“录像从机”，录像先保存在本机，再上传给备份主机；不录像时作为“查看端”，连接主机查看录像"
+            : "当前软件未开放录像从机或查看端";
     }
 
     private void RestoreCurrentAnswers()
@@ -82,6 +193,17 @@ public partial class WorkstationSelectionWindow : Window
             return;
 
         bool complete = _recordOnThisComputer.HasValue && _useAsStorageHost.HasValue;
+        if (complete)
+        {
+            string selected = ResolvePreset(
+                _recordOnThisComputer.GetValueOrDefault(),
+                _useAsStorageHost.GetValueOrDefault());
+            complete = _availableRoles.Any(role =>
+                string.Equals(
+                    role.DeploymentPreset,
+                    selected,
+                    StringComparison.OrdinalIgnoreCase));
+        }
         ConfirmPurposeButton.IsEnabled = complete;
         if (!complete)
         {
@@ -95,12 +217,18 @@ public partial class WorkstationSelectionWindow : Window
 
         WorkstationPurposeSummary summary = GetPurposeSummary(
             _recordOnThisComputer.GetValueOrDefault(),
-            _useAsStorageHost.GetValueOrDefault());
+            _useAsStorageHost.GetValueOrDefault(),
+            _productFeatures);
         bool unchanged = string.Equals(
             summary.Preset,
             _currentPreset,
             StringComparison.OrdinalIgnoreCase);
-        ResultStateText.Text = AppLanguage.Get(unchanged ? "当前用途" : "将切换到");
+        ResultStateText.Text = AppLanguage.Get(
+            unchanged
+                ? "当前用途"
+                : string.IsNullOrWhiteSpace(_currentPreset)
+                    ? "将使用"
+                    : "将切换到");
         ResultTitleText.Text = AppLanguage.Get(summary.DisplayName);
         ResultDescriptionText.Text = AppLanguage.Get(summary.Description);
         ResultCapabilitiesList.ItemsSource = summary.Capabilities
@@ -124,7 +252,11 @@ public partial class WorkstationSelectionWindow : Window
         string selected = ResolvePreset(
             _recordOnThisComputer.Value,
             _useAsStorageHost.Value);
-        if (_hostUnavailable && DeploymentCapabilities.ForPreset(selected).IsHost)
+        if (_availableRoles.All(role =>
+                !string.Equals(
+                    role.DeploymentPreset,
+                    selected,
+                    StringComparison.OrdinalIgnoreCase)))
             return;
         if (string.Equals(selected, _currentPreset, StringComparison.OrdinalIgnoreCase))
         {
@@ -185,50 +317,93 @@ public partial class WorkstationSelectionWindow : Window
     internal static WorkstationPurposeSummary GetPurposeSummary(
         bool recordOnThisComputer,
         bool useAsStorageHost) =>
-        ResolvePreset(recordOnThisComputer, useAsStorageHost) switch
+        GetPurposeSummary(
+            recordOnThisComputer,
+            useAsStorageHost,
+            ProductCapabilityRuntime.CurrentFeatures);
+
+    internal static WorkstationPurposeSummary GetPurposeSummary(
+        bool recordOnThisComputer,
+        bool useAsStorageHost,
+        ProductFeatures brandFeatures)
+    {
+        ArgumentNullException.ThrowIfNull(brandFeatures);
+        string preset = ResolvePreset(recordOnThisComputer, useAsStorageHost);
+        EffectiveProductCapabilities capabilities = ProductCapabilityRuntime.ForPreset(
+            brandFeatures,
+            preset,
+            RuntimeEnvironment.FullyAvailable,
+            BrandMetadata.CapabilityIdentity);
+        ProductFeatures features = capabilities.Features;
+        bool localPhotoOnly =
+            preset == DeploymentPresets.RecordingHost
+            && features.PhotoCapture
+            && !features.VideoRecording;
+        return preset switch
         {
             DeploymentPresets.RecordingHost => new(
                 DeploymentPresets.RecordingHost,
-                "录像主机",
-                "本机录像并长期保存，支持备份到 NAS／网络共享文件夹",
-                [
-                    "使用完整电脑录像能力",
-                    "录像长期保存在本机",
-                    "支持备份到 NAS／网络共享文件夹",
-                    "可接收并备份手机录像",
-                    "可接收并备份其他录制电脑上传的录像",
-                    "提供局域网录像回放"
-                ]),
+                localPhotoOnly ? "本地拍照取证" : "录像主机",
+                localPhotoOnly
+                    ? "拍照并保存到本机资料库"
+                    : features.NasArchive
+                        ? "本机录像并长期保存，支持备份到 NAS／网络共享文件夹"
+                        : "本机录像并长期保存",
+                BuildCapabilityList(
+                    features.VideoRecording ? "使用完整电脑录像能力" : null,
+                    features.PhotoCapture ? "可使用摄像头拍照" : null,
+                    features.MediaLibrary
+                        ? localPhotoOnly
+                            ? "照片与录像统一按单号检索"
+                            : "录像长期保存在本机"
+                        : null,
+                    features.NasArchive ? "支持备份到 NAS／网络共享文件夹" : null,
+                    features.MobileBackupReceive ? "可接收并备份手机录像" : null,
+                    features.ComputerBackupReceive
+                        ? "可接收并备份其他录制电脑上传的录像"
+                        : null,
+                    features.RemoteMediaAccess ? "提供局域网录像回放" : null)),
             DeploymentPresets.RecordingWorkstation => new(
                 DeploymentPresets.RecordingWorkstation,
                 "录像从机",
                 "本机录像，自动上传到备份主机",
-                [
-                    "使用完整电脑录像能力",
+                BuildCapabilityList(
+                    features.VideoRecording ? "使用完整电脑录像能力" : null,
                     "录像先安全保存在本地缓存",
-                    "上传到绑定的保存电脑并等待完整性确认",
-                    "不接收或备份其他设备录像"
-                ]),
+                    features.LanCollaboration
+                        ? "上传到绑定的保存电脑并等待完整性确认"
+                        : null,
+                    "不接收或备份其他设备录像")),
             DeploymentPresets.MobileBackupHost => new(
                 DeploymentPresets.MobileBackupHost,
                 "备份主机",
-                "接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹",
-                [
+                features.NasArchive
+                    ? "接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹"
+                    : "接收并长期保存手机或其他电脑的录像",
+                BuildCapabilityList(
                     "本机不使用摄像头录像",
-                    "支持备份到 NAS／网络共享文件夹",
-                    "接收并长期保存手机录像",
-                    "接收并长期保存其他录制电脑上传的录像",
-                    "提供局域网录像回放"
-                ]),
+                    features.NasArchive ? "支持备份到 NAS／网络共享文件夹" : null,
+                    features.MobileBackupReceive ? "接收并长期保存手机录像" : null,
+                    features.ComputerBackupReceive
+                        ? "接收并长期保存其他录制电脑上传的录像"
+                        : null,
+                    features.RemoteMediaAccess ? "提供局域网录像回放" : null)),
             _ => new(
                 DeploymentPresets.ViewerClient,
                 "录像查看端",
                 "连接备份主机，查看和回放录像",
-                [
+                BuildCapabilityList(
                     "本机不录像、不长期保存录像",
                     "连接现有主机查看录像",
-                    "保留订单联动和测试订单能力",
-                    "不接收其他设备录像"
-                ])
+                    features.OrderReceiver ? "保留订单联动和测试订单能力" : null,
+                    "不接收其他设备录像"))
         };
+    }
+
+    private static IReadOnlyList<string> BuildCapabilityList(
+        params string?[] values) =>
+        values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .ToArray();
 }

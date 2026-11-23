@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using ExpressPackingMonitoring.UpdateCore;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -103,6 +104,50 @@ public sealed class ManualPatchInstallerTests
         Assert.NotEqual(0, result.ExitCode);
         Assert.Equal("old-content", File.ReadAllText(fixture.TargetFilePath, Encoding.UTF8));
         Assert.Contains("SHA256 校验失败", result.StandardOutput + result.StandardError);
+    }
+
+    [Fact]
+    public async Task Installer_RejectsPatchForAnotherBrandBeforeChangingFiles()
+    {
+        using var fixture = new ManualPatchFixture();
+        fixture.InstallRealAppDll();
+        fixture.CreatePatch(
+            "new-content",
+            useValidHash: true,
+            productName: "Other Brand");
+
+        ProcessResult result = await fixture.RunInstallerAsync(verifyVersion: true);
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("软件配置不匹配", result.StandardOutput + result.StandardError);
+        Assert.Equal("old-content", File.ReadAllText(fixture.TargetFilePath, Encoding.UTF8));
+    }
+
+    [Fact]
+    public async Task LegacyBrandlessPatchOnlyAppliesToPackingProofTarget()
+    {
+        using var fixture = new ManualPatchFixture();
+        string version = fixture.InstallRealAppDll();
+        fixture.CreatePatch(
+            "new-content",
+            useValidHash: true,
+            latestVersion: version,
+            baselineVersion: version,
+            includeBrand: false);
+
+        ProcessResult result = await fixture.RunInstallerAsync(verifyVersion: true);
+
+        if (BrandMetadata.ProfileId == "packingproof")
+        {
+            Assert.Equal(0, result.ExitCode);
+            Assert.Equal("new-content", File.ReadAllText(fixture.TargetFilePath, Encoding.UTF8));
+        }
+        else
+        {
+            Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("软件配置不匹配", result.StandardOutput + result.StandardError);
+            Assert.Equal("old-content", File.ReadAllText(fixture.TargetFilePath, Encoding.UTF8));
+        }
     }
 
     [Fact]
@@ -383,7 +428,9 @@ public sealed class ManualPatchInstallerTests
             bool useValidHash,
             string latestVersion = "0.0.2",
             string baselineVersion = "0.0.1",
-            object[]? deletes = null)
+            object[]? deletes = null,
+            string? productName = null,
+            bool includeBrand = true)
         {
             string sourcePath = Path.Combine(_patchRoot, "files", "Web", "index.html");
             Directory.CreateDirectory(Path.GetDirectoryName(sourcePath)!);
@@ -404,7 +451,9 @@ public sealed class ManualPatchInstallerTests
             ],
             latestVersion,
             baselineVersion,
-            deletes);
+            deletes,
+            productName ?? BrandMetadata.ProductName,
+            includeBrand);
         }
 
         /// <summary>在安装目录的 app\ 下造一个"老版本遗留"的文件，返回它的完整路径。</summary>
@@ -551,13 +600,16 @@ public sealed class ManualPatchInstallerTests
             object[] files,
             string latestVersion = "0.0.2",
             string baselineVersion = "0.0.1",
-            object[]? deletes = null)
+            object[]? deletes = null,
+            string productName = "PackingProof",
+            bool includeBrand = true)
         {
             var manifest = new
             {
                 type = "baseline_patch",
                 patch_baseline_version = baselineVersion,
                 latest_version = latestVersion,
+                brand = includeBrand ? BrandManifest(productName) : null,
                 files
             };
             Directory.CreateDirectory(_patchRoot);
@@ -568,6 +620,7 @@ public sealed class ManualPatchInstallerTests
                     type = "baseline_patch",
                     patch_baseline_version = baselineVersion,
                     latest_version = latestVersion,
+                    brand = includeBrand ? BrandManifest(productName) : null,
                     files,
                     deletes
                 });
@@ -576,6 +629,18 @@ public sealed class ManualPatchInstallerTests
                 manifestJson,
                 Encoding.UTF8);
         }
+
+        private static object BrandManifest(string productName) => new
+        {
+            profile_id = "test",
+            product_name = productName,
+            display_name = productName + " 快递打包监控",
+            artifact_prefix = "TestPacking",
+            compatibility_id = "Test.PackingProof",
+            data_directory_name = "TestPackingProof",
+            instance_name_prefix = "TestPackingProof",
+            package_edition_marker = "Test.PackingProof.PackageEdition.json"
+        };
 
         public async Task<ProcessResult> RunInstallerAsync(
             string appRootPath = "",

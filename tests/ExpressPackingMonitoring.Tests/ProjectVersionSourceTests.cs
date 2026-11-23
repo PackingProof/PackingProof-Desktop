@@ -6,7 +6,7 @@ using Xunit;
 namespace ExpressPackingMonitoring.Tests;
 
 /// <summary>
-/// 产品版本号只允许有一个来源：仓根 Directory.Build.props。
+/// 软件版本号只允许有一个来源：仓根 Directory.Build.props。
 /// 以前主程序与 Core 各写一份 &lt;Version&gt;，结果 Core 停在 0.0.78 而主程序升到 0.0.81；
 /// 应用显示版本读的是 Core 程序集，于是开发构建里界面、更新判断和 Mac 打包都拿到旧号。
 /// 这类漂移不会报错，只能靠守卫拦住。
@@ -62,6 +62,28 @@ public sealed class ProjectVersionSourceTests
         {
             string content = File.ReadAllText(Path.Combine(root, relativePath), System.Text.Encoding.UTF8);
             Assert.Contains("Directory.Build.props", content, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void VersionReaders_AcceptConditionalVersionElement()
+    {
+        string root = FindRepositoryRoot();
+        foreach (string relativePath in new[]
+                 {
+                     @"tools\Prepare-Release.ps1",
+                     @"tools\Check-ReleasePrereqs.ps1",
+                     @"tools\Republish-SameVersion.ps1",
+                     @"tools\Publish-StorePackage.ps1"
+                 })
+        {
+            string content = File.ReadAllText(
+                Path.Combine(root, relativePath),
+                System.Text.Encoding.UTF8);
+            Assert.Contains(
+                "<Version(?:\\s+[^>]*)?>",
+                content,
+                StringComparison.Ordinal);
         }
     }
 

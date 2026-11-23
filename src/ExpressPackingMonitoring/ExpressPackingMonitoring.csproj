@@ -32,7 +32,7 @@
     <IncludeVisionObb Condition="'$(IncludeVisionObb)' == ''">true</IncludeVisionObb>
     <DefineConstants Condition="'$(IncludeVisionObb)' == 'true'">$(DefineConstants);VISION_OBB</DefineConstants>
     <SatelliteResourceLanguages>en-US;zh-Hans;ja-JP</SatelliteResourceLanguages>
-    <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationIcon>$(BrandAppIcon)</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -76,7 +76,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="app.ico" />
+    <Resource Include="$(BrandAppIcon)">
+      <Link>app.ico</Link>
+    </Resource>
     <Content Include="Resources\DefaultScriptExtensions.json">
       <TargetPath>Resources\DefaultScriptExtensions.json</TargetPath>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -102,7 +104,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-    <Content Include="Web\logo.png">
+    <Content Include="$(BrandWebLogo)">
+      <Link>Web\logo.png</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
@@ -152,6 +155,9 @@
     <Compile Include="Services\VisionSmartZoomPolicy.cs" />
     <Compile Include="Services\VisionObbRuntimePolicy.cs" />
     <Compile Include="Services\VisionObbHost.cs" />
+    <Compile Include="Services\RuntimeCapabilityEnvironment.cs" />
+    <Compile Include="Services\ModeTransitionCoordinator.cs" />
+    <Compile Include="Services\PhotoCaptureService.cs" />
     <Compile Include="Services\VisionObbDiagnosticLog.cs" />
     <Compile Include="Services\VisionObbTimingDiagnosticLog.cs" />
     <Compile Include="Services\RecordingSampleSelectionPolicy.cs" />
@@ -247,6 +253,7 @@
     <Compile Include="ViewModels\CameraOverlayComposer.cs" />
     <Compile Include="ViewModels\WatermarkOverlayRenderer.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
+    <Compile Include="ViewModels\MainViewModel.Photo.cs" />
     <Compile Include="ViewModels\MainViewModel.ArchiveBackup.cs" />
     <Compile Include="ViewModels\MainViewModel.Camera.cs" />
     <Compile Include="ViewModels\MainViewModel.CameraStop.cs" />
@@ -317,7 +324,10 @@
     <Compile Include="UI\ManualCleanupDialog.xaml.cs" />
     <Compile Include="UI\NotificationVisuals.cs" />
     <Compile Include="UI\PlaybackWindow.xaml.cs" />
+    <Compile Include="UI\PlaybackWindow.VideoItem.cs" />
+    <Compile Include="UI\PlaybackWindow.Photos.cs" />
     <Compile Include="UI\PlaybackWindow.Playback.cs" />
+    <Compile Include="UI\PlaybackWindow.RecentPlayback.cs" />
     <Compile Include="UI\PlaybackWindow.Controls.cs" />
     <Compile Include="UI\PlaybackInteractionPolicy.cs" />
     <Compile Include="UI\PlaybackScreenshotDialog.xaml.cs" />
@@ -325,8 +335,11 @@
     <Compile Include="UI\PlaybackWindowFitPolicy.cs" />
     <Compile Include="UI\PlaybackControlBarPolicy.cs" />
     <Compile Include="UI\OrderNumberExportProgressDialog.xaml.cs" />
+    <Compile Include="UI\DiagnosticExportText.cs" />
+    <Compile Include="UI\PlaybackLibVlc.cs" />
     <Compile Include="UI\RecognitionSampleExportProgressDialog.xaml.cs" />
     <Compile Include="UI\RecognitionSampleExportWorkflow.cs" />
+    <Compile Include="UI\SettingsPurposeSelector.cs" />
     <Compile Include="UI\VideoCompressionDialog.xaml.cs" />
     <Compile Include="UI\VideoImportDialog.xaml.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs" />
@@ -423,7 +436,7 @@
       <LibVlcX64Plugin Include="$(VlcPluginRoot)packetizer\libpacketizer_h264_plugin.dll;$(VlcPluginRoot)packetizer\libpacketizer_hevc_plugin.dll;$(VlcPluginRoot)packetizer\libpacketizer_mpeg4audio_plugin.dll;$(VlcPluginRoot)packetizer\libpacketizer_av1_plugin.dll;$(VlcPluginRoot)packetizer\libpacketizer_mpeg4video_plugin.dll;$(VlcPluginRoot)packetizer\libpacketizer_mpegvideo_plugin.dll">
         <PluginTargetDir>packetizer</PluginTargetDir>
       </LibVlcX64Plugin>
-      <LibVlcX64Plugin Include="$(VlcPluginRoot)video_output\libdirect3d11_plugin.dll;$(VlcPluginRoot)video_output\libdirect3d9_plugin.dll;$(VlcPluginRoot)video_output\libwingdi_plugin.dll;$(VlcPluginRoot)video_output\libdirectdraw_plugin.dll;$(VlcPluginRoot)video_output\libvdummy_plugin.dll">
+      <LibVlcX64Plugin Include="$(VlcPluginRoot)video_output\libdrawable_plugin.dll;$(VlcPluginRoot)video_output\libdirect3d11_plugin.dll;$(VlcPluginRoot)video_output\libdirect3d9_plugin.dll;$(VlcPluginRoot)video_output\libwingdi_plugin.dll;$(VlcPluginRoot)video_output\libdirectdraw_plugin.dll;$(VlcPluginRoot)video_output\libvdummy_plugin.dll">
         <PluginTargetDir>video_output</PluginTargetDir>
       </LibVlcX64Plugin>
       <LibVlcX64Plugin Include="$(VlcPluginRoot)video_chroma\*.dll">
@@ -493,8 +506,10 @@
       <WinTtsProjectPath>$(MSBuildProjectDirectory)\..\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj</WinTtsProjectPath>
       <WinTtsPublishDirectory>$(IntermediateOutputPath)wintts-runtime</WinTtsPublishDirectory>
       <WinTtsArtifactsArgument Condition="'$(ArtifactsPath)' != ''">--artifacts-path "$(ArtifactsPath)"</WinTtsArtifactsArgument>
+      <WinTtsBrandProfileDirectory Condition="'$(BrandProfileDirectory)' != ''">$([System.String]::Copy('$(BrandProfileDirectory)').TrimEnd('\'))</WinTtsBrandProfileDirectory>
+      <WinTtsBrandProfileArgument Condition="'$(BrandProfile)' != ''">-p:BrandProfile=&quot;$(BrandProfile)&quot; -p:BrandProfileDirectory=&quot;$(WinTtsBrandProfileDirectory)&quot;</WinTtsBrandProfileArgument>
     </PropertyGroup>
-    <Exec Command="dotnet publish &quot;$(WinTtsProjectPath)&quot; -c &quot;$(Configuration)&quot; --no-restore --nologo $(WinTtsArtifactsArgument) -o &quot;$(WinTtsPublishDirectory)&quot;" />
+    <Exec Command="dotnet publish &quot;$(WinTtsProjectPath)&quot; -c &quot;$(Configuration)&quot; --no-restore --nologo $(WinTtsArtifactsArgument) $(WinTtsBrandProfileArgument) -o &quot;$(WinTtsPublishDirectory)&quot;" />
     <ItemGroup>
       <WinTtsRuntimeFile Include="$(WinTtsPublishDirectory)\ExpressPackingMonitoring.WinTts.dll" />
       <WinTtsRuntimeFile Include="$(WinTtsPublishDirectory)\Microsoft.Windows.SDK.NET.dll" />
@@ -502,6 +517,18 @@
     </ItemGroup>
     <Error Condition="!Exists('%(WinTtsRuntimeFile.Identity)')" Text="WinTts runtime output missing: %(WinTtsRuntimeFile.Identity)" />
     <Copy SourceFiles="@(WinTtsRuntimeFile)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="ValidateBrandFeatures"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(SkipBrandFeatureValidation)' != 'true' and '$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <BrandFeaturesValidatorProject>$(MSBuildThisFileDirectory)..\..\tools\ExpressPackingMonitoring.BrandFeatures.Validator\ExpressPackingMonitoring.BrandFeatures.Validator.csproj</BrandFeaturesValidatorProject>
+      <BrandProfileDirectoryArgument>$([System.String]::Copy('$(BrandProfileDirectory)').TrimEnd('\'))</BrandProfileDirectoryArgument>
+    </PropertyGroup>
+    <Error Condition="'$(BrandFeaturesRelativePath)' == ''"
+           Text="软件配置 '$(BrandProfile)' 缺少 BrandFeaturesRelativePath" />
+    <Exec Command="dotnet run --project &quot;$(BrandFeaturesValidatorProject)&quot; --configuration &quot;$(Configuration)&quot; --no-launch-profile -p:SkipBrandFeatureValidation=true -- --profile-directory &quot;$(BrandProfileDirectoryArgument)&quot; --relative-path &quot;$(BrandFeaturesRelativePath)&quot; --mobile-release-url &quot;$(BrandMobileReleasesUrl)&quot;" />
   </Target>
 
 </Project>

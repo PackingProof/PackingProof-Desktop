@@ -59,10 +59,18 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private async void OpenPlaybackWindow()
+        private async void OpenPlaybackWindow() =>
+            await OpenPlaybackWindowAsync();
+
+        internal Task PlayRecentRecordingAsync(long videoRecordId) =>
+            OpenPlaybackWindowAsync(videoRecordId);
+
+        private async Task OpenPlaybackWindowAsync(long requestedVideoRecordId = 0)
         {
             if (_playbackWindow is { } existingPlayback)
             {
+                if (requestedVideoRecordId > 0)
+                    existingPlayback.RequestPlayRecord(requestedVideoRecordId);
                 existingPlayback.RefreshLatestVideos();
                 ActivateExistingWindow(existingPlayback);
                 return;
@@ -116,7 +124,13 @@ namespace ExpressPackingMonitoring.ViewModels
                     webClipUrlProvider: WebServerModePolicy.ProvidesWebPlayback(webServerMode)
                         ? BuildWebClipUrlAsync
                         : null,
-                    validatedEncoders: Config.ValidatedEncodersCache);
+                    validatedEncoders: Config.ValidatedEncodersCache,
+                    photoStore: Capabilities.CanOperatePhoto ? PhotoStore : null,
+                    deletePhotoHandler: Capabilities.CanOperatePhoto
+                        ? DeletePhotoAsync
+                        : null);
+                if (requestedVideoRecordId > 0)
+                    playbackWindow.RequestPlayRecord(requestedVideoRecordId);
                 // 先按最新那条录像把窗口尺寸定好，再显示：否则用户会先看到默认大小再跳一下。
                 await playbackWindow.PrepareInitialWindowSizeAsync();
                 _playbackWindow = playbackWindow;

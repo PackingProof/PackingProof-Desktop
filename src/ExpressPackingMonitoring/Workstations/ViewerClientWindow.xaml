@@ -1,7 +1,7 @@
 <Window x:Class="ExpressPackingMonitoring.ViewerClientWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="PackingProof 查看客户端"
+        Title="Viewer"
         Width="820"
         MinWidth="760"
         MaxHeight="680"
@@ -121,7 +121,7 @@
                 <StackPanel>
                     <TextBlock x:Name="WindowHeadingText" Text="查看客户端" FontSize="28" FontWeight="Black"
                                Foreground="{DynamicResource TextPrimary}"/>
-                    <TextBlock x:Name="WindowDescriptionText" Text="连接局域网中的 PackingProof 主机，不在本机录制或保存录像"
+                    <TextBlock x:Name="WindowDescriptionText"
                                Margin="0,6,0,0"
                                Foreground="{DynamicResource TextSecondary}"/>
                 </StackPanel>

@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <BrandFeaturesRelativePath>Features.json</BrandFeaturesRelativePath>
+  </PropertyGroup>
+</Project>

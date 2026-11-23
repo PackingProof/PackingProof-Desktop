@@ -75,7 +75,8 @@ public partial class MainViewModel
             DeploymentPresets.RecordingWorkstation,
             StringComparison.OrdinalIgnoreCase);
 
-    public bool IsMainConnectionVisible => ShouldShowMainConnection(Config);
+    public bool IsMainConnectionVisible =>
+        ShouldShowMainConnection(Config, Capabilities);
     public string MainConnectionButtonText => GetMainConnectionButtonText(Config);
     public string MainConnectionButtonToolTip => ShouldManageBoundHostFromMainConnection(Config)
         ? "连接、绑定或管理保存电脑"
@@ -92,6 +93,8 @@ public partial class MainViewModel
         get => _pendingRecordingTransferCount;
         private set { _pendingRecordingTransferCount = value; OnPropertyChanged(); }
     }
+
+    internal int ActiveRecordingTransferCount { get; private set; }
 
     public double RecordingTransferProgress
     {
@@ -544,6 +547,16 @@ public partial class MainViewModel
             || preset == DeploymentPresets.RecordingWorkstation;
     }
 
+    internal static bool ShouldShowMainConnection(
+        AppConfig? config,
+        SettingsCapabilities capabilities)
+    {
+        ArgumentNullException.ThrowIfNull(capabilities);
+        if (!ShouldShowMainConnection(config))
+            return false;
+        return capabilities.CanUseTransferManagement;
+    }
+
     internal static bool ShouldManageBoundHostFromMainConnection(AppConfig? config) =>
         string.Equals(
             DeploymentPresets.Normalize(config?.DeploymentPreset),
@@ -566,7 +579,7 @@ public partial class MainViewModel
             return;
         }
 
-        if (ShouldShowMainConnection(Config))
+        if (ShouldShowMainConnection(Config, Capabilities))
             ShowMobileConnection(owner);
     }
 
@@ -835,6 +848,8 @@ public partial class MainViewModel
     {
         PendingRecordingTransferCount =
             summary.PendingCount + summary.UploadingCount + summary.FailedCount;
+        ActiveRecordingTransferCount =
+            summary.PendingCount + summary.UploadingCount;
         LastRecordingTransferError = _recordingHostPausedByUser
             ? AppLanguage.Get("已暂停")
             : summary.LastError;

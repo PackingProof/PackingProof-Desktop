@@ -1,0 +1,57 @@
+<Project>
+  <PropertyGroup>
+    <BrandProfileId>packingproof</BrandProfileId>
+    <BrandProductName>PackingProof</BrandProductName>
+    <BrandLegacyProductName>PackingProof</BrandLegacyProductName>
+    <BrandWindowTitle>PackingProof 包裹留证</BrandWindowTitle>
+    <BrandDisplayName>PackingProof 快递打包监控</BrandDisplayName>
+    <BrandArtifactPrefix>PackingProof</BrandArtifactPrefix>
+    <BrandDescription>扫码自动录像，按快递单号保存，支持订单播报、退款拦截、局域网回放与多工位备份</BrandDescription>
+    <BrandFeaturesRelativePath>Features.json</BrandFeaturesRelativePath>
+    <BrandWebsiteUrl>https://github.com/PackingProof/PackingProof-Desktop</BrandWebsiteUrl>
+    <BrandSupportUrl>https://github.com/PackingProof/PackingProof-Desktop/issues</BrandSupportUrl>
+    <BrandUpdatesUrl>https://github.com/PackingProof/PackingProof-Desktop/releases</BrandUpdatesUrl>
+    <BrandPrivacyPolicyUrl>https://packingproof.github.io/PackingProof-Desktop/store/privacy-policy.html</BrandPrivacyPolicyUrl>
+    <BrandLicenseUrl>https://github.com/PackingProof/PackingProof-Desktop/blob/main/LICENSE</BrandLicenseUrl>
+    <BrandSupportEmail>PackingProof@outlook.com</BrandSupportEmail>
+
+    <BrandAppIconRelativePath>branding/profiles/packingproof/app.ico</BrandAppIconRelativePath>
+    <BrandAppIcon>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'app.ico'))</BrandAppIcon>
+    <BrandWebLogo>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'logo.png'))</BrandWebLogo>
+
+    <BrandRepositorySlug>PackingProof/PackingProof-Desktop</BrandRepositorySlug>
+    <BrandUpdateGiteeCheckUrl>https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest</BrandUpdateGiteeCheckUrl>
+    <BrandUpdateGithubCheckUrl>https://api.github.com/repos/PackingProof/PackingProof-Desktop/releases/latest</BrandUpdateGithubCheckUrl>
+    <BrandPatchDownloadBaseUrl>https://github.com/PackingProof/PackingProof-Desktop/releases/download</BrandPatchDownloadBaseUrl>
+    <BrandMobileRepositoryUrl>https://gitee.com/PackingProof/PackingProof-Mobile</BrandMobileRepositoryUrl>
+    <BrandMobileReleasesUrl>https://gitee.com/PackingProof/PackingProof-Mobile/releases/latest</BrandMobileReleasesUrl>
+    <BrandMobileLatestReleaseApiUrl>https://gitee.com/api/v5/repos/PackingProof/PackingProof-Mobile/releases/latest</BrandMobileLatestReleaseApiUrl>
+    <BrandMobileReleasesApiUrl>https://gitee.com/api/v5/repos/PackingProof/PackingProof-Mobile/releases</BrandMobileReleasesApiUrl>
+    <BrandExtensionGiteeRegistryBase>https://gitee.com/PackingProof/PackingProof-Extensions/raw/main/registry/</BrandExtensionGiteeRegistryBase>
+    <BrandExtensionGithubRegistryBase>https://github.com/PackingProof/PackingProof-Extensions/raw/refs/heads/main/registry/</BrandExtensionGithubRegistryBase>
+    <BrandExtensionMarketPublicKeyId>6d14589c4a213deb</BrandExtensionMarketPublicKeyId>
+    <BrandExtensionMarketPublicKeySpki>MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEOlhap+0dM+SB6AcU0hdMV7vOn5jF6V9r1l7kv0pf/eDAqgCL6MN15kW4wMSEyUBf+fcYIfLxMEV7McScdcQgIA==</BrandExtensionMarketPublicKeySpki>
+    <BrandExtensionMarketPublicKeyIsPlaceholder>false</BrandExtensionMarketPublicKeyIsPlaceholder>
+
+    <!--
+      兼容身份与展示信息分开管理。普通换名不能修改这些值，
+      否则旧配置、扩展协议、录像数据库和更新链会失联。
+    -->
+    <BrandCompatibilityId>PackingProof</BrandCompatibilityId>
+    <BrandDataDirectoryName>ExpressPackingMonitoring</BrandDataDirectoryName>
+    <BrandInstanceNamePrefix>ExpressPackingMonitoring</BrandInstanceNamePrefix>
+    <BrandInstallDirectoryName>ExpressPackingMonitoring</BrandInstallDirectoryName>
+    <BrandAppUserModelId>PackingProof.ExpressPackingMonitoring</BrandAppUserModelId>
+    <BrandSetupAppId>99E9FCE3-C8FE-4D7A-9FA4-BC9CB9186B05</BrandSetupAppId>
+    <BrandStoreIdentityName>PackingProof.PackingProof</BrandStoreIdentityName>
+    <BrandStorePublisher>CN=PackingProof</BrandStorePublisher>
+    <BrandStorePublisherDisplayName>PackingProof</BrandStorePublisherDisplayName>
+    <BrandStoreShortName>PackingProof</BrandStoreShortName>
+    <BrandStoreStartupTaskId>PackingProofStartup</BrandStoreStartupTaskId>
+    <BrandPackageEditionMarker>PackingProof.PackageEdition.json</BrandPackageEditionMarker>
+    <BrandLauncherBaselineRelativePath>tools/launcher-baseline.json</BrandLauncherBaselineRelativePath>
+    <BrandWebServerPort>5280</BrandWebServerPort>
+    <BrandDiscoveryPort>5281</BrandDiscoveryPort>
+    <BrandMacBundleId>com.packingproof.host</BrandMacBundleId>
+  </PropertyGroup>
+</Project>

@@ -39,7 +39,12 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
-$repoSlug = "PackingProof/PackingProof-Desktop"
+. (Join-Path $PSScriptRoot "Branding.Common.ps1")
+$brand = Get-BrandProfile -RepoRoot $repoRoot
+if ($brand.ExtensionMarketPublicKeyIsPlaceholder) {
+    throw "当前软件配置仍使用扩展市场公钥占位值，不能创建 Release"
+}
+$repoSlug = $brand.RepositorySlug
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
 . (Join-Path $PSScriptRoot "ReleaseAuth.Common.ps1")
@@ -174,7 +179,7 @@ $version = $artifactNames.NormalizedVersion
 $releaseTag = $artifactNames.ReleaseTag
 $packageRoot = $artifactNames.PackageRoot
 if (-not (Test-Path -LiteralPath $packageRoot)) {
-    $candidates = @(Get-ChildItem -Path (Join-Path $repoRoot "package") -Directory -Filter "PackingProof+*$version*" -ErrorAction SilentlyContinue |
+    $candidates = @(Get-ChildItem -Path (Join-Path $repoRoot "package") -Directory -Filter ($brand.ArtifactPrefix + "+*$version*") -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty Name)
     $hint = if ($candidates.Count -gt 0) { "；package\ 下与 $version 相关的目录有：$($candidates -join '、')" } else { "" }
     throw "找不到产物目录：$packageRoot，请先执行 tools\Publish-CleanPackage.ps1$hint"
@@ -220,12 +225,12 @@ if (-not $giteeSetupIncluded) {
     $bridgeSource = if (-not [string]::IsNullOrWhiteSpace($StoreBridgeInstallerPath)) {
         [System.IO.Path]::GetFullPath($StoreBridgeInstallerPath)
     } else {
-        throw "完整 Setup 达到 100MB，Gitee 需要商店桥接安装器。请传 -StoreBridgeInstallerPath <PackingProof Installer.exe>；不再生成 no-runtime 安装包"
+        throw "完整 Setup 达到 100MB，Gitee 需要商店桥接安装器。请传 -StoreBridgeInstallerPath <$($brand.DisplayName) Installer.exe>；不再生成 no-runtime 安装包"
     }
     if (-not (Test-Path -LiteralPath $bridgeSource -PathType Leaf)) {
         throw "商店桥接安装器不存在：$bridgeSource"
     }
-    $bridgeName = "PackingProof_StoreInstaller_$releaseTag.exe"
+    $bridgeName = "$($brand.ArtifactPrefix)_StoreInstaller_$releaseTag.exe"
     $giteeBridgeInstallerPath = Join-Path $packageRoot $bridgeName
     Copy-Item -LiteralPath $bridgeSource -Destination $giteeBridgeInstallerPath -Force
 }
@@ -355,12 +360,12 @@ else {
 
     $editionMarkerJson = Get-ArchiveTextEntry `
         -ArchivePath $storePackagePath `
-        -EntryName "PackingProof.PackageEdition.json"
+        -EntryName $brand.PackageEditionMarker
     try {
         $editionMarker = $editionMarkerJson | ConvertFrom-Json
     }
     catch {
-        throw "Store 包内 PackingProof.PackageEdition.json 不是合法 JSON，拒绝发布"
+        throw "Store 包内 $($brand.PackageEditionMarker) 不是合法 JSON，拒绝发布"
     }
     if ([string]$editionMarker.edition -ne "store" -or
         [string]$editionMarker.app_version -ne $version -or
@@ -387,9 +392,9 @@ else {
     $storePackageIncluded = $true
     if ($storePackageRequired) {
         $notesTextForStore = Get-Content -LiteralPath $notesFullPath -Raw -Encoding UTF8
-        if (-not $notesTextForStore.Contains("PackingProof_Store_", [System.StringComparison]::Ordinal) -or
+        if (-not $notesTextForStore.Contains($brand.ArtifactPrefix + "_Store_", [System.StringComparison]::Ordinal) -or
             -not $notesTextForStore.Contains(".msixupload", [System.StringComparison]::Ordinal)) {
-            throw "发布笔记缺少 Microsoft Store 资产说明；请在《下载与更新说明》中写明 PackingProof_Store_vX.Y.Z.msixupload 提交到 Partner Center"
+            throw "发布笔记缺少 Microsoft Store 资产说明；请在《下载与更新说明》中写明 $($brand.ArtifactPrefix)_Store_vX.Y.Z.msixupload 提交到 Partner Center"
         }
     }
 }
@@ -492,10 +497,10 @@ if (-not $ConfirmCommitCoverage) {
     throw "发布笔记尚未确认覆盖上述 $($commitChecklist.Count) 个提交；逐条核对后加 -ConfirmCommitCoverage 重新执行（只想先校验加 -ValidateOnly）"
 }
 
-Assert-Command -Name "gh" -Hint "GitHub Release 无法创建；安装 CLI 后配置 PackingProof Release Bot App"
-Assert-Command -Name "gitee" -Hint "Gitee Release 无法创建；安装 CLI 后配置 PackingProof-Release-Bot token 文件"
+Assert-Command -Name "gh" -Hint "GitHub Release 无法创建；安装 CLI 后配置软件配置指定的发布 token"
+Assert-Command -Name "gitee" -Hint "Gitee Release 无法创建；安装 CLI 后配置软件配置指定的发布 token"
 
-$githubTokenSource = Import-GitHubReleaseAppInstallationToken
+$githubTokenSource = Import-GitHubReleaseAppInstallationToken -Brand $brand
 if ($ValidateOnly) {
     Write-Host ""
     Write-Host "仅校验模式：产物、发布笔记与更新清单均通过，未创建、未上传"
@@ -503,13 +508,13 @@ if ($ValidateOnly) {
 }
 
 if (-not (Test-GitHubReleaseAuthentication -Repository $repoSlug -RepoRoot $repoRoot)) {
-    throw "GitHub 发布必须使用 PackingProof Release Bot GitHub App；当前认证不可用或没有仓库写入权限"
+    throw "GitHub 发布必须使用软件配置指定的专用发布 token；当前认证不可用或没有仓库写入权限"
 }
 
-# Gitee 令牌固定来自机器人 token 文件；绝不回退到个人 CLI 登录态。
-$giteeTokenSource = Import-GiteeReleaseBotToken
-if (-not (Test-GiteeAuthentication -Repository $repoSlug -RepoRoot $repoRoot)) {
-    throw "Gitee 发布必须使用 PackingProof-Release-Bot token 文件；个人 CLI 登录态不会用于远端写入"
+# Gitee 令牌固定来自软件配置或默认机器人 token 文件；绝不回退到个人 CLI 登录态。
+$giteeTokenSource = Import-GiteeReleaseBotToken -Brand $brand
+if (-not (Test-GiteeAuthentication -Repository $repoSlug -RepoRoot $repoRoot -Brand $brand)) {
+    throw "Gitee 发布必须使用软件配置指定的专用发布 token；个人 CLI 登录态不会用于远端写入"
 }
 
 Write-Host "发布 $tag"
@@ -617,14 +622,14 @@ if ($ReplaceAssets -and $giteeReleaseExisted) {
     # 只保留与本次尺寸策略一致的安装入口，避免同一版本同时挂多个安装向导。
     $alternateSetupNames = if ($giteeSetupIncluded) {
         @(
-            "PackingProof_Setup_no-runtime_$releaseTag.exe",
-            "PackingProof_StoreInstaller_$releaseTag.exe"
+            "$($brand.ArtifactPrefix)_Setup_no-runtime_$releaseTag.exe",
+            "$($brand.ArtifactPrefix)_StoreInstaller_$releaseTag.exe"
         )
     }
     else {
         @(
             (Split-Path -Leaf $setupPath),
-            "PackingProof_Setup_no-runtime_$releaseTag.exe"
+            "$($brand.ArtifactPrefix)_Setup_no-runtime_$releaseTag.exe"
         )
     }
     foreach ($alternateSetupName in $alternateSetupNames) {

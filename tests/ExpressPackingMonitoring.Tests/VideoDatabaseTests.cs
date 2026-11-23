@@ -724,6 +724,7 @@ public sealed class VideoDatabaseTests
                 Assert.Equal("TODAY-21", records[0].OrderId);
                 Assert.Equal("TODAY-02", records[^1].OrderId);
                 Assert.Equal("退货", records[0].Mode);
+                Assert.Equal(60, records[0].DurationSeconds, precision: 3);
                 Assert.DoesNotContain(records, record => record.OrderId is "YESTERDAY" or "DELETED" or "INCOMPLETE");
                 Assert.True(records.SequenceEqual(records.OrderByDescending(record => record.StartTime)));
             }

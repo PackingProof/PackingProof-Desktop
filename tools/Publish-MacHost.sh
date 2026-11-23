@@ -18,6 +18,39 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+brand_profile="${BRAND_PROFILE:-packingproof}"
+brand_profile_dir="${BRAND_PROFILE_DIR:-}"
+if [[ -z "${brand_profile_dir}" ]]; then
+  brand_external_root="${BRAND_PROFILE_ROOT:-}"
+  local_profiles_props="${repository_root}/branding/profiles.local.props"
+  if [[ -z "${brand_external_root}" && -f "${local_profiles_props}" ]]; then
+    brand_external_root="$(sed -n 's:.*<BrandExternalProfilesRoot>\(.*\)</BrandExternalProfilesRoot>.*:\1:p' "${local_profiles_props}" | head -1)"
+  fi
+  if [[ -n "${brand_external_root}" ]]; then
+    brand_profile_dir="${brand_external_root}/${brand_profile}"
+  else
+    brand_profile_dir="${repository_root}/branding/profiles/${brand_profile}"
+  fi
+fi
+brand_props="${brand_profile_dir}/Brand.props"
+if [[ ! -f "${brand_props}" ]]; then
+  echo "找不到定制档案: ${brand_profile} (${brand_props})" >&2
+  exit 2
+fi
+brand_value() {
+  sed -n "s:.*<$1>\\(.*\\)</$1>.*:\\1:p" "${brand_props}" | head -1
+}
+brand_product_name="$(brand_value BrandProductName)"
+brand_artifact_prefix="$(brand_value BrandArtifactPrefix)"
+brand_mac_bundle_id="$(brand_value BrandMacBundleId)"
+brand_icon_relative_path="$(brand_value BrandAppIconRelativePath)"
+brand_updates_url="$(brand_value BrandUpdatesUrl)"
+if [[ -z "${brand_product_name}" || -z "${brand_artifact_prefix}" ||
+      -z "${brand_mac_bundle_id}" || -z "${brand_icon_relative_path}" ||
+      -z "${brand_updates_url}" ]]; then
+  echo "定制档案缺少 Mac 打包字段: ${brand_profile}" >&2
+  exit 2
+fi
 output_root="${1:-${repository_root}/package/mac-host}"
 runtime_id="${2:-osx-arm64}"
 # 版本号默认跟随桌面端工程（Mac 包和桌面端同一次发布，版本必须一致）
@@ -27,7 +60,7 @@ if [ -z "${version}" ]; then
     "${repository_root}/Directory.Build.props" | head -1)"
   version="${version:-0.0.1}"
 fi
-notary_profile="${NOTARY_PROFILE:-PackingProofNotary}"
+notary_profile="${NOTARY_PROFILE:-${brand_artifact_prefix}Notary}"
 notarize="${NOTARIZE:-0}"
 sign_keychain="${SIGN_KEYCHAIN:-}"
 
@@ -51,7 +84,7 @@ if [[ "${output_root}" == "/" || -z "${output_root}" ]]; then
   exit 2
 fi
 
-app_name="PackingProofHost"
+app_name="${brand_artifact_prefix}Host"
 app_bundle="${output_root}/${app_name}.app"
 host_binary_name="ExpressPackingMonitoring.Host"
 shell_binary_name="PackingProofHostMenu"
@@ -72,6 +105,8 @@ dotnet publish "${repository_root}/ExpressPackingMonitoring.Host/ExpressPackingM
   -c Release \
   -r "${runtime_id}" \
   --self-contained true \
+  -p:BrandProfile="${brand_profile}" \
+  -p:BrandProfileDirectory="${brand_profile_dir}" \
   -p:Version="${version}" \
   -p:InformationalVersion="${version}" \
   -o "${app_bundle}/Contents/MacOS/Host"
@@ -87,7 +122,17 @@ cp "${ffmpeg_source}" "${app_bundle}/Contents/MacOS/Host/tools/ffmpeg"
 chmod +x "${app_bundle}/Contents/MacOS/Host/tools/ffmpeg"
 
 # 图标一律复用仓库里已有的 app.ico：菜单栏要 36px PNG，应用包要 .icns
-app_icon_source="${repository_root}/ExpressPackingMonitoring/app.ico"
+if [[ "${brand_icon_relative_path}" = /* ]]; then
+  app_icon_source="${brand_icon_relative_path}"
+elif [[ -f "${brand_profile_dir}/${brand_icon_relative_path}" ]]; then
+  app_icon_source="${brand_profile_dir}/${brand_icon_relative_path}"
+else
+  app_icon_source="${repository_root}/${brand_icon_relative_path}"
+fi
+if [[ ! -f "${app_icon_source}" ]]; then
+  echo "找不到定制档案图标: ${app_icon_source}" >&2
+  exit 2
+fi
 sips -s format png -Z 36 "${app_icon_source}" \
   --out "${app_bundle}/Contents/Resources/MenuIcon.png" >/dev/null
 
@@ -112,11 +157,15 @@ cat > "${app_bundle}/Contents/Info.plist" <<PLIST
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key>
-  <string>PackingProof</string>
+  <string>${brand_product_name}</string>
   <key>CFBundleDisplayName</key>
-  <string>PackingProof</string>
+  <string>${brand_product_name}</string>
+  <key>BrandVideosDirectoryName</key>
+  <string>${brand_artifact_prefix}Videos</string>
+  <key>BrandUpdatesUrl</key>
+  <string>${brand_updates_url}</string>
   <key>CFBundleIdentifier</key>
-  <string>com.packingproof.host</string>
+  <string>${brand_mac_bundle_id}</string>
   <key>CFBundleExecutable</key>
   <string>${shell_binary_name}</string>
   <key>CFBundleIconFile</key>
@@ -169,7 +218,7 @@ fi
 # 对外分发用 DMG：整包替换是 macOS 上唯一不破坏签名与公证的方式，
 # 所以不做 Windows 那套逐文件增量补丁
 echo "==> 生成 DMG"
-dmg_path="${output_root}/PackingProof-macOS-${version}.dmg"
+dmg_path="${output_root}/${brand_artifact_prefix}-macOS-${version}.dmg"
 # 更新检查靠"文件名里带 macOS 的 .dmg"识别 Mac 包，名字改了更新提示就永远不会出现
 dmg_name="$(basename "${dmg_path}")"
 case "${dmg_name}" in
@@ -183,7 +232,7 @@ rm -f "${dmg_path}"
 dmg_staging="$(mktemp -d)"
 cp -R "${app_bundle}" "${dmg_staging}/"
 ln -s /Applications "${dmg_staging}/Applications"
-hdiutil create -volname "PackingProof ${version}" -srcfolder "${dmg_staging}" \
+hdiutil create -volname "${brand_product_name} ${version}" -srcfolder "${dmg_staging}" \
   -ov -format UDZO "${dmg_path}" >/dev/null
 rm -rf "${dmg_staging}"
 

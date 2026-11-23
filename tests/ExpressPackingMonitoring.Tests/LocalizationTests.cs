@@ -2,6 +2,7 @@ using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.UpdateCore;
 using ExpressPackingMonitoring.ViewModels;
 using System.Globalization;
 using System.Text.RegularExpressions;
@@ -15,6 +16,119 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class LocalizationTests
 {
+    [Theory]
+    [InlineData("en-US", DeploymentPresets.RecordingHost, "Recording host")]
+    [InlineData("en-US", DeploymentPresets.RecordingWorkstation, "Recording client")]
+    [InlineData("en-US", DeploymentPresets.ViewerClient, "Recording viewer")]
+    [InlineData("en-US", DeploymentPresets.MobileBackupHost, "Backup host")]
+    [InlineData("ja-JP", DeploymentPresets.RecordingHost, "録画ホスト")]
+    [InlineData("ja-JP", DeploymentPresets.RecordingWorkstation, "録画ワークステーション")]
+    [InlineData("ja-JP", DeploymentPresets.ViewerClient, "録画ビューアー")]
+    [InlineData("ja-JP", DeploymentPresets.MobileBackupHost, "バックアップホスト")]
+    public void DeploymentPurposeDisplayNames_FollowCurrentUiCulture(
+        string culture,
+        string preset,
+        string expected)
+    {
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
+            Assert.Equal(expected, DeploymentPresets.GetDisplayName(preset));
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+    }
+
+    [Fact]
+    public void PurposeSelector_UsesLocalizedItemsAndKeepsRoleIcons()
+    {
+        string xaml = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "SettingsWindow.xaml"));
+        int start = xaml.IndexOf("x:Name=\"PurposeComboBox\"", StringComparison.Ordinal);
+        int end = xaml.IndexOf("</ComboBox>", start, StringComparison.Ordinal);
+
+        Assert.True(start >= 0 && end > start);
+        string purposeSelector = xaml[start..end];
+        Assert.Contains("SelectedValuePath=\"Tag\"", purposeSelector, StringComparison.Ordinal);
+        Assert.Contains("<ComboBoxItem Tag=\"RecordingHost\">", purposeSelector, StringComparison.Ordinal);
+        Assert.Contains("<ComboBoxItem Tag=\"RecordingWorkstation\">", purposeSelector, StringComparison.Ordinal);
+        Assert.Contains("<ComboBoxItem Tag=\"ViewerClient\">", purposeSelector, StringComparison.Ordinal);
+        Assert.Contains("<ComboBoxItem Tag=\"MobileBackupHost\">", purposeSelector, StringComparison.Ordinal);
+        Assert.Contains("Data=\"{StaticResource FluentVideoIcon}\"", purposeSelector, StringComparison.Ordinal);
+        Assert.Contains("Data=\"{StaticResource FluentWifiIcon}\"", purposeSelector, StringComparison.Ordinal);
+        Assert.Contains("Data=\"{StaticResource FluentPlayIcon}\"", purposeSelector, StringComparison.Ordinal);
+        Assert.Contains("Data=\"{StaticResource FluentDatabaseIcon}\"", purposeSelector, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{loc:Localized 录像主机}\"", purposeSelector, StringComparison.Ordinal);
+        Assert.DoesNotContain("DisplayMemberPath=\"DisplayName\"", purposeSelector, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StartupBusyButton_UsesShortLocalizedLoadingText()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Scanner.cs"));
+        string english = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "Resources",
+            "Strings.resx"));
+        string chinese = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "Resources",
+            "Strings.zh-Hans.resx"));
+        string japanese = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "Resources",
+            "Strings.ja-JP.resx"));
+
+        Assert.Contains("BusyText = AppLanguage.Get(\"正在加载\");", source, StringComparison.Ordinal);
+        Assert.Contains("<data name=\"正在加载\"", english, StringComparison.Ordinal);
+        Assert.Contains("<data name=\"正在加载\"", chinese, StringComparison.Ordinal);
+        Assert.Contains("<data name=\"正在加载\"", japanese, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DiagnosticExportSuccessMessage_UsesCurrentLanguage()
+    {
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-US");
+            string message = DiagnosticExportText.BuildMessage(
+                @"C:\Temp\PackingProof_Feedback_20261123.zip",
+                2 * 1024 * 1024,
+                "PackingProof@outlook.com",
+                []);
+
+            Assert.Contains("Diagnostic package created:", message, StringComparison.Ordinal);
+            Assert.Contains("Size: 2 MB", message, StringComparison.Ordinal);
+            Assert.Contains("The path was copied and its folder opened", message, StringComparison.Ordinal);
+            Assert.Contains("Click Copy email address", message, StringComparison.Ordinal);
+            Assert.DoesNotContain("诊断", message, StringComparison.Ordinal);
+            Assert.DoesNotContain("大小：", message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+    }
+
     [Fact]
     public void BackupHostTerminology_IsConsistentAcrossLanguages()
     {
@@ -154,14 +268,15 @@ public sealed class LocalizationTests
     }
 
     [Theory]
-    [InlineData("zh-Hans", "PackingProof 包裹留证", "PackingProof 包裹留证 v9.9.9")]
-    [InlineData("en-US", "PackingProof package evidence", "PackingProof package evidence v9.9.9")]
-    [InlineData("ja-JP", "PackingProof 荷物の証跡", "PackingProof 荷物の証跡 v9.9.9")]
+    [InlineData("zh-Hans", " 包裹留证")]
+    [InlineData("en-US", " package evidence")]
+    [InlineData("ja-JP", " 荷物の証跡")]
     public void MainTitle_UsesBrandTranslationAndVersion(
         string culture,
-        string expectedProductName,
-        string expectedTitle)
+        string translatedSuffix)
     {
+        string expectedProductName = BrandMetadata.ProductName + translatedSuffix;
+        string expectedTitle = expectedProductName + " v9.9.9";
         CultureInfo original = CultureInfo.CurrentUICulture;
         try
         {

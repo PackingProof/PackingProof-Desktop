@@ -1,4 +1,5 @@
 using System.Windows;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.UI
 {
@@ -10,7 +11,7 @@ namespace ExpressPackingMonitoring.UI
     {
         private void OpenPrivacyPolicy_Click(object sender, RoutedEventArgs e)
         {
-            OpenExternalUrl("https://packingproof.github.io/PackingProof-Desktop/store/privacy-policy.html");
+            OpenExternalUrl(BrandMetadata.PrivacyPolicyUrl);
         }
     }
 }

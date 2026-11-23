@@ -50,10 +50,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj" />
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring.Vision.Contracts\ExpressPackingMonitoring.Vision.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\ExpressPackingMonitoring.Core\ExpressPackingMonitoring.Core.csproj" />
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring.Vision.Obb\ExpressPackingMonitoring.Vision.Obb.csproj"
                       Condition="'$(IncludeVisionObb)' == 'true'" />
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj" />
-    <Resource Include="..\..\src\ExpressPackingMonitoring\app.ico" Link="app.ico" />
+    <Resource Include="$(BrandAppIcon)" Link="app.ico" />
     <None Include="Fixtures\ExtensionApiV1\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\ExtensionMarket\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

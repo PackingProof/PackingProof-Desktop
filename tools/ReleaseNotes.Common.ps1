@@ -254,9 +254,13 @@ function Resolve-PreservedReleaseNotes {
     }
 
     # 同版本的其它产物目录：目录名带提交后缀，重打一次就换一个名字。
+    if (-not (Get-Command Get-BrandProfile -ErrorAction SilentlyContinue)) {
+        . (Join-Path $RepoRoot "tools\Branding.Common.ps1")
+    }
+    $brand = Get-BrandProfile -RepoRoot $RepoRoot
     $packagePath = Join-Path $RepoRoot "package"
     if (Test-Path -LiteralPath $packagePath -PathType Container) {
-        $versionDirs = @(Get-ChildItem -LiteralPath $packagePath -Directory -Filter "PackingProof+v$NormalizedVersion*" -ErrorAction SilentlyContinue)
+        $versionDirs = @(Get-ChildItem -LiteralPath $packagePath -Directory -Filter ($brand.ArtifactPrefix + "+v$NormalizedVersion*") -ErrorAction SilentlyContinue)
         foreach ($dir in $versionDirs) {
             $found = @(Get-ChildItem -LiteralPath $dir.FullName -Recurse -File -Filter $notesFileName -ErrorAction SilentlyContinue |
                 Select-Object -First 1)

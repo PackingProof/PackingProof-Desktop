@@ -11,6 +11,7 @@ using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
 using ExpressPackingMonitoring.UI.Controls;
+using ExpressPackingMonitoring.UpdateCore;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -389,6 +390,254 @@ public sealed class WindowConstructionTests
     }
 
     [Fact]
+    public void WorkstationSelectionShowsOnlyBrandAvailableAnswers()
+    {
+        RunOnStaThread(() =>
+        {
+            var features = new ProductFeatures(
+                VideoRecording: true,
+                PhotoCapture: false,
+                MediaLibrary: true,
+                RemoteMediaAccess: false,
+                LanCollaboration: false,
+                ComputerBackupReceive: false,
+                MobileBackupReceive: false,
+                MobileApp: false,
+                NasArchive: false,
+                Clip: false,
+                Compress: false,
+                ExtensionApi: false,
+                ExtensionMarket: false,
+                Userscript: false,
+                OrderReceiver: false,
+                Tts: false,
+                Inputs: new InputFeatures(true, true, true, true, true));
+            var window = new WorkstationSelectionWindow(
+                currentPreset: null,
+                confirmCurrentPreset: false,
+                hostUnavailable: false,
+                availableRoles:
+                [
+                    ProductRoleCapabilityMapper.Get(
+                        ProductRoleCapabilityMapper.RecordingHost)
+                ],
+                productFeatures: features);
+            window.Measure(new Size(860, 720));
+            window.Arrange(new Rect(0, 0, 860, 720));
+            window.UpdateLayout();
+
+            Assert.True(((RadioButton)window.FindName("RecordYesChoice")).IsEnabled);
+            Assert.False(((RadioButton)window.FindName("RecordNoChoice")).IsEnabled);
+            Assert.True(((RadioButton)window.FindName("StorageYesChoice")).IsEnabled);
+            Assert.False(((RadioButton)window.FindName("StorageNoChoice")).IsEnabled);
+            Assert.Equal(
+                "录像主机",
+                ((TextBlock)window.FindName("ResultTitleText")).Text);
+            Assert.DoesNotContain(
+                "NAS",
+                ((TextBlock)window.FindName("ResultDescriptionText")).Text,
+                StringComparison.Ordinal);
+
+            window.Content = null;
+        });
+    }
+
+    [Fact]
+    public void LocalOnlyMainWindowHidesNetworkAndExtensionEntries()
+    {
+        RunOnStaThread(() =>
+        {
+            var window = new MainWindow(enableCloseBehaviorPrompt: false);
+            var viewModel = Assert.IsType<ExpressPackingMonitoring.ViewModels.MainViewModel>(
+                window.DataContext);
+            var features = new ProductFeatures(
+                VideoRecording: true,
+                PhotoCapture: false,
+                MediaLibrary: true,
+                RemoteMediaAccess: false,
+                LanCollaboration: false,
+                ComputerBackupReceive: false,
+                MobileBackupReceive: false,
+                MobileApp: false,
+                NasArchive: false,
+                Clip: false,
+                Compress: false,
+                ExtensionApi: false,
+                ExtensionMarket: false,
+                Userscript: false,
+                OrderReceiver: false,
+                Tts: false,
+                Inputs: new InputFeatures(true, true, true, true, true));
+            var effective = EffectiveProductCapabilities.Compose(
+                features,
+                ProductRoleCapabilityMapper.Get(
+                    ProductRoleCapabilityMapper.RecordingHost),
+                RuntimeEnvironment.FullyAvailable,
+                new ProductCapabilityIdentity(
+                    "local-capture",
+                    1,
+                    new string('0', 64)));
+            viewModel.CapabilityOverride = SettingsCapabilities.FromEffective(
+                effective,
+                canChoosePurpose: false);
+
+            window.Measure(new Size(1350, 850));
+            window.Arrange(new Rect(0, 0, 1350, 850));
+            window.UpdateLayout();
+
+            Assert.Equal(
+                Visibility.Collapsed,
+                ((FrameworkElement)window.FindName("RecordingHostMobileBackupStatus")).Visibility);
+            Assert.Equal(
+                Visibility.Collapsed,
+                ((FrameworkElement)window.FindName("BtnMobileConnection")).Visibility);
+            Assert.Equal(
+                Visibility.Collapsed,
+                ((FrameworkElement)window.FindName("BtnSendTestOrder")).Visibility);
+            Assert.Equal(
+                Visibility.Collapsed,
+                ((FrameworkElement)window.FindName("ExtensionButton")).Visibility);
+            Assert.Equal(
+                Visibility.Visible,
+                ((FrameworkElement)window.FindName("PlaybackButton")).Visibility);
+
+            window.Content = null;
+        });
+    }
+
+    [Fact]
+    public void PhotoCaptureButtonIsNonFocusableAndMatchesRecordButtonTypography()
+    {
+        RunOnStaThread(() =>
+        {
+            var window = new MainWindow(enableCloseBehaviorPrompt: false);
+            var viewModel = Assert.IsType<ExpressPackingMonitoring.ViewModels.MainViewModel>(
+                window.DataContext);
+            var features = new ProductFeatures(
+                VideoRecording: true,
+                PhotoCapture: true,
+                MediaLibrary: true,
+                RemoteMediaAccess: false,
+                LanCollaboration: false,
+                ComputerBackupReceive: false,
+                MobileBackupReceive: false,
+                MobileApp: false,
+                NasArchive: false,
+                Clip: false,
+                Compress: false,
+                ExtensionApi: false,
+                ExtensionMarket: false,
+                Userscript: false,
+                OrderReceiver: false,
+                Tts: false,
+                Inputs: new InputFeatures(true, true, true, true, true));
+            EffectiveProductCapabilities effective = EffectiveProductCapabilities.Compose(
+                features,
+                ProductRoleCapabilityMapper.Get(ProductRoleCapabilityMapper.RecordingHost),
+                RuntimeEnvironment.FullyAvailable,
+                new ProductCapabilityIdentity(
+                    "photo-button",
+                    1,
+                    new string('0', 64)));
+            viewModel.CapabilityOverride = SettingsCapabilities.FromEffective(
+                effective,
+                canChoosePurpose: false);
+
+            var photoButton = Assert.IsType<Button>(
+                window.FindName("PhotoCaptureButton"));
+            var recordButton = Assert.IsType<Button>(
+                window.FindName("RecordButton"));
+            viewModel.SetPhotoCaptureButtonVisibility(false);
+            Assert.Equal(Visibility.Collapsed, photoButton.Visibility);
+
+            var rightClick = new MouseButtonEventArgs(
+                Mouse.PrimaryDevice,
+                Environment.TickCount,
+                MouseButton.Right)
+            {
+                RoutedEvent = UIElement.MouseRightButtonUpEvent
+            };
+            recordButton.RaiseEvent(rightClick);
+            Assert.True(rightClick.Handled);
+            Assert.Equal(Visibility.Visible, photoButton.Visibility);
+            Assert.True(viewModel.Config.ShowPhotoCaptureButton);
+
+            rightClick = new MouseButtonEventArgs(
+                Mouse.PrimaryDevice,
+                Environment.TickCount,
+                MouseButton.Right)
+            {
+                RoutedEvent = UIElement.MouseRightButtonUpEvent
+            };
+            recordButton.RaiseEvent(rightClick);
+            Assert.Equal(Visibility.Collapsed, photoButton.Visibility);
+            Assert.False(viewModel.Config.ShowPhotoCaptureButton);
+            Assert.DoesNotContain(
+                "ShowPhotoCaptureButton",
+                File.ReadAllText(Path.Combine(
+                    FindRepositoryRoot(),
+                    "src", "ExpressPackingMonitoring", "UI", "SettingsWindow.xaml")),
+                StringComparison.Ordinal);
+
+            Assert.False(photoButton.Focusable);
+            Assert.Equal(recordButton.FontSize, photoButton.FontSize);
+            Assert.Equal(recordButton.FontWeight, photoButton.FontWeight);
+            window.Content = null;
+        });
+    }
+
+    [Fact]
+    public void PhotoOnlyProductStillExposesThePhotoEntry()
+    {
+        RunOnStaThread(() =>
+        {
+            var window = new MainWindow(enableCloseBehaviorPrompt: false);
+            var viewModel = Assert.IsType<ExpressPackingMonitoring.ViewModels.MainViewModel>(
+                window.DataContext);
+            var features = new ProductFeatures(
+                VideoRecording: false,
+                PhotoCapture: true,
+                MediaLibrary: true,
+                RemoteMediaAccess: false,
+                LanCollaboration: false,
+                ComputerBackupReceive: false,
+                MobileBackupReceive: false,
+                MobileApp: false,
+                NasArchive: false,
+                Clip: false,
+                Compress: false,
+                ExtensionApi: false,
+                ExtensionMarket: false,
+                Userscript: false,
+                OrderReceiver: false,
+                Tts: false,
+                Inputs: new InputFeatures(true, false, true, true, false));
+            EffectiveProductCapabilities effective = EffectiveProductCapabilities.Compose(
+                features,
+                ProductRoleCapabilityMapper.Get(ProductRoleCapabilityMapper.RecordingHost),
+                RuntimeEnvironment.FullyAvailable,
+                new ProductCapabilityIdentity(
+                    "photo-only",
+                    1,
+                    new string('0', 64)));
+            viewModel.CapabilityOverride = SettingsCapabilities.FromEffective(
+                effective,
+                canChoosePurpose: false);
+            viewModel.SetPhotoCaptureButtonVisibility(false);
+
+            Assert.False(viewModel.Capabilities.CanOperateVideo);
+            Assert.True(viewModel.Capabilities.CanOperatePhoto);
+            Assert.Equal(
+                Visibility.Collapsed,
+                ((FrameworkElement)window.FindName("RecordButton")).Visibility);
+            var photoButton = Assert.IsType<Button>(window.FindName("PhotoCaptureButton"));
+            Assert.Equal(Visibility.Visible, photoButton.Visibility);
+            Assert.True(photoButton.IsEnabled);
+            window.Content = null;
+        });
+    }
+
+    [Fact]
     public void StatisticsWindowFocusCleanup_ClearsOwnerButtonKeyboardFocus()
     {
         RunOnStaThread(() =>
@@ -401,14 +650,21 @@ public sealed class WindowConstructionTests
             {
                 statsButton.Focus();
                 Keyboard.Focus(statsButton);
-                Assert.Same(statsButton, Keyboard.FocusedElement);
+                Dispatcher.CurrentDispatcher.Invoke(
+                    () => { },
+                    DispatcherPriority.Input);
+                Assert.Same(
+                    statsButton,
+                    FocusManager.GetFocusedElement(owner));
 
                 StatisticsWindow.ClearOwnerKeyboardFocus(owner);
                 Dispatcher.CurrentDispatcher.Invoke(
                     () => { },
                     DispatcherPriority.ApplicationIdle);
 
-                Assert.NotSame(statsButton, Keyboard.FocusedElement);
+                Assert.NotSame(
+                    statsButton,
+                    FocusManager.GetFocusedElement(owner));
             }
             finally
             {
@@ -595,29 +851,10 @@ public sealed class WindowConstructionTests
     /// <summary>WPF 控件必须在 STA 线程上创建，测试宿主默认 MTA。</summary>
     private static void RunOnStaThread(Action action)
     {
-        Exception? failure = null;
-        var thread = new Thread(() =>
+        WpfTestHost.Run(() =>
         {
-            try
-            {
-                if (Application.Current == null)
-                    _ = new Application();
-                LoadAppResources();
-                action();
-            }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(120)), "STA 线程执行超时");
-        if (failure != null)
-        {
-            var detail = new System.Text.StringBuilder();
-            for (Exception? current = failure; current != null; current = current.InnerException)
-                detail.AppendLine($"{current.GetType().Name}: {current.Message}");
-            detail.AppendLine(failure.StackTrace);
-            throw new Xunit.Sdk.XunitException($"窗口守卫执行失败：{detail}");
-        }
+            action();
+        }, TimeSpan.FromSeconds(120), "STA 线程执行超时");
     }
 
     /// <summary>与 App.xaml 相同的合并顺序，否则窗口里的资源键解析不到。</summary>

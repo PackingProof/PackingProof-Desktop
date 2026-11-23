@@ -6,6 +6,7 @@ using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.Services.Extensions;
 using ExpressPackingMonitoring.Themes;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.UpdateCore;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
@@ -82,6 +83,10 @@ public partial class PrintWorkstationWindow : Window
     private bool _deploymentSetupPersisted;
     private bool _testOrderSending;
     private bool _purposeSwitchPending;
+    private readonly ModeTransitionGate _modeTransitionGate = new();
+    private string CurrentDeploymentPreset =>
+        DeploymentPresets.Normalize(_config.DeploymentPreset);
+    private CancellationTokenSource? _activePurposeSwitchCts;
     private int _userscriptGuidePreparing;
     public ObservableCollection<MobileBackupStatusItem> MobileBackupDeviceStatuses { get; } = [];
     public MobileBackupToastState ToastState { get; } = new();
@@ -93,7 +98,7 @@ public partial class PrintWorkstationWindow : Window
         bool enableCloseBehaviorPrompt = true)
     {
         InitializeComponent();
-        Title = $"{AppLanguage.Translate(Title)} {AppVersion.Current}";
+        Title = $"{AppLanguage.Get("PackingProof 备份主机")} {AppVersion.Current}";
         MaxHeight = CalculateWindowMaxHeight(SystemParameters.WorkArea.Height);
         _config = config;
         _openPlaybackOnStartup = openPlaybackOnStartup;
@@ -438,6 +443,12 @@ public partial class PrintWorkstationWindow : Window
         var context = new SettingsContext
         {
             Capabilities = SettingsCapabilities.ForPreset(DeploymentPresets.MobileBackupHost),
+            AvailablePurposes =
+            [
+                new DeploymentPurposeOption(
+                    DeploymentPresets.MobileBackupHost,
+                    DeploymentPresets.GetDisplayName(DeploymentPresets.MobileBackupHost))
+            ],
             ApplyAsync = ApplySettingsAsync,
             ConnectionAddressProvider = () => _host.IsLanAvailable ? _host.LanAccessUrl : _host.LocalPlaybackUrl,
             ShowMobileConnection = ShowMobileConnection,
@@ -1028,9 +1039,15 @@ public partial class PrintWorkstationWindow : Window
     private async void SwitchWorkstation_Click(object sender, RoutedEventArgs e)
     {
         if (_purposeSwitchPending)
+        {
+            try { _activePurposeSwitchCts?.Cancel(); } catch { }
+            ShowToast("正在取消用途切换");
             return;
+        }
 
-        var window = new WorkstationSelectionWindow(DeploymentPresets.MobileBackupHost)
+        var window = new WorkstationSelectionWindow(
+            DeploymentPresets.MobileBackupHost,
+            runtimeEnvironment: RuntimeCapabilityEnvironment.FromConfig(_config))
         {
             Owner = this
         };
@@ -1046,6 +1063,8 @@ public partial class PrintWorkstationWindow : Window
             return;
         }
 
+        string previousPreset = CurrentDeploymentPreset;
+        string previousRole = _config.WorkstationRole;
         await RunPurposeSwitchAsync(() =>
         {
             if (!WorkstationConfigStore.TryUpdate(
@@ -1059,9 +1078,9 @@ public partial class PrintWorkstationWindow : Window
                                 config,
                                 preserveExistingLocation: true);
                         }
-                        config.WorkstationRole = DeploymentCapabilities
+                        config.WorkstationRole = ProductCapabilityRuntime
                             .ForPreset(window.SelectedPreset)
-                            .IsRecordingDevice
+                            .Features.VideoRecording
                                 ? WorkstationRoles.CameraMonitor
                                 : "";
                     },
@@ -1078,44 +1097,140 @@ public partial class PrintWorkstationWindow : Window
             _config.DeploymentPreset = savedConfig.DeploymentPreset;
             _config.WorkstationRole = savedConfig.WorkstationRole;
             return true;
+        },
+        rollbackPurpose: () =>
+        {
+            WorkstationConfigStore.TryUpdate(
+                current =>
+                {
+                    current.DeploymentPreset = previousPreset;
+                    current.WorkstationRole = previousRole;
+                },
+                out _,
+                out _);
+            _config.DeploymentPreset = previousPreset;
+            _config.WorkstationRole = previousRole;
         });
     }
 
-    private async Task<bool> RunPurposeSwitchAsync(Func<bool> savePurpose)
+    private async Task<bool> RunPurposeSwitchAsync(
+        Func<bool> savePurpose,
+        Action? rollbackPurpose = null)
     {
         if (_purposeSwitchPending)
             return false;
+        if (!_modeTransitionGate.TryEnter())
+            return false;
 
         _purposeSwitchPending = true;
-        SwitchPurposeButton.IsEnabled = false;
-        SwitchPurposeButtonText.Text = "正在切换";
+        using var transitionCts = CancellationTokenSource.CreateLinkedTokenSource(
+            _lifetimeCts.Token);
+        _activePurposeSwitchCts = transitionCts;
+        CancellationToken transitionToken = transitionCts.Token;
+        SwitchPurposeButton.IsEnabled = true;
+        SwitchPurposeButtonText.Text = "取消切换";
+        string fromPreset = CurrentDeploymentPreset;
+        string outcome = "canceled";
+        bool admissionPaused = false;
+        int restartCancellationHandled = 0;
         try
         {
-            if (_host.HasActiveMobileBackups)
+            _host.PauseRequestAdmission();
+            admissionPaused = true;
+            if (!await _host.WaitForAdmittedRequestsIdleAsync(
+                    TimeSpan.FromSeconds(30),
+                    transitionToken))
             {
-                SwitchPurposeButtonText.Text = "等待备份完成";
-                ShowToast("设备录像正在备份，完成后将自动重启", ToastSeverity.Warning);
+                throw new TimeoutException("等待在途 Web 请求结束超时");
             }
 
-            await _host.WaitForMobileBackupsAsync(_lifetimeCts.Token);
-            _lifetimeCts.Token.ThrowIfCancellationRequested();
+            DateTimeOffset externalWorkDeadline = DateTimeOffset.UtcNow.AddMinutes(30);
+            while (_host.HasActiveMobileBackups || _host.HasActiveClipTasks)
+            {
+                if (DateTimeOffset.UtcNow >= externalWorkDeadline)
+                    throw new TimeoutException("等待备份或剪辑任务结束超时");
+                SwitchPurposeButtonText.Text = _host.HasActiveMobileBackups
+                    ? "等待备份完成"
+                    : "等待剪辑完成";
+                if (_host.HasActiveMobileBackups)
+                {
+                    await _host.WaitForMobileBackupsAsync(transitionToken);
+                }
+                else
+                {
+                    await Task.Delay(250, transitionToken);
+                }
+            }
+            transitionToken.ThrowIfCancellationRequested();
+            if (_host.HasActiveMobileBackups || _host.HasActiveClipTasks)
+            {
+                throw new InvalidOperationException(
+                    "切换用途前仍有备份或剪辑任务未完成");
+            }
             if (!savePurpose())
+            {
+                outcome = "save-failed";
+                _host.ResumeRequestAdmission();
                 return false;
+            }
 
-            return ApplicationRestart.RestartAfterPurposeChange(this);
+            WorkstationNetwork.SetRestartCancellationCallback(() =>
+            {
+                if (Interlocked.Exchange(ref restartCancellationHandled, 1) != 0)
+                    return;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    rollbackPurpose?.Invoke();
+                    if (admissionPaused)
+                        _host.ResumeRequestAdmission();
+                    _purposeSwitchPending = false;
+                    SwitchPurposeButton.IsEnabled = true;
+                    SwitchPurposeButtonText.Text = "切换用途";
+                    _modeTransitionGate.Exit();
+                    ShowToast("重启已取消，用途未切换");
+                }));
+            });
+            bool restarted = ApplicationRestart.RestartAfterPurposeChange(this);
+            outcome = restarted ? "restart-requested" : "restart-failed";
+            if (!restarted)
+            {
+                WorkstationNetwork.SetRestartCancellationCallback(null);
+                rollbackPurpose?.Invoke();
+                _host.ResumeRequestAdmission();
+            }
+            return restarted;
         }
         catch (OperationCanceledException)
         {
+            outcome = "canceled";
+            if (admissionPaused)
+                _host.ResumeRequestAdmission();
+            return false;
+        }
+        catch (Exception ex)
+        {
+            outcome = "failed";
+            if (admissionPaused)
+                _host.ResumeRequestAdmission();
+            RuntimeLog.Error("ModeTransition", "Backup host purpose transition failed", ex);
+            ShowToast($"切换用途失败：{ex.Message}");
             return false;
         }
         finally
         {
+            RuntimeLog.Info(
+                "ModeTransition",
+                $"from={fromPreset} to={CurrentDeploymentPreset} outcome={outcome} mode=backup-host");
             if (!WorkstationNetwork.IsRestartPending)
             {
+                WorkstationNetwork.SetRestartCancellationCallback(null);
                 _purposeSwitchPending = false;
                 SwitchPurposeButton.IsEnabled = true;
                 SwitchPurposeButtonText.Text = "切换用途";
+                _modeTransitionGate.Exit();
             }
+            if (ReferenceEquals(_activePurposeSwitchCts, transitionCts))
+                _activePurposeSwitchCts = null;
         }
     }
 

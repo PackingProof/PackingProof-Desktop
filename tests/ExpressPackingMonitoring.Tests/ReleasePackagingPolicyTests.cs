@@ -9,24 +9,121 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class ReleasePackagingPolicyTests
 {
     [Fact]
+    public void StoreSymbolCollection_HasUpdateCoreReleaseSymbols()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string project = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "src",
+                "ExpressPackingMonitoring.UpdateCore",
+                "ExpressPackingMonitoring.UpdateCore.csproj"),
+            Encoding.UTF8);
+
+        Assert.Contains(
+            "<PropertyGroup Condition=\"'$(Configuration)' == 'Release'\">",
+            project,
+            StringComparison.Ordinal);
+        Assert.Contains("<DebugType>portable</DebugType>", project, StringComparison.Ordinal);
+        Assert.Contains("<DebugSymbols>true</DebugSymbols>", project, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StoreTestCertificate_IsTrustedAsRootForLocalInstall()
+    {
+        string script = File.ReadAllText(
+            Path.Combine(FindRepositoryRoot(), "tools", "Publish-StorePackage.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains("ca=1&pathlength=1", script, StringComparison.Ordinal);
+        Assert.Contains("ca=0", script, StringComparison.Ordinal);
+        Assert.Contains("-Signer $rootCertificate", script, StringComparison.Ordinal);
+        Assert.Contains("-KeyUsage CertSign, CRLSign", script, StringComparison.Ordinal);
+        Assert.Contains("-KeyUsageProperty Sign", script, StringComparison.Ordinal);
+        Assert.Contains("sign /fd SHA256 /a /f", script, StringComparison.Ordinal);
+        Assert.Contains("WindowsPrincipal", script, StringComparison.Ordinal);
+        Assert.Contains("WindowsBuiltInRole]::Administrator", script, StringComparison.Ordinal);
+        Assert.Contains("Cert:\\LocalMachine\\Root", script, StringComparison.Ordinal);
+        Assert.Contains("Cert:\\LocalMachine\\TrustedPeople", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StorePackage_RejectsMixedAssemblyVersions()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string directoryProps = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Directory.Build.props"),
+            Encoding.UTF8);
+        string script = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Publish-StorePackage.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains(
+            "<Version Condition=\"'$(Version)' == ''\">",
+            directoryProps,
+            StringComparison.Ordinal);
+        Assert.Contains("$env:Version = $Version", script, StringComparison.Ordinal);
+        Assert.Contains("Store payload 程序集版本不一致", script, StringComparison.Ordinal);
+        Assert.Contains(
+            "Get-ChildItem -LiteralPath $payloadDir -File -Filter \"ExpressPackingMonitoring*.dll\"",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Copy-Item -LiteralPath $brand.FeaturesPath -Destination $capabilityManifestPath",
+            script,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OptionalResourcesFollowBrandCapabilities()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string publishScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+        string prepareScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Prepare-Release.ps1"),
+            Encoding.UTF8);
+        string policyScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "BrandResourcePolicy.Common.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains("[string]$VisionObb = \"auto\"", publishScript, StringComparison.Ordinal);
+        Assert.Contains("[string]$VisionObb = \"auto\"", prepareScript, StringComparison.Ordinal);
+        Assert.Contains("Get-BrandResourcePolicy", publishScript, StringComparison.Ordinal);
+        Assert.Contains("Resolve-BrandOptionalResource", policyScript, StringComparison.Ordinal);
+        Assert.Contains("软件配置未启用 $ResourceName", policyScript, StringComparison.Ordinal);
+        Assert.Contains("if ($includeTtsCache)", publishScript, StringComparison.Ordinal);
+        Assert.Contains("if ($resourcePolicy.DefaultScripts)", publishScript, StringComparison.Ordinal);
+        Assert.Contains("ProductCapabilities.json", publishScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "TTS capability is disabled but tts_cache is present",
+            publishScript,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void OfficialLinks_UseCurrentGithubRepository()
     {
         string repositoryRoot = FindRepositoryRoot();
-        string[] relativePaths =
-        [
-            @"tools\Installer\ExpressPackingMonitoring.iss",
-            @"src\ExpressPackingMonitoring\Services\BackupCompatibilityPolicy.cs",
-            @"src\ExpressPackingMonitoring\UI\SettingsWindow.xaml.cs"
-        ];
+        string brandProfile = File.ReadAllText(
+            Path.Combine(repositoryRoot, "branding", "profiles", "packingproof", "Brand.props"),
+            Encoding.UTF8);
+        string installer = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Installer", "ExpressPackingMonitoring.iss"),
+            Encoding.UTF8);
+        string backupPolicy = File.ReadAllText(
+            Path.Combine(repositoryRoot, "src", "ExpressPackingMonitoring", "Services", "BackupCompatibilityPolicy.cs"),
+            Encoding.UTF8);
+        string settings = File.ReadAllText(
+            Path.Combine(repositoryRoot, "src", "ExpressPackingMonitoring", "UI", "SettingsWindow.xaml.cs"),
+            Encoding.UTF8);
 
-        foreach (string relativePath in relativePaths)
-        {
-            string content = File.ReadAllText(
-                Path.Combine(repositoryRoot, relativePath),
-                Encoding.UTF8);
-            Assert.Contains("PackingProof/PackingProof-Desktop", content, StringComparison.Ordinal);
-            Assert.DoesNotContain("m-RNA/ExpressPackingMonitoring", content, StringComparison.OrdinalIgnoreCase);
-        }
+        Assert.Contains("https://github.com/PackingProof/PackingProof-Desktop", brandProfile, StringComparison.Ordinal);
+        Assert.Contains("{#MyBrandWebsiteUrl}", installer, StringComparison.Ordinal);
+        Assert.Contains("BrandMetadata.UpdatesUrl", backupPolicy, StringComparison.Ordinal);
+        Assert.Contains("BrandMetadata.WebsiteUrl", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("m-RNA/ExpressPackingMonitoring", brandProfile, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -225,7 +322,8 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("\"-o\", $appPublishDir", publishScript);
         Assert.DoesNotContain("BaseIntermediateOutputPath=$appBaseIntermediate", publishScript);
         Assert.Contains("dotnet publish $launcherProject", baselineScript);
-        Assert.Contains("launcher-v$normalizedVersion", baselineScript);
+        Assert.Contains("Get-LauncherBaselineTag", baselineScript);
+        Assert.Contains("tag = $baselineTag", baselineScript);
         Assert.Contains("src\\ExpressPackingMonitoring\\", commonScript);
         Assert.Contains("update_check_url=", commonScript);
         Assert.Contains("Replace(\"`r`n\", \"`n\")", commonScript);
@@ -435,7 +533,7 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
-    public void Packaging_IncludesVisionObbByDefaultAndCanExcludeIt()
+    public void Packaging_FollowsVisionCapabilityAndCanExcludeIt()
     {
         string repositoryRoot = FindRepositoryRoot();
         string publishScript = File.ReadAllText(
@@ -452,14 +550,18 @@ public sealed class ReleasePackagingPolicyTests
             Encoding.UTF8);
 
         Assert.Contains(
-            "[ValidateSet(\"include\", \"exclude\")]",
+            "[ValidateSet(\"auto\", \"include\", \"exclude\")]",
             publishScript,
             StringComparison.Ordinal);
         Assert.Contains(
-            "[string]$VisionObb = \"include\"",
+            "[string]$VisionObb = \"auto\"",
             publishScript,
             StringComparison.Ordinal);
         Assert.Contains("-p:IncludeVisionObb=false", publishScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "Resolve-BrandOptionalResource",
+            publishScript,
+            StringComparison.Ordinal);
         Assert.Contains(
             ") + $visionPublishArguments + @(",
             publishScript,
@@ -569,19 +671,19 @@ public sealed class ReleasePackagingPolicyTests
             testProject,
             StringComparison.Ordinal);
         Assert.Contains(
-            "[ValidateSet(\"include\", \"exclude\")]",
+            "[ValidateSet(\"auto\", \"include\", \"exclude\")]",
             testCi,
             StringComparison.Ordinal);
         Assert.Contains(
-            "[string]$VisionObb = \"include\"",
+            "[string]$VisionObb = \"auto\"",
             testCi,
             StringComparison.Ordinal);
         Assert.Contains(
-            "[ValidateSet(\"include\", \"exclude\")]",
+            "[ValidateSet(\"auto\", \"include\", \"exclude\")]",
             releaseTest,
             StringComparison.Ordinal);
         Assert.Contains(
-            "[string]$VisionObb = \"include\"",
+            "[string]$VisionObb = \"auto\"",
             releaseTest,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -736,9 +838,13 @@ public sealed class ReleasePackagingPolicyTests
         string publishScript = File.ReadAllText(
             Path.Combine(repositoryRoot, "tools", "Publish-CleanPackage.ps1"),
             Encoding.UTF8);
+        string brandProfile = File.ReadAllText(
+            Path.Combine(repositoryRoot, "branding", "profiles", "packingproof", "Brand.props"),
+            Encoding.UTF8);
 
-        Assert.Contains("99E9FCE3-C8FE-4D7A-9FA4-BC9CB9186B05", innoScript);
-        Assert.Contains(@"DefaultDirName={localappdata}\Programs\ExpressPackingMonitoring", innoScript);
+        Assert.Contains("99E9FCE3-C8FE-4D7A-9FA4-BC9CB9186B05", brandProfile);
+        Assert.Contains(@"DefaultDirName={localappdata}\Programs\{#MyBrandInstallDirectoryName}", innoScript);
+        Assert.Contains("<BrandInstallDirectoryName>ExpressPackingMonitoring</BrandInstallDirectoryName>", brandProfile);
         Assert.Contains("DisableDirPage=no", innoScript);
         Assert.Contains("IsProtectedInstallRoot", innoScript);
         Assert.Contains("IsDirectoryWritable", innoScript);
@@ -750,8 +856,9 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("Program Files、Windows、ProgramData 或磁盘根目录", innoScript);
         Assert.Contains("PrivilegesRequired=lowest", innoScript);
         Assert.Contains("ArchitecturesAllowed=x64compatible", innoScript);
-        Assert.Contains("CloseApplications=yes", innoScript);
-        Assert.DoesNotContain("CloseApplications=force", innoScript);
+        Assert.Contains("CloseApplications=no", innoScript);
+        Assert.Contains("AppMutex=Local\\{#MyBrandInstanceNamePrefix}.Portable.Mutex", innoScript);
+        Assert.DoesNotContain("CloseApplicationsFilter=", innoScript);
         Assert.Contains(@"MessagesFile: ""Languages\ChineseSimplified.isl""", innoScript);
         Assert.Contains("LanguageName=简体中文", chineseMessages);
         Assert.Contains("ButtonNext=下一步", chineseMessages);
@@ -759,9 +866,7 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Equal(2, innoScript.Split(
             "AppUserModelID: \"{#MyAppUserModelId}\"",
             StringSplitOptions.None).Length - 1);
-        Assert.Contains(
-            "#define MyAppUserModelId \"PackingProof.ExpressPackingMonitoring\"",
-            innoScript);
+        Assert.Contains("<BrandAppUserModelId>PackingProof.ExpressPackingMonitoring</BrandAppUserModelId>", brandProfile);
         Assert.Contains("--uninstall-plan-recordings", innoScript);
         Assert.Contains("--uninstall-delete-recordings", innoScript);
         Assert.Contains("--uninstall-delete-local-data", innoScript);
@@ -781,15 +886,15 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("if not UpgradeDirPromptShown then", innoScript);
         Assert.Contains("(PreviousDir <> '') or DirHasInstalledApp(SelectedDir)", innoScript);
         Assert.DoesNotContain("你选择了新的安装文件夹", innoScript);
-        Assert.Contains("function IsPackingProofRunning: Boolean", innoScript);
-        Assert.Contains("Local\\ExpressPackingMonitoring.Portable.Mutex", innoScript);
+        Assert.Contains("function IsBrandAppRunning: Boolean", innoScript);
+        Assert.Contains("Local\\{#MyBrandInstanceNamePrefix}.Portable.Mutex", innoScript);
         Assert.Contains("Local\\ExpressPackingMonitoring.Mutex", innoScript);
-        Assert.Equal(4, innoScript.Split("if IsPackingProofRunning then", StringSplitOptions.None).Length - 1);
+        Assert.Equal(4, innoScript.Split("if IsBrandAppRunning then", StringSplitOptions.None).Length - 1);
         int prepareToInstall = innoScript.IndexOf(
             "function PrepareToInstall(var NeedsRestart: Boolean): String",
             StringComparison.Ordinal);
         int unconditionalRunningCheck = innoScript.IndexOf(
-            "if IsPackingProofRunning then",
+            "if IsBrandAppRunning then",
             prepareToInstall,
             StringComparison.Ordinal);
         int removeOldVersionExit = innoScript.IndexOf(
@@ -825,21 +930,21 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("winget install --id JRSoftware.InnoSetup", buildScript);
         Assert.Contains("WINDOWS_SIGN_CERT_THUMBPRINT", buildScript);
         Assert.Contains("Get-AuthenticodeSignature", buildScript);
-        Assert.Contains("PackingProof_Setup_v$normalizedVersion.exe", buildScript);
+        Assert.Contains("\"$($brand.ArtifactPrefix)_Setup_v$normalizedVersion.exe\"", buildScript);
         Assert.Contains("[string]$OutputFileName", buildScript);
         Assert.Contains("Installer output file name must be a leaf .exe name", buildScript);
         Assert.Contains("config.json", buildScript);
         Assert.Contains("videos.db", buildScript);
 
-        Assert.Contains("OutputBaseFilename=PackingProof_Setup_v{#MyAppVersion}", innoScript);
-        Assert.Contains("PackingProof_Setup_v$artifactVersion.exe", publishScript);
-        Assert.Contains("PackingProof_AppPatch_$artifactTag.zip", publishScript);
+        Assert.Contains("OutputBaseFilename={#MyBrandArtifactPrefix}_Setup_v{#MyAppVersion}", innoScript);
+        Assert.Contains("\"$($brand.ArtifactPrefix)_Setup_v$artifactVersion.exe\"", publishScript);
+        Assert.Contains("\"$($brand.ArtifactPrefix)_AppPatch_$artifactTag.zip\"", publishScript);
         Assert.Contains("update_$artifactTag.json", publishScript);
         Assert.Contains("launcher_manifest_$artifactTag.json", publishScript);
         Assert.Contains("package_integrity_$artifactTag.json", publishScript);
         Assert.Contains("release_info_$artifactTag.txt", publishScript);
         Assert.Contains("-OutputFileName $setupFileName", publishScript);
-        Assert.Contains("\"PackingProof+v$artifactVersion\"", publishScript);
+        Assert.Contains("\"$($brand.ArtifactPrefix)+v$artifactVersion\"", publishScript);
         Assert.Contains("git -C $repoRoot describe --tags --match \"v[0-9]*\" --long --abbrev=8 HEAD", publishScript);
         Assert.Contains("return \"-$($Matches['count'])-g$($Matches['commit'].ToLowerInvariant())$dirtySuffix\"", publishScript);
         Assert.Contains("$isReleaseTagAtHead", publishScript);
@@ -902,16 +1007,16 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("ReleaseVersion.Common.ps1", publishScript, StringComparison.Ordinal);
         Assert.Contains("function Get-NormalizedReleaseVersion", versionCommon, StringComparison.Ordinal);
         Assert.Contains("function Get-ReleaseArtifactNames", versionCommon, StringComparison.Ordinal);
-        Assert.Contains("\"package\\PackingProof+$releaseTag\"", versionCommon, StringComparison.Ordinal);
-        Assert.Contains("\"PackingProof_Setup_v$normalizedVersion.exe\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("$brand.ArtifactPrefix + \"+$releaseTag\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"$($brand.ArtifactPrefix)_Setup_v$normalizedVersion.exe\"", versionCommon, StringComparison.Ordinal);
         Assert.Contains("\"update_v$normalizedVersion.json\"", versionCommon, StringComparison.Ordinal);
-        Assert.Contains("\"PackingProof_AppPatch_$releaseTag.zip\"", versionCommon, StringComparison.Ordinal);
-        Assert.Contains("\"PackingProof_LauncherPatch_$releaseTag.zip\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"$($brand.ArtifactPrefix)_AppPatch_$releaseTag.zip\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"$($brand.ArtifactPrefix)_LauncherPatch_$releaseTag.zip\"", versionCommon, StringComparison.Ordinal);
         Assert.Contains("\"store_package_$releaseTag.json\"", versionCommon, StringComparison.Ordinal);
-        Assert.Contains("\"PackingProof_Store_v$normalizedVersion.msix\"", versionCommon, StringComparison.Ordinal);
-        Assert.Contains("\"PackingProof_Store_v$normalizedVersion.appxsym\"", versionCommon, StringComparison.Ordinal);
-        Assert.Contains("\"PackingProof_Store_v$normalizedVersion.msixupload\"", versionCommon, StringComparison.Ordinal);
-        Assert.Contains("StorePackageRoot = Join-Path $RepoRoot \"package\\store\\PackingProof_Store_v$normalizedVersion\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"$($brand.ArtifactPrefix)_Store_v$normalizedVersion.msix\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"$($brand.ArtifactPrefix)_Store_v$normalizedVersion.appxsym\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"$($brand.ArtifactPrefix)_Store_v$normalizedVersion.msixupload\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("$brand.ArtifactPrefix + \"_Store_v$normalizedVersion\"", versionCommon, StringComparison.Ordinal);
 
         // 发布脚本按归一化结果挑文件，不再自己用 tag 或 TrimStart 拼名字。
         Assert.Contains(
@@ -1117,6 +1222,24 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void UiChanges_RequireRenderedScreenshotReviewBeforeRelease()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string agentGuide = File.ReadAllText(
+            Path.Combine(repositoryRoot, "AGENTS.md"),
+            Encoding.UTF8);
+        string checklist = File.ReadAllText(
+            Path.Combine(repositoryRoot, "docs", "development", "RELEASE_CHECKLIST.md"),
+            Encoding.UTF8);
+
+        Assert.Contains("任何用户可见 UI 修改都必须生成真实渲染截图", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("C# 使用 WPF UI 测试或截图工具", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("HTML 使用 `Test-WebUi.ps1` 或 Playwright", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("构建、单元测试和 DOM 几何断言不能替代人工视觉确认", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("没有截图证据和用户视觉确认不得正式发布", checklist, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void UpdateManifestNotes_KeepSingleLineShort()
     {
         string repositoryRoot = FindRepositoryRoot();
@@ -1163,7 +1286,7 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
-    public void ReleaseAuthentication_UsesGitHubBotAndSeparateGiteeToken()
+    public void ReleaseAuthentication_UsesBrandScopedDedicatedTokens()
     {
         string repositoryRoot = FindRepositoryRoot();
         string releaseAuth = File.ReadAllText(
@@ -1192,27 +1315,32 @@ public sealed class ReleasePackagingPolicyTests
             Encoding.UTF8);
 
         Assert.Contains("\"GITHUB_RELEASE_TOKEN\"", releaseAuth, StringComparison.Ordinal);
+        Assert.Contains("GitHubReleaseTokenFile", releaseAuth, StringComparison.Ordinal);
         Assert.Contains("packingproof-release-bot", releaseAuth, StringComparison.Ordinal);
         Assert.Contains("private_key_file", releaseAuth, StringComparison.Ordinal);
         Assert.Contains("access_tokens", releaseAuth, StringComparison.Ordinal);
         Assert.Contains("Test-GitHubReleaseAuthentication", releaseAuth, StringComparison.Ordinal);
         Assert.Contains("gitee-release-bot", giteeAuth, StringComparison.Ordinal);
+        Assert.Contains("GiteeReleaseTokenFile", giteeAuth, StringComparison.Ordinal);
+        Assert.Contains("GiteeReleaseUsername", releaseAuth, StringComparison.Ordinal);
         Assert.Contains("function Import-GiteeReleaseBotToken", giteeAuth, StringComparison.Ordinal);
         Assert.Contains("\"GITEE_RELEASE_TOKEN\"", giteeAuth, StringComparison.Ordinal);
         Assert.Contains("\"GITEE_TOKEN\"", giteeAuth, StringComparison.Ordinal);
-        Assert.Contains("Import-GitHubReleaseAppInstallationToken", prereqs, StringComparison.Ordinal);
+        Assert.Contains("Import-GitHubReleaseAppInstallationToken -Brand $brand", prereqs, StringComparison.Ordinal);
         Assert.DoesNotContain("Import-GitHubReleaseTokenFromEnvFile", prereqs, StringComparison.Ordinal);
-        Assert.Contains("Import-GiteeReleaseBotToken", prereqs, StringComparison.Ordinal);
+        Assert.Contains("Import-GiteeReleaseBotToken -Brand $brand", prereqs, StringComparison.Ordinal);
         Assert.DoesNotContain("gh auth status", prereqs, StringComparison.Ordinal);
-        Assert.Contains("Import-GitHubReleaseAppInstallationToken", publish, StringComparison.Ordinal);
+        Assert.Contains("Import-GitHubReleaseAppInstallationToken -Brand $brand", publish, StringComparison.Ordinal);
         Assert.DoesNotContain("Import-GitHubReleaseTokenFromEnvFile", publish, StringComparison.Ordinal);
-        Assert.Contains("Import-GiteeReleaseBotToken", publish, StringComparison.Ordinal);
+        Assert.Contains("Import-GiteeReleaseBotToken -Brand $brand", publish, StringComparison.Ordinal);
         Assert.Contains("Test-GitHubReleaseAuthentication", publish, StringComparison.Ordinal);
-        Assert.Contains("Import-GiteeReleaseBotToken", noRuntime, StringComparison.Ordinal);
+        Assert.Contains("Import-GiteeReleaseBotToken -Brand $brand", noRuntime, StringComparison.Ordinal);
         Assert.Contains("PACKINGPROOF_RELEASE_BOT", prePushHook, StringComparison.Ordinal);
         Assert.Contains("Direct git push is disabled", prePushHook, StringComparison.Ordinal);
         Assert.DoesNotContain("C:\\Users\\", releaseDocument, StringComparison.Ordinal);
         Assert.DoesNotContain("C:\\Users\\", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("允许匿名读取", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("BrandMobileAppEnabled=false", releaseDocument, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

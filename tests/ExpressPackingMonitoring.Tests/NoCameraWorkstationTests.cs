@@ -132,7 +132,7 @@ public sealed class NoCameraWorkstationTests : IDisposable
             "Workstations",
             "PrintWorkstationWindow.xaml.cs");
 
-        Assert.Contains("PackingProof 备份主机", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"备份主机 · 接收并长期保存手机或其他电脑的录像", xaml, StringComparison.Ordinal);
         Assert.Contains("接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"连接手机/电脑\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("手机备份主机", xaml, StringComparison.Ordinal);

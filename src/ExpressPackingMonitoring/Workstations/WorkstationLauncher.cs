@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.UpdateCore;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -35,7 +36,8 @@ public static class WorkstationRoles
 
 public static class WorkstationConfigStore
 {
-    private const string ConfigMutexName = @"Local\ExpressPackingMonitoring.Config";
+    private static readonly string ConfigMutexName =
+        $@"Local\{BrandMetadata.InstanceNamePrefix}.Config";
     private static readonly object SaveLock = new();
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -339,10 +341,14 @@ public static class WorkstationConfigStore
 
 public static class WorkstationNetwork
 {
-    private const int DefaultHttpPort = 5280;
+    private static int DefaultHttpPort => BrandMetadata.WebServerPort;
     private const int MaxSubnetDiscoveryHosts = 1022;
     private static readonly TimeSpan LanDiscoveryTimeout = TimeSpan.FromSeconds(15);
-    private sealed record PendingRestart(string ExecutablePath, string WorkingDirectory, string Reason);
+    private sealed record PendingRestart(
+        string ExecutablePath,
+        string WorkingDirectory,
+        string Reason,
+        int? ProcessId = null);
 
     private static readonly HttpClient Client = CreateLanHttpClient(TimeSpan.FromSeconds(3));
     private static readonly HttpClient TestOrderClient = CreateLanHttpClient(TimeSpan.FromSeconds(3));
@@ -353,6 +359,7 @@ public static class WorkstationNetwork
     };
     private static readonly object RestartLock = new();
     private static PendingRestart? _pendingRestart;
+    private static Action? _restartCancellationCallback;
 
     private static HttpClient CreateLanHttpClient(TimeSpan timeout) =>
         new(CreateLanHttpMessageHandler()) { Timeout = timeout };
@@ -360,8 +367,10 @@ public static class WorkstationNetwork
     internal static SocketsHttpHandler CreateLanHttpMessageHandler() =>
         new() { UseProxy = false };
 
-    public static string NormalizeAddress(string input, int defaultPort = 5280)
+    public static string NormalizeAddress(string input, int defaultPort = 0)
     {
+        if (defaultPort is <= 0 or > 65535)
+            defaultPort = DefaultHttpPort;
         input = (input ?? "").Trim();
         if (Uri.TryCreate(input, UriKind.Absolute, out Uri? uri)
             && (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
@@ -1001,7 +1010,7 @@ public static class WorkstationNetwork
         {
             return new TestOrderBroadcastResult
             {
-                ErrorMessage = "PackingProof 主机离线或无法访问"
+                ErrorMessage = AppLanguage.Get("PackingProof 主机离线或无法访问")
             };
         }
 
@@ -1102,7 +1111,7 @@ public static class WorkstationNetwork
 
         public void Report(PackingProofNodeInfo? node)
         {
-            if (node?.IsValidHost != true)
+            if (node == null || (!node.IsValidHost && !node.IsDiscoveryOnly))
                 return;
 
             string address = NormalizeAddress(node.Address);
@@ -1254,6 +1263,21 @@ public static class WorkstationNetwork
                 .ConfigureAwait(false))
             {
                 token.ThrowIfCancellationRequested();
+                if (!announce.WebHostEnabled || announce.HttpPort == 0)
+                {
+                    reporter.Report(new PackingProofNodeInfo
+                    {
+                        Protocol = PackingProofNodeInfo.ExpectedProtocol,
+                        ProtocolVersion = PackingProofNodeInfo.SupportedProtocolVersion,
+                        NodeId = announce.NodeId,
+                        HttpPort = 0,
+                        WebHostEnabled = false,
+                        CapabilitySchemaVersion = announce.CapabilitySchemaVersion,
+                        WebRouteGroups = announce.RouteGroups.ToList(),
+                        Address = announce.SourceIp
+                    });
+                    continue;
+                }
                 PackingProofNodeInfo? node = await GetNodeInfoAsync(
                     $"{announce.SourceIp}:{announce.HttpPort}",
                     token).ConfigureAwait(false);
@@ -1527,8 +1551,32 @@ public static class WorkstationNetwork
 
     internal static void CancelPendingRestart()
     {
+        PendingRestart? pending;
+        Action? cancellation;
         lock (RestartLock)
+        {
+            pending = _pendingRestart;
             _pendingRestart = null;
+            cancellation = _restartCancellationCallback;
+            _restartCancellationCallback = null;
+        }
+        if (pending?.ProcessId is > 0)
+        {
+            try
+            {
+                using Process replacement = Process.GetProcessById(
+                    pending.ProcessId.Value);
+                replacement.Kill(entireProcessTree: true);
+            }
+            catch { }
+        }
+        cancellation?.Invoke();
+    }
+
+    internal static void SetRestartCancellationCallback(Action? callback)
+    {
+        lock (RestartLock)
+            _restartCancellationCallback = callback;
     }
 
     internal static bool TryStartPendingRestart(Func<ProcessStartInfo, int?>? startProcess = null)
@@ -1542,6 +1590,13 @@ public static class WorkstationNetwork
 
         if (pending == null)
             return false;
+        if (pending.ProcessId.HasValue)
+        {
+            RuntimeLog.Info(
+                "Restart",
+                $"Replacement process already started newPid={pending.ProcessId}, reason={pending.Reason}");
+            return true;
+        }
 
         try
         {
@@ -1578,13 +1633,74 @@ public static class WorkstationNetwork
         }
     }
 
+    internal static bool TryStartReplacementProcess(
+        string executablePath,
+        string workingDirectory,
+        string reason,
+        Func<ProcessStartInfo, int?>? startProcess = null) =>
+        TryStartReplacementProcess(
+            executablePath,
+            workingDirectory,
+            reason,
+            out _,
+            startProcess);
+
+    internal static bool TryStartReplacementProcess(
+        string executablePath,
+        string workingDirectory,
+        string reason,
+        out int? newProcessId,
+        Func<ProcessStartInfo, int?>? startProcess = null)
+    {
+        newProcessId = null;
+        if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
+            return false;
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = executablePath,
+                WorkingDirectory = workingDirectory,
+                UseShellExecute = true
+            };
+            startInfo.ArgumentList.Add("--wait-for-process-exit");
+            startInfo.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
+            newProcessId = startProcess != null
+                ? startProcess(startInfo)
+                : Process.Start(startInfo)?.Id;
+            if (newProcessId == null)
+                return false;
+            lock (RestartLock)
+            {
+                _pendingRestart = new PendingRestart(
+                    executablePath,
+                    workingDirectory,
+                    reason,
+                    newProcessId);
+            }
+            RuntimeLog.Info(
+                "Restart",
+                $"Started replacement process before shutdown oldPid={Environment.ProcessId}, newPid={newProcessId}, reason={reason}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("Restart", $"Failed to start replacement process reason={reason}", ex);
+            return false;
+        }
+    }
+
     internal static IReadOnlyList<int> GetDiscoveryPorts(int configuredPort)
     {
         var ports = new List<int>(2);
         if (configuredPort is > 0 and <= 65535)
             ports.Add(configuredPort);
-        if (!ports.Contains(DefaultHttpPort))
-            ports.Add(DefaultHttpPort);
+        foreach (int fallbackPort in new[] { DefaultHttpPort, 5280 }.Distinct())
+        {
+            if (!ports.Contains(fallbackPort))
+                ports.Add(fallbackPort);
+        }
         return ports;
     }
 

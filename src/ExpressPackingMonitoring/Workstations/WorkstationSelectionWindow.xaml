@@ -130,12 +130,12 @@
                                  Tag="{StaticResource FluentCheckIcon}"
                                  Checked="RecordingChoice_Checked">
                         <StackPanel>
-                            <TextBlock Text="要，使用这台电脑录像"
+                            <TextBlock x:Name="RecordYesTitleText" Text="要，使用这台电脑录像"
                                        FontSize="16"
                                        FontWeight="Bold"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="启用摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒"
+                            <TextBlock x:Name="RecordYesDescriptionText" Text="启用摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒"
                                        Margin="0,5,0,0"
                                        FontSize="12"
                                        LineHeight="18"
@@ -152,12 +152,12 @@
                                  Tag="{StaticResource FluentDismissIcon}"
                                  Checked="RecordingChoice_Checked">
                         <StackPanel>
-                            <TextBlock Text="不要，这台电脑不录像"
+                            <TextBlock x:Name="RecordNoTitleText" Text="不要，这台电脑不录像"
                                        FontSize="16"
                                        FontWeight="Bold"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="不初始化本机录像设备，仍可保存其他设备录像或只连接主机查看"
+                            <TextBlock x:Name="RecordNoDescriptionText" Text="不初始化本机录像设备，仍可保存其他设备录像或只连接主机查看"
                                        Margin="0,5,0,0"
                                        FontSize="12"
                                        LineHeight="18"
@@ -189,12 +189,12 @@
                                  Tag="{StaticResource FluentCheckIcon}"
                                  Checked="StorageChoice_Checked">
                         <StackPanel>
-                            <TextBlock Text="要，作为备份主机（支持 NAS）"
+                            <TextBlock x:Name="StorageYesTitleText" Text="要，作为备份主机（支持 NAS）"
                                        FontSize="16"
                                        TextWrapping="Wrap"
                                        FontWeight="Bold"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像"
+                            <TextBlock x:Name="StorageYesDescriptionText" Text="主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像"
                                        Margin="0,5,0,0"
                                        FontSize="12"
                                        LineHeight="18"
@@ -211,12 +211,12 @@
                                  Tag="{StaticResource FluentDismissIcon}"
                                  Checked="StorageChoice_Checked">
                         <StackPanel>
-                            <TextBlock Text="不要，交给其他电脑保存"
+                            <TextBlock x:Name="StorageNoTitleText" Text="不要，交给其他电脑保存"
                                        FontSize="16"
                                        FontWeight="Bold"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="本机录像时作为“录像从机”，录像先保存在本机，再上传给备份主机；不录像时作为“查看端”，连接主机查看录像"
+                            <TextBlock x:Name="StorageNoDescriptionText" Text="本机录像时作为“录像从机”，录像先保存在本机，再上传给备份主机；不录像时作为“查看端”，连接主机查看录像"
                                        Margin="0,5,0,0"
                                        FontSize="12"
                                        LineHeight="18"

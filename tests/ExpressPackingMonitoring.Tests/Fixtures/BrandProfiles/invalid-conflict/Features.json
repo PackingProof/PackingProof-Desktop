@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "capabilities": {
+    "videoRecording": true,
+    "photoCapture": true,
+    "mediaLibrary": false,
+    "remoteMediaAccess": false,
+    "lanCollaboration": false,
+    "computerBackupReceive": false,
+    "mobileBackupReceive": false,
+    "mobileApp": false,
+    "nasArchive": false,
+    "clip": false,
+    "compress": false,
+    "extensionApi": false,
+    "extensionMarket": false,
+    "userscript": false,
+    "orderReceiver": false,
+    "tts": false
+  },
+  "inputs": {
+    "camera": true,
+    "microphone": true,
+    "scanner": false,
+    "cameraBarcode": false,
+    "visionObb": false
+  }
+}

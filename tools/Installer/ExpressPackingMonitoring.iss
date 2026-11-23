@@ -14,21 +14,61 @@
   #define InstallerCompression "lzma2/ultra64"
 #endif
 
-#define MyAppName "快递打包监控"
+#ifndef MyBrandAppName
+  #define MyBrandAppName "快递打包监控"
+#endif
+#ifndef MyBrandAppId
+  #define MyBrandAppId "99E9FCE3-C8FE-4D7A-9FA4-BC9CB9186B05"
+#endif
+#ifndef MyBrandInstallDirectoryName
+  #define MyBrandInstallDirectoryName "ExpressPackingMonitoring"
+#endif
+#ifndef MyBrandInstanceNamePrefix
+  #define MyBrandInstanceNamePrefix "ExpressPackingMonitoring"
+#endif
+#ifndef MyBrandCompatibilityId
+  #define MyBrandCompatibilityId "PackingProof"
+#endif
+#ifndef MyBrandArtifactPrefix
+  #define MyBrandArtifactPrefix "PackingProof"
+#endif
+#ifndef MyBrandAppUserModelId
+  #define MyBrandAppUserModelId "PackingProof.ExpressPackingMonitoring"
+#endif
+#ifndef MyBrandStoreIdentityName
+  #define MyBrandStoreIdentityName "PackingProof.PackingProof"
+#endif
+#ifndef MyBrandSetupIconPath
+  #define MyBrandSetupIconPath "..\..\branding\profiles\packingproof\app.ico"
+#endif
+#ifndef MyBrandWebsiteUrl
+  #define MyBrandWebsiteUrl "https://github.com/PackingProof/PackingProof-Desktop"
+#endif
+#ifndef MyBrandSupportUrl
+  #define MyBrandSupportUrl "https://github.com/PackingProof/PackingProof-Desktop/issues"
+#endif
+#ifndef MyBrandUpdatesUrl
+  #define MyBrandUpdatesUrl "https://github.com/PackingProof/PackingProof-Desktop/releases"
+#endif
+#ifndef MyBrandPublisher
+  #define MyBrandPublisher "PackingProof"
+#endif
+
+#define MyAppName MyBrandAppName
 #define MyAppExeName "ExpressPackingMonitoring.exe"
-#define MyAppId "{{99E9FCE3-C8FE-4D7A-9FA4-BC9CB9186B05}"
-#define MyAppUserModelId "PackingProof.ExpressPackingMonitoring"
+#define MyAppId "{{" + MyBrandAppId + "}"
+#define MyAppUserModelId MyBrandAppUserModelId
 
 [Setup]
 AppId={#MyAppId}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} v{#MyAppVersion}
-AppPublisher=m-RNA
-AppPublisherURL=https://github.com/PackingProof/PackingProof-Desktop
-AppSupportURL=https://github.com/PackingProof/PackingProof-Desktop/issues
-AppUpdatesURL=https://github.com/PackingProof/PackingProof-Desktop/releases
-DefaultDirName={localappdata}\Programs\ExpressPackingMonitoring
+AppPublisher={#MyBrandPublisher}
+AppPublisherURL={#MyBrandWebsiteUrl}
+AppSupportURL={#MyBrandSupportUrl}
+AppUpdatesURL={#MyBrandUpdatesUrl}
+DefaultDirName={localappdata}\Programs\{#MyBrandInstallDirectoryName}
 DefaultGroupName={#MyAppName}
 DisableDirPage=no
 DisableProgramGroupPage=yes
@@ -36,15 +76,15 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutputDir}
-OutputBaseFilename=PackingProof_Setup_v{#MyAppVersion}
-SetupIconFile=..\..\src\ExpressPackingMonitoring\app.ico
+OutputBaseFilename={#MyBrandArtifactPrefix}_Setup_v{#MyAppVersion}
+SetupIconFile={#MyBrandSetupIconPath}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 LicenseFile=..\..\LICENSE
 Compression={#InstallerCompression}
 SolidCompression=yes
 WizardStyle=modern
-CloseApplications=yes
-CloseApplicationsFilter=ExpressPackingMonitoring.exe
+AppMutex=Local\{#MyBrandInstanceNamePrefix}.Portable.Mutex
+CloseApplications=no
 RestartApplications=no
 VersionInfoVersion={#MyAppVersion4}
 VersionInfoProductVersion={#MyAppVersion}
@@ -84,7 +124,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDi
 Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Description: "{cm:LaunchApp,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
 
 [CustomMessages]
-chinesesimplified.UninstallOptionsTitle=卸载快递打包监控
+chinesesimplified.UninstallOptionsTitle=卸载{#MyBrandAppName}
 chinesesimplified.UninstallOptionsHeading=卸载前，请选择要保留的内容
 chinesesimplified.UninstallOptionsDescription=默认不勾选，重新安装后仍可继续使用原来的设置和录像
 chinesesimplified.UninstallDeleteSettings=删除设置和临时文件
@@ -94,7 +134,7 @@ chinesesimplified.UninstallDeleteRecordingsHelp=先删除由程序管理的录�
 chinesesimplified.UninstallStart=开始卸载
 chinesesimplified.UninstallCancel=取消
 chinesesimplified.UninstallCleanupFailed=部分选中的内容未能安全删除，其他数据已保留%n详情见：%1
-english.UninstallOptionsTitle=Uninstall PackingProof
+english.UninstallOptionsTitle=Uninstall {#MyBrandAppName}
 english.UninstallOptionsHeading=Choose what to keep before uninstalling
 english.UninstallOptionsDescription=Nothing is selected by default, so reinstalling can restore your settings and recordings
 english.UninstallDeleteSettings=Delete settings and temporary files
@@ -114,12 +154,12 @@ english.StoreEditionDetected=A Microsoft Store edition is already installed.%n%n
 japanese.StoreEditionDetected=Microsoft Store 版が既にインストールされています。%n%nSetup 版は別のフォルダーにインストールされ、設定と録画も別々に保存されます。Store 版のプログラム、設定、録画は上書きされません。%n%n2 つのエディションは同時に実行できますが、バックアップホストにできるのは 1 つだけです。どちらか一方だけをバックアップホストに設定してください。Store 版は Microsoft Store から更新してください
 chinesesimplified.UpgradeDirPrompt=检测到本机已安装旧版本。%n%n是否先删除旧版本的程序文件和启动器，再重新安装？%n你的设置、数据库和录像都会保留（它们保存在系统用户目录中），不会受影响。%n%n选择“是”会先卸载旧版本，再继续安装；选择“否”则直接覆盖安装，旧文件夹中可能残留不再使用的文件。
 english.UpgradeDirPrompt=An existing installation was detected.%n%nDo you want to remove the old version's program files and launcher before reinstalling?%nYour settings, database, and recordings will be kept (they are stored in your user profile folder) and will not be affected.%n%nChoose Yes to uninstall the old version before continuing, or No to install directly over the old version (stale files may remain in the old folder).
-chinesesimplified.AppRunningBeforeRemove=快递打包监控正在运行。请先关闭正在运行的快递打包监控，然后再继续安装。
-english.AppRunningBeforeRemove=PackingProof is currently running. Please close PackingProof before continuing the installation.
-chinesesimplified.OldVersionRunningAtPrepare=快递打包监控仍在运行，无法删除旧版本。%n请先关闭快递打包监控，然后重新运行安装程序。%n%n旧版本位置：%1
-english.OldVersionRunningAtPrepare=PackingProof is still running, so the previous version cannot be removed.%nPlease close PackingProof and run the installer again.%n%nOld version location: %1
-chinesesimplified.OldVersionRemovalFailed=删除旧版本失败，本次安装已中止。%n请关闭正在运行的快递打包监控（如有），然后重新运行安装程序。%n%n旧版本位置：%1
-english.OldVersionRemovalFailed=Removing the previous version failed, so this installation has been cancelled.%nPlease close PackingProof if it is running, and run the installer again.%n%nOld version location: %1
+chinesesimplified.AppRunningBeforeRemove={#MyBrandAppName}正在运行。请先关闭正在运行的{#MyBrandAppName}，然后再继续安装。
+english.AppRunningBeforeRemove={#MyBrandAppName} is currently running. Please close {#MyBrandAppName} before continuing the installation.
+chinesesimplified.OldVersionRunningAtPrepare={#MyBrandAppName}仍在运行，无法删除旧版本。%n请先关闭{#MyBrandAppName}，然后重新运行安装程序。%n%n旧版本位置：%1
+english.OldVersionRunningAtPrepare={#MyBrandAppName} is still running, so the previous version cannot be removed.%nPlease close {#MyBrandAppName} and run the installer again.%n%nOld version location: %1
+chinesesimplified.OldVersionRemovalFailed=删除旧版本失败，本次安装已中止。%n请关闭正在运行的{#MyBrandAppName}（如有），然后重新运行安装程序。%n%n旧版本位置：%1
+english.OldVersionRemovalFailed=Removing the previous version failed, so this installation has been cancelled.%nPlease close {#MyBrandAppName} if it is running, and run the installer again.%n%nOld version location: %1
 chinesesimplified.CreateDesktopIcon=创建桌面快捷方式
 english.CreateDesktopIcon=Create a desktop shortcut
 japanese.CreateDesktopIcon=デスクトップにショートカットを作成
@@ -132,7 +172,7 @@ japanese.UninstallShortcutName=%1 のアンインストール
 chinesesimplified.LaunchApp=立即启动 %1
 english.LaunchApp=Launch %1 now
 japanese.LaunchApp=%1 を今すぐ起動
-japanese.UninstallOptionsTitle=PackingProof のアンインストール
+japanese.UninstallOptionsTitle={#MyBrandAppName} のアンインストール
 japanese.UninstallOptionsHeading=アンインストール前に残す内容を選択してください
 japanese.UninstallOptionsDescription=既定では何も選択されません。再インストールすると元の設定と録画をそのまま利用できます
 japanese.UninstallDeleteSettings=設定と一時ファイルを削除
@@ -144,9 +184,9 @@ japanese.UninstallCancel=キャンセル
 japanese.UninstallCleanupFailed=選択した内容の一部を安全に削除できなかったため、その他のデータは保持しました%n詳細: %1
 japanese.DirRequiresAdmin=選択したフォルダーにはインストールできません。Program Files、Windows、ProgramData、ドライブのルートなどのシステム フォルダーは避け、通常のユーザーが書き込めるフォルダー（例: D:\PackingProof や「ドキュメント」）を選んでください。インストール先は現在のユーザーが書き込める必要があります。書き込めないと自動更新に失敗します。
 japanese.UpgradeDirPrompt=既存のインストールが見つかりました。%n%n再インストールする前に、旧バージョンのプログラム ファイルとランチャーを削除しますか？%n設定、データベース、録画はユーザー フォルダーに保存されているため保持されます。%n%n「はい」を選ぶと旧バージョンをアンインストールしてから続行します。「いいえ」を選ぶと上書きインストールします（古いフォルダーに不要なファイルが残る場合があります）。
-japanese.AppRunningBeforeRemove=PackingProof が実行中です。PackingProof を終了してからインストールを続けてください。
-japanese.OldVersionRunningAtPrepare=PackingProof が実行中のため、旧バージョンを削除できません。%nPackingProof を終了してから、インストーラーを再実行してください。%n%n旧バージョンの場所: %1
-japanese.OldVersionRemovalFailed=旧バージョンの削除に失敗したため、インストールを中止しました。%nPackingProof が実行中の場合は終了してから、インストーラーを再実行してください。%n%n旧バージョンの場所: %1
+japanese.AppRunningBeforeRemove={#MyBrandAppName} が実行中です。{#MyBrandAppName} を終了してからインストールを続けてください。
+japanese.OldVersionRunningAtPrepare={#MyBrandAppName} が実行中のため、旧バージョンを削除できません。%n{#MyBrandAppName} を終了してから、インストーラーを再実行してください。%n%n旧バージョンの場所: %1
+japanese.OldVersionRemovalFailed=旧バージョンの削除に失敗したため、インストールを中止しました。%n{#MyBrandAppName} が実行中の場合は終了してから、インストーラーを再実行してください。%n%n旧バージョンの場所: %1
 
 [Code]
 var
@@ -229,7 +269,7 @@ begin
     CreatedDir := True;
   end;
 
-  TestFile := AddBackslash(Dir) + 'PackingProofSetupWriteTest.tmp';
+  TestFile := AddBackslash(Dir) + '{#MyBrandArtifactPrefix}SetupWriteTest.tmp';
   try
     if SaveStringToFile(TestFile, 'x', False) then
       Result := True;
@@ -246,7 +286,7 @@ var
 begin
   Result := '';
   if RegQueryStringValue(HKCU64,
-    'Software\Microsoft\Windows\CurrentVersion\Uninstall\{99E9FCE3-C8FE-4D7A-9FA4-BC9CB9186B05}_is1',
+    'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppId}_is1',
     'InstallLocation', InstallDir) then
   begin
     while (Length(InstallDir) > 3) and (InstallDir[Length(InstallDir)] = '\') do
@@ -271,13 +311,14 @@ begin
   Result := StartsWithFolder(Uppercase(Dir), Uppercase(WindowsAppsDir));
 end;
 
-function IsPackingProofRunning: Boolean;
+function IsBrandAppRunning: Boolean;
 begin
-  // v0.0.86 起 Setup 版使用带 Portable 后缀的实例锁；更早版本仍用无后缀的旧锁。
-  // 两种都必须检查，否则升级时可能边运行边删除旧目录。
-  Result :=
-    CheckForMutexes('Local\ExpressPackingMonitoring.Portable.Mutex') or
-    CheckForMutexes('Local\ExpressPackingMonitoring.Mutex');
+  Result := CheckForMutexes('Local\{#MyBrandInstanceNamePrefix}.Portable.Mutex');
+  if (not Result) and ('{#MyBrandCompatibilityId}' = 'PackingProof') then
+  begin
+    // 只有默认 PackingProof 配置兼容更早版本的无后缀旧锁；独立软件版本不能被其它配置误拦截。
+    Result := CheckForMutexes('Local\ExpressPackingMonitoring.Mutex');
+  end;
 end;
 
 function IsStorePackageInstalled: Boolean;
@@ -292,7 +333,7 @@ begin
   begin
     for Index := 0 to GetArrayLength(Names) - 1 do
     begin
-      if Pos('PACKINGPROOF', Uppercase(Names[Index])) > 0 then
+      if Pos(Uppercase('{#MyBrandStoreIdentityName}'), Uppercase(Names[Index])) > 0 then
       begin
         Result := True;
         Exit;
@@ -416,7 +457,7 @@ begin
         UpgradeDirPromptShown := True;
         if MsgBox(CustomMessage('UpgradeDirPrompt'), mbConfirmation, MB_YESNO) = IDYES then
         begin
-          if IsPackingProofRunning then
+          if IsBrandAppRunning then
           begin
             UpgradeDirPromptShown := False;
             MsgBox(CustomMessage('AppRunningBeforeRemove'), mbInformation, MB_OK);
@@ -447,7 +488,7 @@ begin
   NeedsRestart := False;
   // 直接覆盖安装也必须先拦住运行中的程序；CloseApplications 只能兜底，
   // 不能替代明确的“请先关闭”提示，否则录像中可能被自动关闭。
-  if IsPackingProofRunning then
+  if IsBrandAppRunning then
   begin
     Result := CustomMessage('AppRunningBeforeRemove');
     Exit;
@@ -458,7 +499,7 @@ begin
   PreviousDir := GetPreviousInstallDir;
   if (PreviousDir <> '') and (CompareText(PreviousDir, WizardDirValue) <> 0) then
   begin
-    if IsPackingProofRunning then
+    if IsBrandAppRunning then
     begin
       Result := FmtMessage(CustomMessage('OldVersionRunningAtPrepare'), [PreviousDir]);
       Exit;
@@ -471,7 +512,7 @@ begin
 
   if DirHasInstalledApp(WizardDirValue) then
   begin
-    if IsPackingProofRunning then
+    if IsBrandAppRunning then
     begin
       Result := FmtMessage(CustomMessage('OldVersionRunningAtPrepare'), [WizardDirValue]);
       Exit;
@@ -666,7 +707,7 @@ begin
   if CurStep <> ssPostInstall then
     Exit;
 
-  UninstallSubkey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{99E9FCE3-C8FE-4D7A-9FA4-BC9CB9186B05}_is1';
+  UninstallSubkey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppId}_is1';
   UninstallCommand := Quote(ExpandConstant('{uninstallexe}')) + ' /SILENT /EPMUNINSTALLOPTIONS';
   RegWriteStringValue(HKCU64, UninstallSubkey, 'UninstallString', UninstallCommand);
 end;
@@ -675,8 +716,8 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usUninstall then
   begin
-    CleanupPlanPath := ExpandConstant('{tmp}\ExpressPackingMonitoring-uninstall-recordings.json');
-    CleanupLogPath := ExpandConstant('{tmp}\ExpressPackingMonitoring-Uninstall.log');
+    CleanupPlanPath := ExpandConstant('{tmp}\{#MyBrandArtifactPrefix}-uninstall-recordings.json');
+    CleanupLogPath := ExpandConstant('{tmp}\{#MyBrandArtifactPrefix}-Uninstall.log');
     DeleteFile(CleanupPlanPath);
     CleanupFailed := False;
     PrepareRecordingCleanup;

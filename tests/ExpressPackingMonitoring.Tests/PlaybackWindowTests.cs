@@ -136,6 +136,12 @@ public sealed class PlaybackWindowTests
         Assert.Contains("Click=\"VideoRowMoreButton_Click\"", xaml, StringComparison.Ordinal);
         Assert.Contains("(ContextMenu)FindResource(\"VideoRowContextMenu\")", codeBehind, StringComparison.Ordinal);
         Assert.Contains("menu.PlacementTarget = button;", codeBehind, StringComparison.Ordinal);
+        Assert.Contains(
+            "Binding=\"{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}\"",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.Contains("private void ClearListActionFocus()", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ClearListActionFocus();", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -167,6 +173,25 @@ public sealed class PlaybackWindowTests
 
         var timeout = new VideoItem { StopReason = "超时" };
         Assert.Equal("超时", PlaybackRowBadgePolicy.GetText("", timeout.StopReason));
+    }
+
+    [Fact]
+    public void PhotoRowsReuseRecordingLayoutAndShowImageMarker()
+    {
+        var item = new VideoItem
+        {
+            IsPhoto = true,
+            IsPhotoArchiveCompleted = true,
+            Duration = AppLanguage.Get("图片"),
+            FileSize = "0.8 MB",
+            SourceDisplay = "电脑1"
+        };
+
+        Assert.Equal("图片 · 0.8 MB", item.PrimaryMetaText);
+        Assert.Equal("电脑1", item.SourceTagText);
+        Assert.Equal("success", item.RowBadgeTone);
+        item.IsMissing = true;
+        Assert.Equal("success", item.RowBadgeTone);
     }
 
     [Theory]

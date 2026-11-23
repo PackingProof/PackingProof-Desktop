@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Host;
 
@@ -71,7 +72,7 @@ internal static class ViewerSession
                 MacDialog.ShowMessage(
                     $"「{Describe(host)}」还没有允许这台电脑查看。\n\n"
                         + "请到备份主机上点“允许”，允许后这台电脑以后可以直接查看，不用再确认。",
-                    "PackingProof 查看端");
+                    $"{BrandMetadata.ProductName} 查看端");
                 Console.WriteLine($"主机开启了网页访问保护，正在申请接入，请到 {Describe(host)} 上点允许…");
                 BackupDeviceEnrollmentResult enrollment;
                 try

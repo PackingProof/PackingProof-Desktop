@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.UpdateCore;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -155,7 +156,7 @@ internal static class WindowsDevicePermissionService
             }
 
             var context = new AssemblyLoadContext(
-                "PackingProof.DevicePermissions",
+                BrandMetadata.ArtifactPrefix + ".DevicePermissions",
                 isCollectible: false);
             context.Resolving += (loadContext, assemblyName) =>
             {

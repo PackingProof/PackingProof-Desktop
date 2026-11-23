@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -13,9 +14,9 @@ namespace ExpressPackingMonitoring.Services;
 /// </summary>
 internal static class UdpDiscoveryProtocol
 {
-    public const int Port = 5281;
+    public static int Port => BrandMetadata.DiscoveryPort;
     public const int MaxPacketBytes = 512;
-    public const string Protocol = PackingProofNodeInfo.ExpectedProtocol;
+    public static readonly string Protocol = PackingProofNodeInfo.ExpectedProtocol;
     public const int ProtocolVersion = PackingProofNodeInfo.SupportedProtocolVersion;
     public const string ActionDiscover = "discover";
     public const string ActionAnnounce = "announce";
@@ -40,6 +41,9 @@ internal static class UdpDiscoveryProtocol
         public string Action { get; set; } = "";
         public string NodeId { get; set; } = "";
         public int HttpPort { get; set; }
+        public int CapabilitySchemaVersion { get; set; }
+        public bool WebHostEnabled { get; set; }
+        public string[] RouteGroups { get; set; } = [];
     }
 
     public static byte[] EncodeDiscover()
@@ -74,6 +78,19 @@ internal static class UdpDiscoveryProtocol
     }
 
     public static byte[] EncodeAnnounce(string nodeId, int httpPort)
+        => EncodeAnnounce(
+            nodeId,
+            httpPort,
+            ProductCapabilitySchemaVersion.Current,
+            httpPort > 0,
+            []);
+
+    public static byte[] EncodeAnnounce(
+        string nodeId,
+        int httpPort,
+        int capabilitySchemaVersion,
+        bool webHostEnabled,
+        IReadOnlyList<string> routeGroups)
     {
         return JsonSerializer.SerializeToUtf8Bytes(
             new AnnounceResponse
@@ -82,7 +99,10 @@ internal static class UdpDiscoveryProtocol
                 ProtocolVersion = ProtocolVersion,
                 Action = ActionAnnounce,
                 NodeId = nodeId,
-                HttpPort = httpPort
+                HttpPort = httpPort,
+                CapabilitySchemaVersion = capabilitySchemaVersion,
+                WebHostEnabled = webHostEnabled,
+                RouteGroups = routeGroups?.ToArray() ?? []
             },
             JsonOptions);
     }
@@ -91,9 +111,27 @@ internal static class UdpDiscoveryProtocol
         ReadOnlySpan<byte> data,
         out string nodeId,
         out int httpPort)
+        => TryParseAnnounce(
+            data,
+            out nodeId,
+            out httpPort,
+            out _,
+            out _,
+            out _);
+
+    public static bool TryParseAnnounce(
+        ReadOnlySpan<byte> data,
+        out string nodeId,
+        out int httpPort,
+        out int capabilitySchemaVersion,
+        out bool webHostEnabled,
+        out IReadOnlyList<string> routeGroups)
     {
         nodeId = "";
         httpPort = 0;
+        capabilitySchemaVersion = 0;
+        webHostEnabled = false;
+        routeGroups = Array.Empty<string>();
         if (data.Length == 0 || data.Length > MaxPacketBytes)
             return false;
 
@@ -106,13 +144,16 @@ internal static class UdpDiscoveryProtocol
                 || !string.Equals(response.Action, ActionAnnounce, StringComparison.Ordinal)
                 || !Guid.TryParse(response.NodeId, out Guid nodeGuid)
                 || nodeGuid == Guid.Empty
-                || response.HttpPort is <= 0 or > 65535)
+                || response.HttpPort is < 0 or > 65535)
             {
                 return false;
             }
 
             nodeId = nodeGuid.ToString("D");
             httpPort = response.HttpPort;
+            capabilitySchemaVersion = response.CapabilitySchemaVersion;
+            webHostEnabled = response.WebHostEnabled;
+            routeGroups = response.RouteGroups ?? [];
             return true;
         }
         catch (JsonException)
@@ -131,6 +172,8 @@ internal sealed class UdpDiscoveryResponder : IDisposable
     private readonly string _nodeId;
     private readonly Func<int> _httpPortProvider;
     private readonly Func<bool> _isHostProvider;
+    private readonly Func<bool> _webHostEnabledProvider;
+    private readonly Func<IReadOnlyList<string>> _routeGroupsProvider;
     private UdpClient? _udp;
     private CancellationTokenSource? _cts;
     private int _disposed;
@@ -138,11 +181,15 @@ internal sealed class UdpDiscoveryResponder : IDisposable
     public UdpDiscoveryResponder(
         string nodeId,
         Func<int> httpPortProvider,
-        Func<bool> isHostProvider)
+        Func<bool> isHostProvider,
+        Func<bool>? webHostEnabledProvider = null,
+        Func<IReadOnlyList<string>>? routeGroupsProvider = null)
     {
         _nodeId = nodeId ?? throw new ArgumentNullException(nameof(nodeId));
         _httpPortProvider = httpPortProvider ?? throw new ArgumentNullException(nameof(httpPortProvider));
         _isHostProvider = isHostProvider ?? throw new ArgumentNullException(nameof(isHostProvider));
+        _webHostEnabledProvider = webHostEnabledProvider ?? (() => _httpPortProvider() > 0);
+        _routeGroupsProvider = routeGroupsProvider ?? (() => []);
     }
 
     public void Start()
@@ -191,10 +238,15 @@ internal sealed class UdpDiscoveryResponder : IDisposable
             return;
 
         int httpPort = _httpPortProvider();
-        if (httpPort is <= 0 or > 65535)
+        if (httpPort is < 0 or > 65535)
             return;
 
-        byte[] response = UdpDiscoveryProtocol.EncodeAnnounce(_nodeId, httpPort);
+        byte[] response = UdpDiscoveryProtocol.EncodeAnnounce(
+            _nodeId,
+            httpPort,
+            ProductCapabilitySchemaVersion.Current,
+            _webHostEnabledProvider(),
+            _routeGroupsProvider());
         if (response.Length > UdpDiscoveryProtocol.MaxPacketBytes)
             return;
 
@@ -225,7 +277,13 @@ internal sealed class UdpDiscoveryResponder : IDisposable
 /// </summary>
 internal static class UdpDiscoveryClient
 {
-    internal sealed record Announce(string NodeId, int HttpPort, string SourceIp);
+    internal sealed record Announce(
+        string NodeId,
+        int HttpPort,
+        string SourceIp,
+        int CapabilitySchemaVersion,
+        bool WebHostEnabled,
+        IReadOnlyList<string> RouteGroups);
 
     public static readonly TimeSpan CollectTimeout = TimeSpan.FromMilliseconds(600);
 
@@ -267,13 +325,22 @@ internal static class UdpDiscoveryClient
             if (!UdpDiscoveryProtocol.TryParseAnnounce(
                     result.Buffer,
                     out string nodeId,
-                    out int httpPort))
+                    out int httpPort,
+                    out int capabilitySchemaVersion,
+                    out bool webHostEnabled,
+                    out IReadOnlyList<string> routeGroups))
             {
                 continue;
             }
 
             string sourceIp = result.RemoteEndPoint.Address.ToString();
-            yield return new Announce(nodeId, httpPort, sourceIp);
+            yield return new Announce(
+                nodeId,
+                httpPort,
+                sourceIp,
+                capabilitySchemaVersion,
+                webHostEnabled,
+                routeGroups);
         }
     }
 }

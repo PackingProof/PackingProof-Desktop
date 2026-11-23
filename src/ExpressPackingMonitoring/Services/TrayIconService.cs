@@ -2,6 +2,7 @@ using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Input;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.UpdateCore;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -79,7 +80,7 @@ internal sealed class TrayIconService : IDisposable
             uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
             uCallbackMessage = WM_TRAYICON,
             hIcon = _icon?.Handle ?? IntPtr.Zero,
-            szTip = "快递打包监控",
+            szTip = BrandMetadata.DisplayName,
             szInfo = "",
             szInfoTitle = ""
         };
@@ -100,7 +101,7 @@ internal sealed class TrayIconService : IDisposable
         {
             _hasShownMinimizeTip = true;
             ShowBalloonTip(
-                "快递打包监控",
+                BrandMetadata.DisplayName,
                 AppLanguage.Get("程序仍在后台运行，双击托盘图标可打开主界面"));
         }
     }
@@ -142,9 +143,28 @@ internal sealed class TrayIconService : IDisposable
 
             using Stream stream = resource.Stream;
             int size = GetSystemMetrics(SM_CXSMICON);
-            if (size is < 16 or > 256)
+            if (size is < 16 or > 24)
                 size = 16;
-            return new Icon(stream, size, size);
+            using Icon source = new(stream);
+            using Bitmap sourceBitmap = source.ToBitmap();
+            using var bitmap = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            {
+                graphics.Clear(Color.Transparent);
+                graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                graphics.DrawImage(sourceBitmap, 0, 0, size, size);
+            }
+            IntPtr iconHandle = bitmap.GetHicon();
+            try
+            {
+                using Icon resized = Icon.FromHandle(iconHandle);
+                return (Icon)resized.Clone();
+            }
+            finally
+            {
+                DestroyIcon(iconHandle);
+            }
         }
         catch
         {
@@ -301,6 +321,9 @@ internal sealed class TrayIconService : IDisposable
 
     [DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int nIndex);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern uint RegisterWindowMessage(string lpString);

@@ -82,7 +82,7 @@ struct PurposeChooserView: View {
         }
     }
 
-    /// 与电脑端一致的卡片：图标 + 标题 + 说明 + 右侧选中圆点，选中时描边品牌蓝
+    /// 与电脑端一致的卡片：图标 + 标题 + 说明 + 右侧选中圆点，选中时描边主题蓝
     private func choiceCard(
         selection: Choice,
         symbol: String,

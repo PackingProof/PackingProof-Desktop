@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.UpdateCore;
 using Microsoft.Win32;
 using System.IO;
 
@@ -8,7 +9,7 @@ namespace ExpressPackingMonitoring.Services;
 internal static class AutoStartService
 {
     private const string RegistryPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-    private const string AppName = "ExpressPackingMonitoring";
+    private static string AppName => BrandMetadata.InstanceNamePrefix;
 
     public static void Apply(bool enable)
     {

@@ -21,14 +21,15 @@ internal static class Program
     private const string UpdateUrlKey = "UPDATE_CHECK_URL";
     private const string UpdateFallbackUrlKey = "UPDATE_CHECK_FALLBACK_URL";
     private const string DefaultCheckUrlMetadataKey = "LauncherDefaultUpdateCheckUrl";
-    private const string DefaultPatchDownloadBaseUrl = "https://github.com/PackingProof/PackingProof-Desktop/releases/download";
+    private static readonly string DefaultPatchDownloadBaseUrl = BrandMetadata.PatchDownloadBaseUrl;
     private const string PatchPackageType = "baseline_patch";
     private const string WaitForProcessExitOption = "--wait-for-process-exit";
     private const string LaunchedByRootLauncherOption = "--launched-by-root-launcher";
-    private const string UpdateMutexName = @"Local\ExpressPackingMonitoring.Launcher.Update";
+    private static readonly string UpdateMutexName =
+        $@"Local\{BrandMetadata.InstanceNamePrefix}.Launcher.Update";
     private const int GithubDownloadFailureFallbackThreshold = 3;
     private const int SuccessfulUpdateCheckCacheHours = 12;
-    private const string InstanceNamePrefix = "ExpressPackingMonitoring";
+    private static readonly string InstanceNamePrefix = BrandMetadata.InstanceNamePrefix;
     private const string CameraMonitorRole = "CameraMonitor";
     private const string PrintStationRole = "PrintStation";
     /// <summary>本启动器装不了的 pending 补丁挪到这里：不再每次启动重试（补丁本身不删，换新启动器后还能用）。</summary>
@@ -821,6 +822,7 @@ internal static class Program
         PatchManifest manifest = ReadPatchManifest(manifestPath);
         ValidatePatchManifest(manifest, descriptor);
         ValidatePatchFiles(patchFilesDir, manifest.Files);
+        ValidateApprovedDrawableTargets(baseDir, patchFilesDir, manifest.Files);
 
         string backupRoot = GetUpdateBackupDir();
         SafeDeleteDirectory(backupRoot);
@@ -1052,14 +1054,20 @@ internal static class Program
         // 放行一条就可能删掉用户自己换的 ffmpeg 或运行时种子。见 AppPatchPayloadPolicy。
         foreach (PatchFile file in manifest.Files)
         {
-            string? violation = AppPatchPayloadPolicy.DescribeViolation(file.RelativePath, isDelete: false);
+            string? violation = AppPatchPayloadPolicy.DescribeViolation(
+                file.RelativePath,
+                isDelete: false,
+                root: file.Root);
             if (violation is not null)
                 throw new InvalidOperationException("Patch 载荷不合规：" + violation);
         }
 
         foreach (PatchDelete entry in manifest.Deletes)
         {
-            string? violation = AppPatchPayloadPolicy.DescribeViolation(entry.RelativePath, isDelete: true);
+            string? violation = AppPatchPayloadPolicy.DescribeViolation(
+                entry.RelativePath,
+                isDelete: true,
+                root: entry.Root);
             if (violation is not null)
                 throw new InvalidOperationException("Patch 载荷不合规：" + violation);
         }
@@ -1100,6 +1108,39 @@ internal static class Program
             string hash = ComputeSha256(sourcePath);
             if (!string.Equals(hash, file.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"Patch 文件 SHA256 校验失败：{file.RelativePath}");
+        }
+    }
+
+    private static void ValidateApprovedDrawableTargets(
+        string baseDir,
+        string patchFilesDir,
+        List<PatchFile> files)
+    {
+        foreach (PatchFile file in files)
+        {
+            if (!string.Equals(file.Root, "app", StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(
+                    file.RelativePath.Replace('/', '\\'),
+                    AppPatchPayloadPolicy.LibVlcDrawablePluginRelativePath,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string targetPath = GetSafeChildPath(
+                ResolvePatchTargetRoot(baseDir, file.Root),
+                file.RelativePath);
+            if (!File.Exists(targetPath))
+                continue;
+            string sourcePath = ResolvePatchSourcePath(patchFilesDir, file);
+            if (!string.Equals(
+                    ComputeSha256(sourcePath),
+                    ComputeSha256(targetPath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "目标电脑已有不同的 libdrawable_plugin.dll，无法安全覆盖；请改用完整安装包");
+            }
         }
     }
 
@@ -1365,12 +1406,12 @@ internal static class Program
             {
                 directory = Path.Combine(
                     Path.GetTempPath(),
-                    "ExpressPackingMonitoring-diagnostics");
+                    BrandMetadata.ArtifactPrefix + "-diagnostics");
                 Directory.CreateDirectory(directory);
             }
 
             var text = new StringBuilder();
-            text.AppendLine("PackingProof 启动诊断");
+        text.AppendLine(BrandMetadata.DisplayName + " 启动诊断");
             text.AppendLine("生成时间: " + DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"));
             text.AppendLine("启动器版本: " + (typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown"));
             text.AppendLine("主程序版本: " + ReadInstalledAppVersion(baseDir));
@@ -2261,7 +2302,7 @@ internal static class Program
 
         string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string root = string.IsNullOrWhiteSpace(localAppData) ? AppContext.BaseDirectory : localAppData;
-        return Path.Combine(root, "ExpressPackingMonitoring");
+        return Path.Combine(root, BrandMetadata.DataDirectoryName);
     }
 
     private static string GetUpdatesCacheDir()
@@ -2365,7 +2406,7 @@ internal static class Program
 
         return new[]
             {
-                "PackingProof_AppPatch_v*.zip",
+                BrandMetadata.ArtifactPrefix + "_AppPatch_v*.zip",
                 "ExpressPackingMonitoring_AppPatch_v*.zip"
             }
             .SelectMany(pattern => Directory.EnumerateFiles(
@@ -2399,7 +2440,7 @@ internal static class Program
             }
         }
 
-        return $"ExpressPackingMonitoring_AppPatch_v{descriptor.LatestVersion}.zip";
+        return $"{BrandMetadata.ArtifactPrefix}_AppPatch_v{descriptor.LatestVersion}.zip";
     }
 
     private static string BuildDefaultGithubPatchDownloadUrl(UpdateDescriptor descriptor, string patchZipName)

@@ -10,6 +10,12 @@ function Test-IsAppPatchManagedRuntimePath {
     param([Parameter(Mandatory = $true)][string]$RelativePath)
 
     $normalized = $RelativePath.Replace('/', '\').TrimStart('\')
+    if ([string]::Equals(
+            $normalized,
+            'libvlc\win-x64\plugins\video_output\libdrawable_plugin.dll',
+            [StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
     return [string]::Equals(
             $normalized,
             'tools\ffmpeg.exe',
@@ -95,6 +101,13 @@ function Test-AppPatchRuntimeCompatibility {
         $relativePath = [IO.Path]::GetRelativePath($currentVlcRoot, $currentFile.FullName)
         $baselineFile = Join-Path $baselineVlcRoot $relativePath
         if (-not (Test-Path -LiteralPath $baselineFile -PathType Leaf)) {
+            if ([string]::Equals(
+                    $relativePath.Replace('/', '\'),
+                    'plugins\video_output\libdrawable_plugin.dll',
+                    [StringComparison]::OrdinalIgnoreCase)) {
+                $warnings += '0.0.100 基线缺少内嵌窗口输出插件，增量包将安全新增 libdrawable_plugin.dll'
+                continue
+            }
             return [pscustomobject]@{ Compatible = $false; Reason = "AppPatch 基线缺少 LibVLC 必需文件：$relativePath"; Warnings = $warnings }
         }
         $baselineFileInfo = Get-Item -LiteralPath $baselineFile
