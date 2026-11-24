@@ -86,6 +86,12 @@
   <data name="照片与录像统一按单号检索" xml:space="preserve"><value>照片与录像统一按单号检索</value></data>
   <data name="取消切换" xml:space="preserve"><value>取消切换</value></data>
   <data name="等待剪辑完成" xml:space="preserve"><value>等待剪辑完成</value></data>
+  <data name="等待上传完成" xml:space="preserve"><value>等待上传完成</value></data>
+  <data name="等待文件收尾" xml:space="preserve"><value>等待文件收尾</value></data>
+  <data name="等待拍照保存完成" xml:space="preserve"><value>等待拍照保存完成</value></data>
+  <data name="等待照片归档完成" xml:space="preserve"><value>等待照片归档完成</value></data>
+  <data name="等待录像启动完成" xml:space="preserve"><value>等待录像启动完成</value></data>
+  <data name="等待录像收尾完成" xml:space="preserve"><value>等待录像收尾完成</value></data>
   <data name="当前软件未开放本机录像" xml:space="preserve"><value>当前软件未开放本机录像</value></data>
   <data name="当前软件未开放不录像模式" xml:space="preserve"><value>当前软件未开放不录像模式</value></data>
   <data name="要，长期保存在这台电脑" xml:space="preserve"><value>要，长期保存在这台电脑</value></data>

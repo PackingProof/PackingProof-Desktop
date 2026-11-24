@@ -13,6 +13,7 @@ public sealed class ModeTransitionTests
                 Recording: true,
                 ActiveMobileBackups: true,
                 PendingRecordingUploads: 2,
+                RecordingUploadPaused: false,
                 ActiveClipTasks: true,
                 ActiveMediaFinalization: true,
                 PhotoCaptureInProgress: true,
@@ -43,6 +44,7 @@ public sealed class ModeTransitionTests
                 Recording: false,
                 ActiveMobileBackups: false,
                 PendingRecordingUploads: 0,
+                RecordingUploadPaused: false,
                 ActiveClipTasks: false,
                 ActiveMediaFinalization: false,
                 PhotoCaptureInProgress: false,
@@ -51,7 +53,26 @@ public sealed class ModeTransitionTests
                 RecordingStopInProgress: false));
 
         Assert.Empty(blockers);
-        Assert.Equal("正在切换", ModeTransitionPolicy.StatusText(blockers));
+        Assert.Equal("正在切换", ModeTransitionPolicy.StatusResourceKey(blockers));
+    }
+
+    [Fact]
+    public void UserPausedUploadsDoNotBlockPurposeTransition()
+    {
+        IReadOnlyList<string> blockers = ModeTransitionPolicy.FindBlockers(
+            new ModeTransitionActivity(
+                Recording: false,
+                ActiveMobileBackups: false,
+                PendingRecordingUploads: 16,
+                RecordingUploadPaused: true,
+                ActiveClipTasks: false,
+                ActiveMediaFinalization: false,
+                PhotoCaptureInProgress: false,
+                PhotoArchiveInProgress: false,
+                RecordingStartInProgress: false,
+                RecordingStopInProgress: false));
+
+        Assert.Empty(blockers);
     }
 
     [Theory]
@@ -68,7 +89,7 @@ public sealed class ModeTransitionTests
     {
         Assert.Equal(
             expected,
-            ModeTransitionPolicy.StatusText([blocker]));
+            ModeTransitionPolicy.StatusResourceKey([blocker]));
     }
 
     [Fact]

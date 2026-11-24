@@ -728,7 +728,7 @@ namespace ExpressPackingMonitoring.ViewModels
             OnPropertyChanged(nameof(CanSwitchWorkstation));
             OnPropertyChanged(nameof(CanInvokePurposeSwitch));
             OnPropertyChanged(nameof(IsPurposeSwitchPending));
-            SwitchWorkstationButtonText = "正在切换";
+            SwitchWorkstationButtonText = AppLanguage.Get("正在切换");
             DateTimeOffset startedAt = DateTimeOffset.UtcNow;
             AppConfig originalConfig = Config;
             string originalPreset = Config.DeploymentPreset;
@@ -784,7 +784,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
 
                     SwitchWorkstationButtonText =
-                        ModeTransitionPolicy.StatusText(blockers);
+                        AppLanguage.Get(
+                            ModeTransitionPolicy.StatusResourceKey(blockers));
                     if (activity.ActiveMobileBackups && _webServer != null)
                     {
                         await _webServer.WaitForMobileBackupsAsync(
@@ -824,10 +825,12 @@ namespace ExpressPackingMonitoring.ViewModels
                         SaveConfig(originalConfig, notifyUser: false);
                         ResumeModeTransitionAdmission(admissionPaused);
                         _purposeSwitchPending = false;
-                        SwitchWorkstationButtonText = "切换用途";
+                        SwitchWorkstationButtonText = AppLanguage.Get("切换用途");
                         OnPropertyChanged(nameof(CanSwitchWorkstation));
                         _modeTransitionGate.Exit();
-                        ShowToast("重启已取消，用途未切换", ToastSeverity.Warning);
+                        ShowToast(
+                            AppLanguage.Get("重启已取消，用途未切换"),
+                            ToastSeverity.Warning);
                     }));
                 });
                 bool restarted = ApplicationRestart.RestartAfterPurposeChange(
@@ -853,7 +856,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 outcome = "failed";
                 ResumeModeTransitionAdmission(admissionPaused);
                 RuntimeLog.Error("ModeTransition", "Purpose transition failed", ex);
-                ShowToast($"切换用途失败：{ex.Message}", ToastSeverity.Error);
+                ShowToast(
+                    AppLanguage.Get("切换用途失败") + ": " + ex.Message,
+                    ToastSeverity.Error);
                 return false;
             }
             finally
@@ -865,7 +870,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     WorkstationNetwork.SetRestartCancellationCallback(null);
                     _purposeSwitchPending = false;
-                    SwitchWorkstationButtonText = "切换用途";
+                    SwitchWorkstationButtonText = AppLanguage.Get("切换用途");
                     OnPropertyChanged(nameof(CanSwitchWorkstation));
                     OnPropertyChanged(nameof(CanInvokePurposeSwitch));
                     OnPropertyChanged(nameof(IsPurposeSwitchPending));
@@ -897,6 +902,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 Recording: IsRecording,
                 ActiveMobileBackups: _webServer?.HasActiveMobileBackups == true,
                 PendingRecordingUploads: pendingUploads,
+                RecordingUploadPaused:
+                    IsRecordingWorkstation && IsRecordingUploadPaused,
                 ActiveClipTasks: _webServer?.HasActiveClipTasks == true,
                 ActiveMediaFinalization:
                     IsFinalizationTaskActive(_lastFinalizeTask)

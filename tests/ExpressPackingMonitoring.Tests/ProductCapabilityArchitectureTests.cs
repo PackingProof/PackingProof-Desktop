@@ -305,6 +305,7 @@ public sealed class ProductCapabilityArchitectureTests
                 ProductCapabilityId.OrderReceiver,
                 ProductCapabilityId.Clip,
                 ProductCapabilityId.Compress,
+                ProductCapabilityId.Userscript,
                 ProductCapabilityId.InputCamera,
                 ProductCapabilityId.InputMicrophone,
                 ProductCapabilityId.InputScanner,
@@ -684,7 +685,8 @@ public sealed class ProductCapabilityArchitectureTests
                 "extensions-v1",
                 "extensions-v1-orders",
                 "node-info",
-                "orders-v0"
+                "orders-v0",
+                "userscript"
             ],
             groups);
         Assert.DoesNotContain("mobile-app", groups);

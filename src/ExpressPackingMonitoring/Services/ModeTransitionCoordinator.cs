@@ -4,6 +4,7 @@ internal sealed record ModeTransitionActivity(
     bool Recording,
     bool ActiveMobileBackups,
     int PendingRecordingUploads,
+    bool RecordingUploadPaused,
     bool ActiveClipTasks,
     bool ActiveMediaFinalization,
     bool PhotoCaptureInProgress,
@@ -31,7 +32,8 @@ internal static class ModeTransitionPolicy
             blockers.Add("recording");
         if (activity.ActiveMobileBackups)
             blockers.Add("mobile-backup");
-        if (activity.PendingRecordingUploads > 0)
+        if (activity.PendingRecordingUploads > 0
+            && !activity.RecordingUploadPaused)
             blockers.Add("recording-upload");
         if (activity.ActiveClipTasks)
             blockers.Add("clip-task");
@@ -48,7 +50,7 @@ internal static class ModeTransitionPolicy
         return blockers;
     }
 
-    internal static string StatusText(IReadOnlyList<string> blockers) =>
+    internal static string StatusResourceKey(IReadOnlyList<string> blockers) =>
         blockers.FirstOrDefault() switch
         {
             "recording" => "等待录像完成",

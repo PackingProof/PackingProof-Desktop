@@ -1251,8 +1251,15 @@ public sealed class DeploymentStartupTests
         Assert.Contains("Binding DisplayText, Mode=OneWay", statusCard, StringComparison.Ordinal);
         Assert.Contains("RecordingTransferShortStatusText, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
         Assert.Contains("LastRecordingTransferError, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
+        Assert.Contains(
+            "IsAttention=\"{Binding IsRecordingUploadPaused, Mode=OneWay}\"",
+            uploadMarkup,
+            StringComparison.Ordinal);
         Assert.Contains("Value=\"上传中\"", statusCard, StringComparison.Ordinal);
-        Assert.Contains("Value=\"已暂停\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains(
+            "Binding IsAttention, ElementName=Root",
+            statusCard,
+            StringComparison.Ordinal);
         Assert.Contains("Value=\"备份暂停\"", statusCard, StringComparison.Ordinal);
         Assert.Contains(
             "DynamicResource TransferAttentionText",

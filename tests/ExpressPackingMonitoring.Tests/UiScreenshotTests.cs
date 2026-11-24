@@ -255,6 +255,8 @@ public sealed class UiScreenshotTests
 
     private static void CaptureStandalone(string outputDirectory)
     {
+        CaptureRecordingUploadPausedCard(outputDirectory);
+        CapturePurposeSwitchWaitingButton(outputDirectory);
         CaptureTransferManagement(outputDirectory);
         CaptureViewerHostSelection(outputDirectory);
         CaptureViewerHostBindingFooter(outputDirectory);
@@ -267,6 +269,27 @@ public sealed class UiScreenshotTests
                 var window = new MainWindow(enableCloseBehaviorPrompt: false);
                 if (window.DataContext is ExpressPackingMonitoring.ViewModels.MainViewModel viewModel)
                     viewModel.SetPhotoCaptureButtonVisibility(false);
+                return window;
+            });
+        TryCapture(
+            "main-window-recording-workstation",
+            outputDirectory,
+            () =>
+            {
+                var window = new MainWindow(enableCloseBehaviorPrompt: false);
+                if (window.DataContext is ExpressPackingMonitoring.ViewModels.MainViewModel viewModel)
+                {
+                    viewModel.CapabilityOverride = SettingsCapabilities.ForPreset(
+                        DeploymentPresets.RecordingWorkstation);
+                    viewModel.FilteredLogs.Add(new ScanRecord(
+                        "7902302208052379023022080523",
+                        "6s",
+                        "16:01:37",
+                        "发货",
+                        videoRecordId: 1,
+                        generatedName: "MAN_20261123_160137",
+                        saveStatusText: "已保存"));
+                }
                 return window;
             });
         TryCapture(
@@ -563,6 +586,105 @@ public sealed class UiScreenshotTests
                 hosts.SelectedIndex = 0;
                 hosts.IsEnabled = false;
                 return window;
+            });
+    }
+
+    private static void CaptureRecordingUploadPausedCard(string outputDirectory)
+    {
+        Window CreateWindow()
+        {
+            var card = new StatusCard
+            {
+                CardIcon = Application.Current?.TryFindResource("FluentDataIcon")
+                    as Geometry,
+                CardTitle = AppLanguage.Get("录像上传"),
+                ShortStatusText = AppLanguage.Get("已暂停"),
+                ShortStatusToolTip = AppLanguage.Get("已暂停"),
+                DetailText = AppLanguage.Format(
+                    "已暂停，{0} 个录像保存在本机",
+                    16),
+                IsAttention = true
+            };
+            return new Window
+            {
+                Width = 452,
+                SizeToContent = SizeToContent.Height,
+                Background = Application.Current?.TryFindResource(
+                    "WindowBackground") as Brush ?? Brushes.White,
+                Content = new Border
+                {
+                    Padding = new Thickness(16),
+                    Child = card
+                }
+            };
+        }
+
+        TryCapture(
+            "recording-upload-paused-card",
+            outputDirectory,
+            CreateWindow);
+        ExpressPackingMonitoring.Themes.ThemeManager.ApplyTheme(
+            ExpressPackingMonitoring.Themes.AppTheme.Dark);
+        TryCapture(
+            "recording-upload-paused-card-dark",
+            outputDirectory,
+            CreateWindow);
+    }
+
+    private static void CapturePurposeSwitchWaitingButton(string outputDirectory)
+    {
+        TryCapture(
+            "purpose-switch-waiting-button",
+            outputDirectory,
+            () =>
+            {
+                var icon = new System.Windows.Shapes.Path
+                {
+                    Width = 14,
+                    Height = 14,
+                    Stretch = Stretch.Uniform,
+                    Data = Application.Current?.TryFindResource(
+                        "FluentArrowSwapIcon") as Geometry
+                };
+                icon.SetResourceReference(
+                    System.Windows.Shapes.Shape.FillProperty,
+                    "TextPrimary");
+                var content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    IsHitTestVisible = false
+                };
+                content.Children.Add(icon);
+                content.Children.Add(new TextBlock
+                {
+                    Text = AppLanguage.Get(
+                        ModeTransitionPolicy.StatusResourceKey(
+                            ["recording-upload"])),
+                    Margin = new Thickness(5, 0, 0, 0),
+                    FontSize = 12,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+                return new Window
+                {
+                    Width = 340,
+                    SizeToContent = SizeToContent.Height,
+                    Background = Application.Current?.TryFindResource(
+                        "WindowBackground") as Brush ?? Brushes.White,
+                    Content = new Border
+                    {
+                        Padding = new Thickness(16),
+                        Background = Application.Current?.TryFindResource(
+                            "WindowBackground") as Brush ?? Brushes.White,
+                        Child = new Button
+                        {
+                            Height = 32,
+                            Padding = new Thickness(9, 0, 9, 0),
+                            Style = Application.Current?.TryFindResource(
+                                "SecondaryButtonStyle") as Style,
+                            Content = content
+                        }
+                    }
+                };
             });
     }
 

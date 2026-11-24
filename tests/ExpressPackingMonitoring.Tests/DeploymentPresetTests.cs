@@ -219,6 +219,7 @@ public sealed class DeploymentPresetTests
         Assert.False(workstation.CanRunWebServer);
         Assert.False(workstation.CanReceiveMobileBackup);
         Assert.False(workstation.CanManageRecordingDevices);
+        Assert.True(workstation.CanGenerateUserscript);
         Assert.True(workstation.CanDeleteRecordings);
 
         Assert.False(viewer.IsHost);

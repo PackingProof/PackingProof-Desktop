@@ -250,6 +250,7 @@ public static class ProductRoleCapabilityMapper
                 ProductCapabilityId.OrderReceiver,
                 ProductCapabilityId.Clip,
                 ProductCapabilityId.Compress,
+                ProductCapabilityId.Userscript,
                 ProductCapabilityId.InputCamera,
                 ProductCapabilityId.InputMicrophone,
                 ProductCapabilityId.InputScanner,

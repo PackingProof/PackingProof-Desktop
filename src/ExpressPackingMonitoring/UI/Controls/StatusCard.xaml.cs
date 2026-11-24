@@ -38,6 +38,13 @@ namespace ExpressPackingMonitoring.UI.Controls
                 typeof(StatusCard),
                 new PropertyMetadata(""));
 
+        public static readonly DependencyProperty IsAttentionProperty =
+            DependencyProperty.Register(
+                nameof(IsAttention),
+                typeof(bool),
+                typeof(StatusCard),
+                new PropertyMetadata(false));
+
         public static readonly DependencyProperty DetailTextProperty =
             DependencyProperty.Register(
                 nameof(DetailText),
@@ -87,6 +94,12 @@ namespace ExpressPackingMonitoring.UI.Controls
         {
             get => (string)GetValue(ShortStatusToolTipProperty);
             set => SetValue(ShortStatusToolTipProperty, value);
+        }
+
+        public bool IsAttention
+        {
+            get => (bool)GetValue(IsAttentionProperty);
+            set => SetValue(IsAttentionProperty, value);
         }
 
         public string DetailText

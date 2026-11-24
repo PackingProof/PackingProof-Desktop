@@ -43,6 +43,10 @@
                     <Style TargetType="TextBlock">
                         <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
                         <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsAttention, ElementName=Root}" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource TransferAttentionText}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </DataTrigger>
                             <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="上传中">
                                 <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
                             </DataTrigger>
@@ -89,10 +93,6 @@
                                 <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份暂停">
-                                <Setter Property="Foreground" Value="{DynamicResource TransferAttentionText}"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="已暂停">
                                 <Setter Property="Foreground" Value="{DynamicResource TransferAttentionText}"/>
                                 <Setter Property="FontWeight" Value="SemiBold"/>
                             </DataTrigger>

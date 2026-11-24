@@ -86,6 +86,12 @@
   <data name="照片与录像统一按单号检索" xml:space="preserve"><value>Search photos and recordings by tracking number</value></data>
   <data name="取消切换" xml:space="preserve"><value>Cancel switch</value></data>
   <data name="等待剪辑完成" xml:space="preserve"><value>Waiting for clipping to finish</value></data>
+  <data name="等待上传完成" xml:space="preserve"><value>Waiting for upload</value></data>
+  <data name="等待文件收尾" xml:space="preserve"><value>Waiting for file processing</value></data>
+  <data name="等待拍照保存完成" xml:space="preserve"><value>Waiting for photo capture to finish</value></data>
+  <data name="等待照片归档完成" xml:space="preserve"><value>Waiting for photo archiving to finish</value></data>
+  <data name="等待录像启动完成" xml:space="preserve"><value>Waiting for recording to start</value></data>
+  <data name="等待录像收尾完成" xml:space="preserve"><value>Waiting for recording to finish saving</value></data>
   <data name="当前软件未开放本机录像" xml:space="preserve"><value>Recording is not available in this software</value></data>
   <data name="当前软件未开放不录像模式" xml:space="preserve"><value>Non-recording mode is not available in this software</value></data>
   <data name="要，长期保存在这台电脑" xml:space="preserve"><value>Yes, keep recordings on this PC</value></data>

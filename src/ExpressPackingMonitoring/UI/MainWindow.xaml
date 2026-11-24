@@ -1725,6 +1725,7 @@
                                                      ShortStatusText="{Binding RecordingTransferShortStatusText, Mode=OneWay}"
                                                      ShortStatusToolTip="{Binding LastRecordingTransferError, Mode=OneWay}"
                                                      DetailText="{Binding RecordingTransferStatusText, Mode=OneWay}"
+                                                     IsAttention="{Binding IsRecordingUploadPaused, Mode=OneWay}"
                                                      Cursor="Hand"
                                                      Focusable="True"
                                                      ToolTip="{loc:Localized 打开上传任务管理}"
@@ -1759,9 +1760,10 @@
                                         Height="32"
                                         Padding="9,0"
                                         Style="{StaticResource SecondaryButtonStyle}"
-                                        ToolTip="切换用途"
+                                        ToolTip="{loc:Localized 切换用途}"
                                         Cursor="Hand"
                                         Focusable="False"
+                                        AutomationProperties.Name="{loc:Localized 切换用途}"
                                         Visibility="{Binding Capabilities.CanChoosePurpose, Converter={StaticResource BoolToVisibility}}"
                                         IsEnabled="{Binding CanInvokePurposeSwitch}">
                                     <StackPanel Orientation="Horizontal" IsHitTestVisible="False">

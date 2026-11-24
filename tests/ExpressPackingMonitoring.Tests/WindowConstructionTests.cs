@@ -174,7 +174,8 @@ public sealed class WindowConstructionTests
             {
                 var card = new StatusCard
                 {
-                    ShortStatusText = status
+                    ShortStatusText = status,
+                    IsAttention = status == "已暂停"
                 };
                 card.Measure(new Size(320, 80));
                 card.Arrange(new Rect(0, 0, 320, 80));
@@ -189,6 +190,24 @@ public sealed class WindowConstructionTests
                 Assert.Equal(expected.Color, actual.Color);
                 Assert.Equal(FontWeights.SemiBold, text.FontWeight);
             }
+
+            var localizedCard = new StatusCard
+            {
+                ShortStatusText = "Paused",
+                IsAttention = true
+            };
+            localizedCard.Measure(new Size(320, 80));
+            localizedCard.Arrange(new Rect(0, 0, 320, 80));
+            localizedCard.UpdateLayout();
+
+            var localizedText = Assert.IsType<TextBlock>(
+                localizedCard.FindName("ShortStatusTextBlock"));
+            var attention = Assert.IsType<SolidColorBrush>(
+                localizedCard.FindResource("TransferAttentionText"));
+            Assert.Equal(
+                attention.Color,
+                Assert.IsType<SolidColorBrush>(localizedText.Foreground).Color);
+            Assert.Equal(FontWeights.SemiBold, localizedText.FontWeight);
         });
     }
 
@@ -500,6 +519,60 @@ public sealed class WindowConstructionTests
             Assert.Equal(
                 Visibility.Visible,
                 ((FrameworkElement)window.FindName("PlaybackButton")).Visibility);
+
+            window.Content = null;
+        });
+    }
+
+    [Fact]
+    public void RecordingWorkstationMainWindowShowsUserscriptInstallButton()
+    {
+        RunOnStaThread(() =>
+        {
+            var window = new MainWindow(enableCloseBehaviorPrompt: false);
+            var viewModel = Assert.IsType<ExpressPackingMonitoring.ViewModels.MainViewModel>(
+                window.DataContext);
+            var features = new ProductFeatures(
+                VideoRecording: true,
+                PhotoCapture: true,
+                MediaLibrary: true,
+                RemoteMediaAccess: false,
+                LanCollaboration: true,
+                ComputerBackupReceive: false,
+                MobileBackupReceive: false,
+                MobileApp: false,
+                NasArchive: false,
+                Clip: true,
+                Compress: true,
+                ExtensionApi: true,
+                ExtensionMarket: false,
+                Userscript: true,
+                OrderReceiver: true,
+                Tts: true,
+                Inputs: new InputFeatures(true, true, true, true, true));
+            var effective = EffectiveProductCapabilities.Compose(
+                features,
+                ProductRoleCapabilityMapper.Get(
+                    ProductRoleCapabilityMapper.RecordingWorkstation),
+                RuntimeEnvironment.FullyAvailable,
+                new ProductCapabilityIdentity(
+                    "recording-workstation",
+                    1,
+                    new string('0', 64)));
+            viewModel.CapabilityOverride = SettingsCapabilities.FromEffective(
+                effective,
+                canChoosePurpose: true);
+
+            window.Measure(new Size(1350, 850));
+            window.Arrange(new Rect(0, 0, 1350, 850));
+            window.UpdateLayout();
+
+            Assert.Equal(
+                Visibility.Visible,
+                ((FrameworkElement)window.FindName("BtnInstallUserscript")).Visibility);
+            Assert.Equal(
+                Visibility.Visible,
+                ((FrameworkElement)window.FindName("BtnSendTestOrder")).Visibility);
 
             window.Content = null;
         });

@@ -158,7 +158,7 @@ public sealed class DeploymentCapabilities
                 canReceiveMobileBackup: false,
                 canConnectHost: true,
                 canManageRecordingDevices: false,
-                canGenerateUserscript: false),
+                canGenerateUserscript: true),
             DeploymentPresets.ViewerClient => new DeploymentCapabilities(
                 isHost: false,
                 isRecordingDevice: false,
