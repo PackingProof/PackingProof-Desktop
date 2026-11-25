@@ -1576,7 +1576,7 @@ internal sealed partial class CameraBarcodeRecognitionService : IDisposable
         bool visionEnqueued = false;
         lock (_pendingLock)
         {
-            DateTimeOffset now = DateTimeOffset.UtcNow;
+            DateTimeOffset now = _utcNow();
             bool forceVision = CameraBarcodeFrameIntentPolicy.ShouldUpdateVision(intent);
             TimeSpan barcodeInterval = _guideIntervalProvider();
             if (barcodeInterval <= TimeSpan.Zero)

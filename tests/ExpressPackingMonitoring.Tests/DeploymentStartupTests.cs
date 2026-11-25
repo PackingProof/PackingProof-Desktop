@@ -2277,7 +2277,10 @@ public sealed class DeploymentStartupTests
             StringComparison.Ordinal);
         int startupIndex = source.IndexOf("protected override void OnStartup", StringComparison.Ordinal);
         int startupRenderIndex = source.IndexOf("ApplyConfiguredWpfRenderingMode();", startupIndex, StringComparison.Ordinal);
-        int baseStartupIndex = source.IndexOf("base.OnStartup(e);", startupIndex, StringComparison.Ordinal);
+        int baseStartupIndex = source.IndexOf(
+            "base.OnStartup(e);",
+            startupRenderIndex,
+            StringComparison.Ordinal);
 
         Assert.True(staticInitializationIndex >= 0);
         Assert.True(staticInitializationIndex < startupIndex);
