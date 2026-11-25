@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "protocol_version": 1,
-  "version": "0.0.108",
-  "tag": "launcher-ContosoPacking-v0.0.108",
+  "version": "0.0.109",
+  "tag": "launcher-ContosoPacking-v0.0.109",
   "artifact_prefix": "ContosoPacking",
-  "release_tag": "v0.0.108",
+  "release_tag": "v0.0.109",
   "runtime": "win-x64",
   "update_check_url": "https://gitee.com/api/v5/repos/Contoso/PackingProof-Desktop/releases/latest",
-  "source_fingerprint": "780c631cb734212a7961e1724464ad00fc95f19e7aac25f1db23458de09bf0ad",
-  "brand_profile_sha256": "ff8ed585f2a7b251b63eaf82a08cb1d12c72a61e446dc76a1c9905be078fb7e9",
+  "source_fingerprint": "12a87eb9fce370fd253557c5904db50e577f3c0a3dc5000c169f246ccce0db95",
+  "brand_profile_sha256": "3af11393bd298bc7a17a0369c9aef2a41cef2b79ed966e109ac0d87029621d8f",
   "fingerprint_files": [
     "ExpressPackingMonitoring.Launcher/Program.cs",
     "ExpressPackingMonitoring.Launcher/ExpressPackingMonitoring.Launcher.csproj",
@@ -35,10 +35,10 @@
     "ExpressPackingMonitoring.UpdateCore/UpdateReleaseSelection.cs"
   ],
   "package": {
-    "file": "ContosoPacking_LauncherPatch_v0.0.108.zip",
-    "size": 3295559,
-    "sha256": "e71ba532080cd575cd587e969b020f73cf391fc7ea5669280da3fdeee7552cb2",
+    "file": "ContosoPacking_LauncherPatch_v0.0.109.zip",
+    "size": 3295682,
+    "sha256": "cdcca7648b7d12dbdce9613935fa5cd69fdf69a13f7bf7b1ed4d6deb9d6b2fc5",
     "executable_size": 7196672,
-    "executable_sha256": "bd82f8e7dd8259833ec80a652d17cbe6efa62f62e0f5fca574c24e1ce0c257fc"
+    "executable_sha256": "494217f6fc367b236f3495648736bdf4e4d1b1e00b14faa583b7a3a2a17dbbd4"
   }
 }

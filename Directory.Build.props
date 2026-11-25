@@ -8,7 +8,7 @@
     发布脚本仍会用 -p:InformationalVersion 全局覆盖正式产物的信息版本。
   -->
   <PropertyGroup>
-    <Version Condition="'$(Version)' == ''">0.0.108</Version>
+    <Version Condition="'$(Version)' == ''">0.0.109</Version>
     <Product>$(BrandProductName)</Product>
     <AssemblyTitle>$(BrandWindowTitle)</AssemblyTitle>
     <Description>$(BrandDescription)</Description>
