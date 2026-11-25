@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
 using System.IO;
@@ -34,6 +35,35 @@ public sealed class StoragePolicyTests
         Assert.Same(location, Assert.Single(config.StorageLocations));
         Assert.Equal(30, location.ReserveGB);
         Assert.Equal(hostText, StorageUsageCalculator.Format(usage, database));
+    }
+
+    [Theory]
+    [InlineData(AppLanguage.Chinese, "已缓存 ")]
+    [InlineData(AppLanguage.English, "Cached ")]
+    [InlineData(AppLanguage.Japanese, "キャッシュ ")]
+    public void RecordingCachePrefixUsesCurrentLanguage(
+        string language,
+        string expectedPrefix)
+    {
+        string previousLanguage = AppLanguage.Current;
+        try
+        {
+            AppLanguage.Initialize(language);
+            var usage = new StorageUsageSnapshot(
+                StorageSpacePolicy.BytesPerGiB,
+                10 * StorageSpacePolicy.BytesPerGiB);
+
+            string formatted = StorageUsageCalculator.Format(
+                usage,
+                database: null,
+                AppLanguage.Get("已缓存") + " ");
+
+            Assert.StartsWith(expectedPrefix, formatted, StringComparison.Ordinal);
+        }
+        finally
+        {
+            AppLanguage.Initialize(previousLanguage);
+        }
     }
 
     [Fact]

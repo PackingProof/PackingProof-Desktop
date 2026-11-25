@@ -448,7 +448,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 StorageLocation location =
                     RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)
-                    ?? throw new IOException("尚未设置本地缓存位置");
+                    ?? throw new IOException(
+                        AppLanguage.Get("尚未设置本地缓存位置"));
                 string resolved = StorageLocationResolver.Resolve(location);
                 return new RecordingStoragePlan(resolved, "", false);
             }
@@ -683,7 +684,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 StorageLocation location =
                     RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)
-                    ?? throw new IOException("尚未设置本地缓存位置");
+                    ?? throw new IOException(
+                        AppLanguage.Get("尚未设置本地缓存位置"));
                 string cachePath = Path.GetFullPath(location.Path);
                 string? root = Path.GetPathRoot(cachePath);
                 if (string.IsNullOrWhiteSpace(root))

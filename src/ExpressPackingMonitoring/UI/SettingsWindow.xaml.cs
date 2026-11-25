@@ -919,16 +919,20 @@ namespace ExpressPackingMonitoring.UI
                 if (!snapshotFound)
                 {
                     RecordingCacheUsageProgress.TargetValue = 100;
-                    RecordingCacheUsageText.Text = "本地缓存位置不可用";
+                    RecordingCacheUsageText.Text =
+                        AppLanguage.Get("本地缓存位置不可用");
                     RecordingCacheSafeCapacityText.Text = error;
                     RecordingCacheDriveHintText.Text =
-                        "请选择健康、可写的本机固定磁盘";
+                        AppLanguage.Get("请选择健康、可写的本机固定磁盘");
                     return;
                 }
 
                 RecordingCacheUsageProgress.TargetValue = snapshot.UsagePercent;
                 RecordingCacheUsageText.Text = Context.FormatRecordingCacheUsage?.Invoke(snapshot)
-                    ?? $"已缓存 {FormatGb(snapshot.CacheBytes)} / 上限 {Config.RecordingCacheMaxGB} GB";
+                    ?? AppLanguage.Format(
+                        "已缓存 {0} / 上限 {1} GB",
+                        FormatGb(snapshot.CacheBytes),
+                        Config.RecordingCacheMaxGB);
                 RecordingCacheSafeCapacityText.Text =
                     AppLanguage.Format(
                         "此磁盘当前建议最多 {0}，实际使用会随磁盘剩余空间动态调整",
@@ -938,8 +942,12 @@ namespace ExpressPackingMonitoring.UI
                 string root = Path.GetPathRoot(Path.GetFullPath(location.Path)) ?? "";
                 RecordingCacheDriveHintText.Text =
                     StorageSpacePolicy.IsSystemDrive(root)
-                        ? $"当前使用系统盘，系统会保留至少 {FormatGb(snapshot.ReserveBytes)}，不会占满磁盘"
-                        : $"系统会为此磁盘保留至少 {FormatGb(snapshot.ReserveBytes)}";
+                        ? AppLanguage.Format(
+                            "当前使用系统盘，系统会保留至少 {0}，不会占满磁盘",
+                            FormatGb(snapshot.ReserveBytes))
+                        : AppLanguage.Format(
+                            "系统会为此磁盘保留至少 {0}",
+                            FormatGb(snapshot.ReserveBytes));
             });
         }
 
@@ -953,10 +961,12 @@ namespace ExpressPackingMonitoring.UI
             {
                 StorageLocation location =
                     RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)
-                    ?? throw new IOException("尚未设置本地缓存位置");
+                    ?? throw new IOException(
+                        AppLanguage.Get("尚未设置本地缓存位置"));
                 string path = Path.GetFullPath(location.Path);
                 if (!Directory.Exists(path))
-                    throw new DirectoryNotFoundException("本地缓存位置不存在，请重新选择");
+                    throw new DirectoryNotFoundException(
+                        AppLanguage.Get("本地缓存位置不存在，请重新选择"));
                 string root = Path.GetPathRoot(path)
                     ?? throw new IOException("无法确定本地缓存所在磁盘");
                 var drive = new DriveInfo(root);

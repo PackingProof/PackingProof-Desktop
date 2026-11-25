@@ -1118,10 +1118,12 @@ public partial class MainViewModel
             {
                 StorageLocation location =
                     RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)
-                    ?? throw new IOException("尚未设置本地缓存位置");
+                    ?? throw new IOException(
+                        AppLanguage.Get("尚未设置本地缓存位置"));
                 string cachePath = Path.GetFullPath(location.Path);
                 if (!Directory.Exists(cachePath))
-                    throw new DirectoryNotFoundException("本地缓存位置不存在，请重新选择");
+                    throw new DirectoryNotFoundException(
+                        AppLanguage.Get("本地缓存位置不存在，请重新选择"));
                 string? root = Path.GetPathRoot(cachePath);
                 if (string.IsNullOrWhiteSpace(root))
                     throw new IOException("无法确定本地缓存所在磁盘");
@@ -1465,7 +1467,7 @@ public partial class MainViewModel
         StorageUsageCalculator.Format(
             new StorageUsageSnapshot(snapshot.CacheBytes, snapshot.EffectiveLimitBytes),
             _db,
-            "已缓存 ");
+            AppLanguage.Get("已缓存") + " ");
 
     private void PublishRecordingCacheUnavailable(string error)
     {
@@ -1473,7 +1475,9 @@ public partial class MainViewModel
         {
             if (_isDisposed) return;
             IsRecordingCacheWarning = true;
-            RecordingCacheStatusText = $"本地缓存不可用：{error}";
+            RecordingCacheStatusText = AppLanguage.Format(
+                "本地缓存不可用：{error}",
+                error);
         }
 
         if (Application.Current?.Dispatcher is { } dispatcher

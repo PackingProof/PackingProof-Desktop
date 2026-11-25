@@ -1836,6 +1836,7 @@ Continue? After packaging, send the archive to {0}</value></data>
   <data name="录制性能检测失败，已保留程序默认配置，仍可继续" xml:space="preserve"><value>Recording test failed; keeping app defaults. You can continue</value></data>
   <data name="复制网址失败：{0}" xml:space="preserve"><value>Could not copy the URL: {0}</value></data>
   <data name="已处理 {0} / {1} 条" xml:space="preserve"><value>Processed {0} / {1}</value></data>
+  <data name="已缓存" xml:space="preserve"><value>Cached</value></data>
   <data name="已缓存 {0} / 上限 {1} GB" xml:space="preserve"><value>Cached {0} / limit {1} GB</value></data>
   <data name="当前使用系统盘，系统会保留至少 {0}，不会占满磁盘" xml:space="preserve"><value>Using the system drive; at least {0} is reserved</value></data>
   <data name="系统会为此磁盘保留至少 {0}" xml:space="preserve"><value>At least {0} is reserved on this disk</value></data>

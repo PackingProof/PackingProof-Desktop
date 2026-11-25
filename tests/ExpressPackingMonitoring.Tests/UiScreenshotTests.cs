@@ -108,6 +108,16 @@ public sealed class UiScreenshotTests
                 Path.Combine(outputDirectory, "settings-tts-preview.error.txt"),
                 ex.ToString());
         }
+        try
+        {
+            CaptureSettingsStorageCache(outputDirectory);
+        }
+        catch (Exception ex)
+        {
+            File.WriteAllText(
+                Path.Combine(outputDirectory, "settings-workstation-storage-cache.error.txt"),
+                ex.ToString());
+        }
 
         var workstationWindow = CreateSettingsWindow(
             out _,
@@ -179,13 +189,17 @@ public sealed class UiScreenshotTests
         IReadOnlyList<string>? availablePresets = null,
         bool showAdvancedSettings = false)
     {
+        string storagePath = Path.Combine(
+            Path.GetTempPath(),
+            "PackingProofVideos");
+        Directory.CreateDirectory(storagePath);
         config = new AppConfig
         {
             DeploymentPreset = preset,
             ShowAdvancedSettings = showAdvancedSettings,
             StorageLocations =
             [
-                new StorageLocation { Path = Path.Combine(Path.GetTempPath(), "PackingProofVideos"), Priority = 0 }
+                new StorageLocation { Path = storagePath, Priority = 0 }
             ]
         };
         AppConfig.NormalizeAfterLoad(config);
@@ -237,6 +251,46 @@ public sealed class UiScreenshotTests
         preview.BringIntoView();
         Pump(window);
         Save(window, Path.Combine(outputDirectory, "settings-tts-preview.png"));
+    }
+
+    private static void CaptureSettingsStorageCache(string outputDirectory)
+    {
+        var window = CreateSettingsWindow(
+            out _,
+            out TabControl? tabs,
+            DeploymentPresets.RecordingWorkstation);
+        if (tabs == null)
+            return;
+
+        TabItem? storageTab = tabs.Items.OfType<TabItem>()
+            .FirstOrDefault(item => string.Equals(
+                item.Header?.ToString(),
+                "存储与备份",
+                StringComparison.Ordinal));
+        if (storageTab == null)
+            throw new InvalidOperationException("找不到存储与备份设置页");
+
+        tabs.SelectedItem = storageTab;
+        AttachToSource(window);
+        var usageText = Assert.IsType<TextBlock>(
+            window.FindName("RecordingCacheUsageText"));
+        string expectedPrefix = AppLanguage.Get("已缓存");
+        for (int attempt = 0;
+             attempt < 30
+             && !usageText.Text.StartsWith(
+                 expectedPrefix,
+                 StringComparison.Ordinal);
+             attempt++)
+        {
+            PumpAnimations(window, TimeSpan.FromMilliseconds(100));
+        }
+
+        Assert.StartsWith(expectedPrefix, usageText.Text, StringComparison.Ordinal);
+        usageText.BringIntoView();
+        Pump(window);
+        Save(
+            window,
+            Path.Combine(outputDirectory, "settings-workstation-storage-cache.png"));
     }
 
     private static SettingsCapabilities CreateLocalCaptureSettingsCapabilities()
