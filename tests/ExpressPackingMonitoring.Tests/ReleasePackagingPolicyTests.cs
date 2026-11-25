@@ -658,6 +658,9 @@ public sealed class ReleasePackagingPolicyTests
         string releaseTest = File.ReadAllText(
             Path.Combine(repositoryRoot, "tools", "Test-Release.ps1"),
             Encoding.UTF8);
+        string automatedReleaseTest = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Test-Release-Automated.ps1"),
+            Encoding.UTF8);
         string ciWorkflow = File.ReadAllText(
             Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"),
             Encoding.UTF8);
@@ -693,6 +696,10 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains(
             "[string]$VisionObb = \"auto\"",
             releaseTest,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "[string]$VisionObb = \"auto\"",
+            automatedReleaseTest,
             StringComparison.Ordinal);
         Assert.Contains(
             "\"-p:IncludeVisionObb=$($includeVisionObb.ToString().ToLowerInvariant())\"",
