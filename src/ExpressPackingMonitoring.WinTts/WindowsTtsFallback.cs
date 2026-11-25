@@ -15,10 +15,13 @@ namespace ExpressPackingMonitoring.WinTts
         private object? _ttsNormal;
         private object? _ttsWarning;
 
+        public string LastError { get; private set; } = "";
+
         public WindowsTtsFallback()
         {
             try
             {
+                LastError = "";
                 var voices = SpeechSynthesizer.AllVoices;
                 var femaleZh = voices.FirstOrDefault(v => v != null && v.Gender == VoiceGender.Female && v.Language == "zh-CN");
                 var maleZh = voices.FirstOrDefault(v => v != null && v.Gender == VoiceGender.Male && v.Language == "zh-CN");
@@ -37,6 +40,7 @@ namespace ExpressPackingMonitoring.WinTts
             catch (Exception ex)
             {
                 Debug.WriteLine($"[WinTts] Windows TTS init failed: {ex.Message}");
+                LastError = $"Initialization failed: {ex.GetType().Name}: {ex.Message}";
                 _ttsNormal = null;
                 _ttsWarning = null;
             }
@@ -49,17 +53,26 @@ namespace ExpressPackingMonitoring.WinTts
             SpeechSynthesizer synth;
             if (isWarning)
             {
-                if (_ttsWarning is not SpeechSynthesizer warningSynth) return false;
+                if (_ttsWarning is not SpeechSynthesizer warningSynth)
+                {
+                    SetErrorIfEmpty("Warning synthesizer is unavailable");
+                    return false;
+                }
                 synth = warningSynth;
             }
             else
             {
-                if (_ttsNormal is not SpeechSynthesizer normalSynth) return false;
+                if (_ttsNormal is not SpeechSynthesizer normalSynth)
+                {
+                    SetErrorIfEmpty("Normal synthesizer is unavailable");
+                    return false;
+                }
                 synth = normalSynth;
             }
 
             try
             {
+                LastError = "";
                 try
                 {
                     synth.Options.SpeakingRate = Math.Clamp((double)speed, 0.5, 2.0);
@@ -72,14 +85,26 @@ namespace ExpressPackingMonitoring.WinTts
                 using var ms = new MemoryStream();
                 result.AsStreamForRead().CopyTo(ms);
                 var data = ms.ToArray();
-                if (data.Length < 44) return false;
+                if (data.Length < 44)
+                {
+                    LastError = $"Synthesis returned only {data.Length} bytes";
+                    return false;
+                }
                 wavData = data;
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                LastError = $"Synthesis failed: {ex.GetType().Name}: {ex.Message}";
+                Debug.WriteLine($"[WinTts] {LastError}");
                 return false;
             }
+        }
+
+        private void SetErrorIfEmpty(string message)
+        {
+            if (string.IsNullOrWhiteSpace(LastError))
+                LastError = message;
         }
 
         public void Dispose()

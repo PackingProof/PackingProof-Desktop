@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 using System;
 using System.Collections.Generic;
@@ -12,6 +13,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Net.WebSockets;
 using EdgeTTS;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
@@ -29,6 +31,7 @@ namespace ExpressPackingMonitoring.Audio
         public bool UseIndustrialAlarm { get; set; }
         public bool PlayWarningTone { get; set; }
         public int AlertToneRepeatCount { get; set; } = 1;
+        public bool PreferImmediateAiGeneration { get; set; }
         public IReadOnlyList<AlertSpeechFollowup> FollowupSpeech { get; set; } = Array.Empty<AlertSpeechFollowup>();
     }
 
@@ -38,6 +41,10 @@ namespace ExpressPackingMonitoring.Audio
         private static readonly FieldInfo? EdgeTtsConnectionKeeperField = typeof(EdgeTTSClient).GetField(
             "ConnectionKeeper",
             BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo? EdgeTtsWebSocketField = typeof(EdgeTTSClient)
+            .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
+            .FirstOrDefault(field => typeof(ClientWebSocket).IsAssignableFrom(field.FieldType));
+        private static int _edgeTtsDirectFallbackActive;
         private WindowsTtsBridge? _windowsTts;
         private BlockingCollection<SpeechRequest> _speechQueue = null!;
         private Thread _speechThread = null!;
@@ -229,13 +236,19 @@ namespace ExpressPackingMonitoring.Audio
             }
         }
 
-        private void SpeakRequestText(string text, SpeechRequest request)
+        private bool SpeakRequestText(string text, SpeechRequest request)
         {
             text = PreprocessTextForTts(text);
-            if (EnableAiTts)
-                SpeakWithAiTts(text, request.IsWarning);
-            else
-                SpeakWithWindowsTts(text, request.IsWarning);
+            bool played = EnableAiTts
+                ? SpeakWithAiTts(text, request.IsWarning, request.PreferImmediateAiGeneration)
+                : SpeakWithWindowsTts(text, request.IsWarning);
+            if (!played && !_speechCancelRequested && !_isDisposed)
+            {
+                string message = AppLanguage.Get("语音播放失败，请检查网络和系统播放设备");
+                Logging.RuntimeLog.Warn("Speech", message);
+                PlaybackError?.Invoke(message);
+            }
+            return played;
         }
 
         private void SpeakFollowupSpeech(IReadOnlyList<AlertSpeechFollowup> followups)
@@ -272,17 +285,26 @@ namespace ExpressPackingMonitoring.Audio
             if (_windowsTts == null)
             {
                 Logging.RuntimeLog.Warn("Speech", "Windows TTS fallback unavailable");
-                return true;
+                return false;
             }
             if (_windowsTts.TrySynthesize(text, isWarning, AiTtsSpeed, out byte[] wavData))
             {
                 if (_speechCancelRequested || _isDisposed) return true;
-                PlayWavBlocking(wavData);
+                return PlayWavBlocking(wavData);
             }
-            return true;
+            Logging.RuntimeLog.Warn(
+                "Speech",
+                "Windows TTS did not produce audio"
+                + (string.IsNullOrWhiteSpace(_windowsTts.LastError)
+                    ? ""
+                    : $": {_windowsTts.LastError}"));
+            return false;
         }
 
-        private bool SpeakWithAiTts(string text, bool isWarning)
+        private bool SpeakWithAiTts(
+            string text,
+            bool isWarning,
+            bool preferImmediateAiGeneration)
         {
             string voiceKey = GetCurrentVoiceKey(isWarning);
             const string extension = ".mp3";
@@ -294,18 +316,40 @@ namespace ExpressPackingMonitoring.Audio
             if (File.Exists(cachePath))
             {
                 Debug.WriteLine($"[SpeechService] Cache HIT: {cacheKey}");
-                if (!_speechCancelRequested && !_isDisposed)
-                    PlayAudioFileBlocking(cachePath);
+                return _speechCancelRequested || _isDisposed
+                    || PlayAudioFileBlocking(cachePath);
+            }
+
+            Debug.WriteLine("[SpeechService] Cache MISS, trying Windows TTS fallback");
+            if (SpeakWithWindowsTts(text, isWarning))
+            {
+                PreGenerateCacheInternal(text, isWarning);
                 return true;
             }
 
-            Debug.WriteLine("[SpeechService] Cache MISS, fallback to Windows TTS and generate AI cache in background");
-            SpeakWithWindowsTts(text, isWarning);
-            PreGenerateCacheInternal(text, isWarning);
-            return true;
+            if (preferImmediateAiGeneration &&
+                TryGenerateAiCache(
+                    text,
+                    isWarning,
+                    cachePath,
+                    reportPlaybackError: false))
+            {
+                Debug.WriteLine("[SpeechService] Preview generated Edge TTS audio after Windows fallback failed");
+                return !_speechCancelRequested
+                    && !_isDisposed
+                    && PlayAudioFileBlocking(cachePath);
+            }
+
+            if (!preferImmediateAiGeneration)
+                PreGenerateCacheInternal(text, isWarning);
+            return false;
         }
 
-        private bool TryGenerateAiCache(string text, bool isWarning, string cachePath)
+        private bool TryGenerateAiCache(
+            string text,
+            bool isWarning,
+            string cachePath,
+            bool reportPlaybackError = true)
         {
             try
             {
@@ -319,7 +363,9 @@ namespace ExpressPackingMonitoring.Audio
             catch (Exception ex)
             {
                 Debug.WriteLine($"[SpeechService] Immediate AI generation error: {ex.Message}");
-                PlaybackError?.Invoke(ex.Message);
+                Logging.RuntimeLog.Warn("Speech", $"Edge TTS generation failed: {ex.Message}");
+                if (reportPlaybackError)
+                    PlaybackError?.Invoke(ex.Message);
                 return false;
             }
         }
@@ -334,7 +380,61 @@ namespace ExpressPackingMonitoring.Audio
                 Path.GetFileNameWithoutExtension(outputPath) + ".tmp" + Path.GetExtension(outputPath));
             if (File.Exists(tempPath)) File.Delete(tempPath);
 
-            var client = CreateSingleUseEdgeTtsClient();
+            try
+            {
+                if (Volatile.Read(ref _edgeTtsDirectFallbackActive) == 1)
+                {
+                    SynthesizeEdgeTtsToFile(
+                        text,
+                        voice,
+                        tempPath,
+                        bypassSystemProxy: true);
+                }
+                else
+                {
+                    SynthesizeEdgeTtsToFile(
+                        text,
+                        voice,
+                        tempPath,
+                        bypassSystemProxy: false);
+                }
+            }
+            catch (Exception ex) when (IsEdgeTtsNetworkFailure(ex))
+            {
+                TryDeleteFile(tempPath);
+                Logging.RuntimeLog.Warn(
+                    "Speech",
+                    $"Edge TTS proxy path failed, retrying direct: {ex.Message}");
+                SynthesizeEdgeTtsToFile(
+                    text,
+                    voice,
+                    tempPath,
+                    bypassSystemProxy: true);
+                Interlocked.Exchange(ref _edgeTtsDirectFallbackActive, 1);
+            }
+
+            try
+            {
+                if (!File.Exists(tempPath) || new FileInfo(tempPath).Length == 0)
+                    throw new InvalidOperationException("Edge TTS did not create audio output.");
+
+                if (File.Exists(outputPath)) File.Delete(outputPath);
+                File.Move(tempPath, outputPath);
+                Debug.WriteLine($"[SpeechService] PreGenerate Edge cached: {Path.GetFileName(outputPath)} ({new FileInfo(outputPath).Length / 1024}KB)");
+            }
+            finally
+            {
+                TryDeleteFile(tempPath);
+            }
+        }
+
+        private void SynthesizeEdgeTtsToFile(
+            string text,
+            string voice,
+            string outputPath,
+            bool bypassSystemProxy)
+        {
+            var client = CreateSingleUseEdgeTtsClient(bypassSystemProxy);
             try
             {
                 var synthesisTask = client.SynthesisAsync(text, voice, "+0Hz", ToEdgeRate(AiTtsSpeed), "+0%");
@@ -360,36 +460,38 @@ namespace ExpressPackingMonitoring.Audio
                 if (result.Code != ResultCode.Success || result.Data == null || result.Data.Length == 0)
                     throw new InvalidOperationException($"Edge TTS failed: {result.Code} {result.Message}");
 
-                File.WriteAllBytes(tempPath, result.Data.ToArray());
+                File.WriteAllBytes(outputPath, result.Data.ToArray());
             }
             catch
             {
-                TryDeleteFile(tempPath);
+                TryDeleteFile(outputPath);
                 throw;
             }
             finally
             {
                 client.Dispose();
             }
-
-            try
-            {
-                if (!File.Exists(tempPath) || new FileInfo(tempPath).Length == 0)
-                    throw new InvalidOperationException("Edge TTS did not create audio output.");
-
-                if (File.Exists(outputPath)) File.Delete(outputPath);
-                File.Move(tempPath, outputPath);
-                Debug.WriteLine($"[SpeechService] PreGenerate Edge cached: {Path.GetFileName(outputPath)} ({new FileInfo(outputPath).Length / 1024}KB)");
-            }
-            finally
-            {
-                TryDeleteFile(tempPath);
-            }
         }
 
-        internal static EdgeTTSClient CreateSingleUseEdgeTtsClient()
+        private static bool IsEdgeTtsNetworkFailure(Exception exception)
+        {
+            string message = exception.ToString();
+            return message.Contains("Unable to connect", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("connection", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("SSL", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("TLS", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("remote server", StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static EdgeTTSClient CreateSingleUseEdgeTtsClient(bool bypassSystemProxy = false)
         {
             var client = new EdgeTTSClient(false, false, 0);
+            if (bypassSystemProxy
+                && EdgeTtsWebSocketField?.GetValue(client) is ClientWebSocket webSocket)
+            {
+                webSocket.Options.Proxy = null;
+            }
             if (EdgeTtsConnectionKeeperField == null)
                 return client;
 
@@ -426,12 +528,13 @@ namespace ExpressPackingMonitoring.Audio
                 TaskScheduler.Default);
         }
 
-        private void PlayAudioFileBlocking(string path)
+        private bool PlayAudioFileBlocking(string path)
         {
-            if (!File.Exists(path)) return;
+            if (!File.Exists(path)) return false;
 
             IWavePlayer? waveOut = null;
             AudioFileReader? reader = null;
+            bool played = false;
             try
             {
                 reader = new AudioFileReader(path);
@@ -453,11 +556,12 @@ namespace ExpressPackingMonitoring.Audio
 
                 if (_speechCancelRequested || _isDisposed)
                     waveOut.Stop();
+                played = true;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[SpeechService] Audio file playback error: {ex.Message}");
-                PlaybackError?.Invoke(ex.Message);
+                Logging.RuntimeLog.Warn("Speech", $"Audio file playback failed: {ex.Message}");
             }
             finally
             {
@@ -470,6 +574,7 @@ namespace ExpressPackingMonitoring.Audio
                 try { waveOut?.Dispose(); } catch { }
                 try { reader?.Dispose(); } catch { }
             }
+            return played;
         }
         #region TTS 磁盘缓存
         private static string GetCacheKey(string text, float speed, string voiceKey)
@@ -719,7 +824,7 @@ namespace ExpressPackingMonitoring.Audio
         private static readonly Regex _rePlusSign = new(@"(\d+)\s*\+\s*(\d+)", RegexOptions.Compiled);
         private static readonly Regex _reStar = new(@"\*+", RegexOptions.Compiled);
         private static readonly Regex _reMultiSpace = new(@"\s{2,}", RegexOptions.Compiled);
-        // 匹配连续 10 个以上的中日韩字符（无标点/空格）
+        // 只在较长的连续中文片段中查找用户配置的断句关键词。
         private static readonly Regex _reLongCjk = new(@"[\u4e00-\u9fff\u3400-\u4dbf]{10,}", RegexOptions.Compiled);
         // 断句关键词（从配置读取，可在设置中编辑）
         private static HashSet<string> _breakWords = new(StringComparer.Ordinal);
@@ -762,7 +867,7 @@ namespace ExpressPackingMonitoring.Audio
             // 8. 连续标点去重: "！！！" → "！"
             text = DeduplicatePunctuation(text);
 
-            // 9. 长连续中文文本自动断句（在关键词前插逗号，或按固定长度断）
+            // 9. 只按用户配置的关键词断句；未配置时保留原文，让语音引擎自然处理。
             text = _reLongCjk.Replace(text, m => BreakLongCjk(m.Value));
 
             // 10. 清理多余空格
@@ -789,13 +894,13 @@ namespace ExpressPackingMonitoring.Audio
         }
 
         /// <summary>
-        /// 将长连续CJK字符串在关键词前插入逗号断句；如果两个断点之间仍然很长，则按固定长度再断。
-        /// 例: "世喜奶嘴吸管嘴奶瓶配件原装手柄防尘盖吸管安抚奶嘴官方旗舰店"
-        ///   → "世喜奶嘴吸管嘴奶瓶，配件，原装手柄，防尘盖吸管安抚奶嘴，官方旗舰店"
+        /// 只将长连续CJK字符串在用户配置的关键词前插入逗号，不按固定长度硬切。
+        /// 例: "日常用品组合套装配件替换手柄防尘盖"
+        ///   → "日常用品组合套装，配件替换手柄防尘盖"（仅当“配件”配置为关键词）
         /// </summary>
         private static string BreakLongCjk(string s)
         {
-            if (s.Length < 10) return s;
+            if (s.Length < 10 || _breakWords.Count == 0) return s;
 
             // 第一轮：在关键词前插入逗号
             var sb = new StringBuilder(s.Length + 16);
@@ -820,38 +925,7 @@ namespace ExpressPackingMonitoring.Audio
                 i++;
             }
 
-            // 第二轮：如果仍有超长片段（>12字无标点），按固定长度断
-            string result = sb.ToString();
-            var parts = result.Split('，');
-            bool needSecondPass = false;
-            foreach (var p in parts)
-            {
-                if (p.Length > 12) { needSecondPass = true; break; }
-            }
-
-            if (!needSecondPass) return result;
-
-            var sb2 = new StringBuilder(result.Length + 8);
-            for (int pi = 0; pi < parts.Length; pi++)
-            {
-                if (pi > 0) sb2.Append('，');
-                string part = parts[pi];
-                if (part.Length > 12)
-                {
-                    // 每 8 个字断一次
-                    for (int j = 0; j < part.Length; j++)
-                    {
-                        if (j > 0 && j % 8 == 0)
-                            sb2.Append('，');
-                        sb2.Append(part[j]);
-                    }
-                }
-                else
-                {
-                    sb2.Append(part);
-                }
-            }
-            return sb2.ToString();
+            return sb.ToString();
         }
         #endregion
 
@@ -1112,9 +1186,9 @@ namespace ExpressPackingMonitoring.Audio
             return BuildWav16(samples, sampleRate);
         }
 
-        private void PlayWavBlocking(byte[] wavData)
+        private bool PlayWavBlocking(byte[] wavData)
         {
-            if (wavData.Length < 44) return;
+            if (wavData.Length < 44) return false;
             int fmtSize = BitConverter.ToInt32(wavData, 16);
             int fmtEnd = 20 + fmtSize;
             int dataOffset = fmtEnd;
@@ -1131,7 +1205,7 @@ namespace ExpressPackingMonitoring.Audio
                 }
                 dataOffset += 8 + (chunkSize % 2 == 0 ? chunkSize : chunkSize + 1);
             }
-            if (dataSize <= 0) return;
+            if (dataSize <= 0) return false;
 
             byte[] wfx = new byte[Math.Max(fmtSize, 18)];
             Array.Copy(wavData, 20, wfx, 0, Math.Min(fmtSize, wfx.Length));
@@ -1141,7 +1215,11 @@ namespace ExpressPackingMonitoring.Audio
             try
             {
                 int mmResult = waveOutOpen(out hwo, (uint)WAVE_MAPPER, wfx, null, IntPtr.Zero, CALLBACK_NULL);
-                if (mmResult != 0) return;
+                if (mmResult != 0)
+                {
+                    Logging.RuntimeLog.Warn("Speech", $"waveOutOpen failed: {mmResult}");
+                    return false;
+                }
 
                 dataHandle = GCHandle.Alloc(wavData, GCHandleType.Pinned);
                 var header = new WaveHeader
@@ -1150,8 +1228,18 @@ namespace ExpressPackingMonitoring.Audio
                     dwBufferLength = (uint)dataSize
                 };
 
-                waveOutPrepareHeader(hwo, ref header, Marshal.SizeOf<WaveHeader>());
-                waveOutWrite(hwo, ref header, Marshal.SizeOf<WaveHeader>());
+                int prepareResult = waveOutPrepareHeader(hwo, ref header, Marshal.SizeOf<WaveHeader>());
+                if (prepareResult != 0)
+                {
+                    Logging.RuntimeLog.Warn("Speech", $"waveOutPrepareHeader failed: {prepareResult}");
+                    return false;
+                }
+                int writeResult = waveOutWrite(hwo, ref header, Marshal.SizeOf<WaveHeader>());
+                if (writeResult != 0)
+                {
+                    Logging.RuntimeLog.Warn("Speech", $"waveOutWrite failed: {writeResult}");
+                    return false;
+                }
 
                 while ((header.dwFlags & WHDR_DONE) == 0 && !_speechCancelRequested && !_isDisposed)
                 {
@@ -1164,6 +1252,7 @@ namespace ExpressPackingMonitoring.Audio
                 }
 
                 waveOutUnprepareHeader(hwo, ref header, Marshal.SizeOf<WaveHeader>());
+                return true;
             }
             finally
             {
@@ -1212,7 +1301,8 @@ namespace ExpressPackingMonitoring.Audio
             {
                 Text = text,
                 IsWarning = false,
-                RepeatCount = 1
+                RepeatCount = 1,
+                PreferImmediateAiGeneration = true
             });
         }
 

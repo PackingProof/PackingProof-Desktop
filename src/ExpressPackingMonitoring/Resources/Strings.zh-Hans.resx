@@ -1593,6 +1593,7 @@
   <data name="音频录制失败，已保留原始文件" xml:space="preserve"><value>音频录制失败，已保留原始文件</value></data>
   <data name="硬件与编码环境采集失败：{ex.Message}" xml:space="preserve"><value>硬件与编码环境采集失败：{ex.Message}</value></data>
   <data name="预览画面卡住，正在重连摄像头..." xml:space="preserve"><value>预览画面卡住，正在重连摄像头...</value></data>
+  <data name="语音播放失败，请检查网络和系统播放设备" xml:space="preserve"><value>语音播放失败，请检查网络和系统播放设备</value></data>
   <data name="预录制缓存未开始" xml:space="preserve"><value>预录制缓存未开始</value></data>
   <data name="源版本应为 X.Y 格式" xml:space="preserve"><value>源版本应为 X.Y 格式</value></data>
   <data name="约 {seconds:0.0} 秒 / {size} 内存" xml:space="preserve"><value>约 {seconds:0.0} 秒 / {size} 内存</value></data>

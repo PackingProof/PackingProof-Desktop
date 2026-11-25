@@ -2818,6 +2818,8 @@ namespace ExpressPackingMonitoring.UI
                     AiTtsSpeed = Config.AiTtsSpeed,
                     EdgeTtsVoice = Config.EdgeTtsVoice,
                     EdgeTtsWarningVoice = Config.EdgeTtsWarningVoice,
+                    PlaybackDeviceId = Config.PlaybackDeviceMoniker,
+                    PlaybackDeviceName = Config.PlaybackDeviceName,
                 };
                 _previewSpeechService.PlaybackError += OnPreviewSpeechError;
                 // 同步当前编辑中的断句关键词
@@ -2834,6 +2836,8 @@ namespace ExpressPackingMonitoring.UI
                 _previewSpeechService.AiTtsSpeed = Config.AiTtsSpeed;
                 _previewSpeechService.EdgeTtsVoice = Config.EdgeTtsVoice;
                 _previewSpeechService.EdgeTtsWarningVoice = Config.EdgeTtsWarningVoice;
+                _previewSpeechService.PlaybackDeviceId = Config.PlaybackDeviceMoniker;
+                _previewSpeechService.PlaybackDeviceName = Config.PlaybackDeviceName;
                 var words = TtsBreakWordsTextBox.Text
                     .Split(new[] { '\r', '\n', '，', ',', ' ' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(w => w.Trim()).Where(w => w.Length > 0);

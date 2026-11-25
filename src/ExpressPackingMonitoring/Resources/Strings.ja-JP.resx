@@ -1591,6 +1591,7 @@
   <data name="音频录制失败，已保留原始文件" xml:space="preserve"><value>音声録音に失敗しました。元のファイルを保持しました</value></data>
   <data name="硬件与编码环境采集失败：{ex.Message}" xml:space="preserve"><value>ハードウェアとエンコード環境の取得に失敗しました: {0}</value></data>
   <data name="预览画面卡住，正在重连摄像头..." xml:space="preserve"><value>プレビューが停止しました。カメラを再接続しています...</value></data>
+  <data name="语音播放失败，请检查网络和系统播放设备" xml:space="preserve"><value>音声を再生できません。ネットワークとシステムの再生デバイスを確認してください</value></data>
   <data name="预录制缓存未开始" xml:space="preserve"><value>事前録画バッファが開始されていません</value></data>
   <data name="源版本应为 X.Y 格式" xml:space="preserve"><value>ソース バージョンは X.Y 形式である必要があります</value></data>
   <data name="约 {seconds:0.0} 秒 / {size} 内存" xml:space="preserve"><value>約 {0} 秒 / メモリ {1}</value></data>

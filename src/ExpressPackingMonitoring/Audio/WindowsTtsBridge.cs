@@ -14,23 +14,41 @@ namespace ExpressPackingMonitoring.Audio
     {
         private const string HelperAssemblyFile = "ExpressPackingMonitoring.WinTts.dll";
         private const string HelperTypeName = "ExpressPackingMonitoring.WinTts.WindowsTtsFallback";
+        private static readonly object SharedSync = new();
+        private static WindowsTtsBridge? _shared;
 
         private readonly object _instance;
         private readonly MethodInfo _trySynthesize;
-        private readonly MethodInfo _dispose;
+        private readonly PropertyInfo? _lastError;
 
-        private WindowsTtsBridge(object instance, MethodInfo trySynthesize, MethodInfo dispose)
+        private WindowsTtsBridge(
+            object instance,
+            MethodInfo trySynthesize,
+            PropertyInfo? lastError)
         {
             _instance = instance;
             _trySynthesize = trySynthesize;
-            _dispose = dispose;
+            _lastError = lastError;
         }
+
+        public string LastError { get; private set; } = "";
 
         public static WindowsTtsBridge? TryCreate()
         {
             if (!OperatingSystem.IsWindowsVersionAtLeast(6, 2))
                 return null;
 
+            lock (SharedSync)
+            {
+                if (_shared != null)
+                    return _shared;
+                _shared = Create();
+                return _shared;
+            }
+        }
+
+        private static WindowsTtsBridge? Create()
+        {
             try
             {
                 string helperPath = Path.Combine(AppContext.BaseDirectory, HelperAssemblyFile);
@@ -56,15 +74,17 @@ namespace ExpressPackingMonitoring.Audio
                     return null;
 
                 MethodInfo? trySynthesize = helperType.GetMethod("TrySynthesize");
-                MethodInfo? dispose = helperType.GetMethod("Dispose");
-                if (trySynthesize == null || dispose == null)
+                if (trySynthesize == null)
                 {
                     (instance as IDisposable)?.Dispose();
                     return null;
                 }
 
                 Logging.RuntimeLog.Info("Speech", "WindowsTts bridge loaded");
-                return new WindowsTtsBridge(instance, trySynthesize, dispose);
+                return new WindowsTtsBridge(
+                    instance,
+                    trySynthesize,
+                    helperType.GetProperty("LastError"));
             }
             catch (Exception ex)
             {
@@ -75,34 +95,36 @@ namespace ExpressPackingMonitoring.Audio
 
         public bool TrySynthesize(string text, bool isWarning, float speed, out byte[] wavData)
         {
-            wavData = Array.Empty<byte>();
-            try
+            lock (SharedSync)
             {
-                object[] args = { text, isWarning, speed, null! };
-                bool ok = (bool)(_trySynthesize.Invoke(_instance, args) ?? false);
-                if (ok)
-                    wavData = (byte[])args[3]!;
-                return ok;
-            }
-            catch (Exception ex)
-            {
-                Exception detail = ex is TargetInvocationException { InnerException: not null }
-                    ? ex.InnerException
-                    : ex;
-                Logging.RuntimeLog.Warn("Speech", $"WindowsTts synthesis failed: {detail.Message}");
-                return false;
+                wavData = Array.Empty<byte>();
+                LastError = "";
+                try
+                {
+                    object[] args = { text, isWarning, speed, null! };
+                    bool ok = (bool)(_trySynthesize.Invoke(_instance, args) ?? false);
+                    if (ok)
+                        wavData = (byte[])args[3]!;
+                    else
+                        LastError = (string?)_lastError?.GetValue(_instance) ?? "";
+                    return ok;
+                }
+                catch (Exception ex)
+                {
+                    Exception detail = ex is TargetInvocationException { InnerException: not null }
+                        ? ex.InnerException
+                        : ex;
+                    LastError = $"{detail.GetType().Name}: {detail.Message}";
+                    Logging.RuntimeLog.Warn("Speech", $"WindowsTts synthesis failed: {detail.Message}");
+                    return false;
+                }
             }
         }
 
         public void Dispose()
         {
-            try
-            {
-                _dispose.Invoke(_instance, null);
-            }
-            catch
-            {
-            }
+            // WinRT 的 SpeechSynthesizer 全局投影不能在进程内重复初始化。
+            // 该桥接实例由主语音服务和设置页预览共享，生命周期跟随进程。
         }
     }
 }
