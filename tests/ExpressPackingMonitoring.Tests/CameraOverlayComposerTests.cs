@@ -8,7 +8,7 @@ namespace ExpressPackingMonitoring.Tests;
 /// 副画面合成必须真的写进主帧的右下角、不能动其它区域，也不能在输入异常时破坏主帧。
 /// 用纯 OpenCV 的假帧验证，不需要摄像头。
 /// </summary>
-public sealed class CameraOverlayComposerTests
+public sealed class CameraOverlayComposerTests(ITestOutputHelper output)
 {
     private const double WidthRatio = 0.25;
     private const int Margin = 16;
@@ -310,6 +310,51 @@ public sealed class CameraOverlayComposerTests
         // 全程淡出过程里每一帧都得能合成成功（蒙版缓存按档位走，不能把自己挤掉）
         for (int percent = 100; percent >= 0; percent -= 5)
             Assert.InRange(SampleMean(percent), 0, 255);
+    }
+
+    [Fact]
+    public void ReleaseCachesFreesIdlePatchesAndMasksThenRebuildsOnDemand()
+    {
+        try
+        {
+            using var main = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black);
+            using var overlay = new Mat(480, 640, MatType.CV_8UC3, Scalar.White);
+            var cropRect = new Rect(0, 0, overlay.Width, overlay.Height);
+
+            for (int index = 0; index < 8; index++)
+            {
+                CameraOverlayRect rect = CameraOverlayLayout.Resolve(
+                    1920,
+                    1080,
+                    overlay.Width,
+                    overlay.Height,
+                    0.10 + index * 0.02,
+                    Margin,
+                    allowUpscale: false)!.Value;
+                Assert.True(CameraOverlayComposer.TryCompose(main, overlay, cropRect, rect));
+            }
+            Assert.True(CameraOverlayComposer.CachedBytes > 0);
+            output.WriteLine($"Overlay composer resident caches: {CameraOverlayComposer.CachedBytes:N0} bytes");
+
+            CameraOverlayComposer.ReleaseCaches();
+
+            output.WriteLine($"Overlay composer after release: {CameraOverlayComposer.CachedBytes:N0} bytes");
+            Assert.Equal(0, CameraOverlayComposer.CachedBytes);
+            CameraOverlayRect steady = CameraOverlayLayout.Resolve(
+                1920,
+                1080,
+                overlay.Width,
+                overlay.Height,
+                WidthRatio,
+                Margin,
+                allowUpscale: false)!.Value;
+            Assert.True(CameraOverlayComposer.TryCompose(main, overlay, cropRect, steady));
+            Assert.True(CameraOverlayComposer.CachedBytes > 0);
+        }
+        finally
+        {
+            CameraOverlayComposer.ReleaseCaches();
+        }
     }
 
     private static bool ComposeWhole(Mat frame, Mat overlay, CameraOverlayRect rect) =>

@@ -103,6 +103,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             finally
             {
+                _motionDetector.ReleaseRuntimeBuffers();
                 Interlocked.Exchange(ref _recordingStopInProgress, 0);
                 TryRunDeferredCameraVisionBenchmark();
             }

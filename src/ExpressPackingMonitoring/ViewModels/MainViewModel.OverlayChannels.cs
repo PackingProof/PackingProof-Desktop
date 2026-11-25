@@ -315,6 +315,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             foreach (OverlayChannel channel in _overlayChannels)
                 StopOverlayChannel(channel);
+            CameraOverlayComposer.ReleaseCaches();
         }
 
         internal Task StopOverlayChannelsAsync() =>

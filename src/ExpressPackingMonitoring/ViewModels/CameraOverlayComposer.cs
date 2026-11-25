@@ -37,6 +37,23 @@ namespace ExpressPackingMonitoring.ViewModels
         private const int MaxCachedPatches = 8;
         private const int MaxCachedMasks = 8;
 
+        /// <summary>当前缓存仍占用的原生像素字节，供内存回归测试确认空闲释放是否生效。</summary>
+        internal static long CachedBytes
+        {
+            get
+            {
+                lock (PatchCacheLock)
+                {
+                    long bytes = 0;
+                    foreach (PreparedPatch patch in PatchCache)
+                        bytes += GetMatBytes(patch.Patch);
+                    foreach (Mat mask in MaskCache.Values)
+                        bytes += GetMatBytes(mask);
+                    return bytes;
+                }
+            }
+        }
+
         /// <summary>一份已经准备好的贴片：缩放、通道对齐、圆角描边都做完了，合成时只剩一次带蒙版拷贝。</summary>
         private sealed class PreparedPatch
         {
@@ -233,6 +250,21 @@ namespace ExpressPackingMonitoring.ViewModels
             return mask;
         }
 
+        /// <summary>所有叠加画面停止后释放贴片与蒙版缓存，下次启动时按需重建。</summary>
+        internal static void ReleaseCaches()
+        {
+            lock (PatchCacheLock)
+            {
+                foreach (PreparedPatch patch in PatchCache)
+                    patch.Dispose();
+                PatchCache.Clear();
+
+                foreach (Mat mask in MaskCache.Values)
+                    mask.Dispose();
+                MaskCache.Clear();
+            }
+        }
+
         /// <summary>
         /// 圆角半径：按小窗短边取比例，保证和识别框的圆角观感一致，不随分辨率跑偏。
         /// 界面上的画中画拖动框也用这个值（换算到屏幕尺寸），两边圆角才对得上。
@@ -320,5 +352,10 @@ namespace ExpressPackingMonitoring.ViewModels
             Cv2.CvtColor(source, converted, conversion.Value);
             return converted;
         }
+
+        private static long GetMatBytes(Mat? mat) =>
+            mat == null || mat.IsDisposed || mat.Empty()
+                ? 0
+                : (long)mat.Total() * mat.ElemSize();
     }
 }

@@ -14,11 +14,11 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private readonly object _gate = new();
         private Mat _previousSmall = new();
-        private readonly Mat _currentSmall = new();
-        private readonly Mat _currentGray = new();
-        private readonly Mat _previousGray = new();
-        private readonly Mat _difference = new();
-        private readonly Mat _thresholdMask = new();
+        private Mat _currentSmall = new();
+        private Mat _currentGray = new();
+        private Mat _previousGray = new();
+        private Mat _difference = new();
+        private Mat _thresholdMask = new();
         private bool _disposed;
 
         internal (int Width, int Height)? PreviousFrameSize
@@ -30,6 +30,24 @@ namespace ExpressPackingMonitoring.ViewModels
                     return _disposed || _previousSmall.Empty()
                         ? null
                         : (_previousSmall.Width, _previousSmall.Height);
+                }
+            }
+        }
+
+        internal long AllocatedBytes
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    if (_disposed)
+                        return 0;
+                    return GetMatBytes(_previousSmall)
+                        + GetMatBytes(_currentSmall)
+                        + GetMatBytes(_currentGray)
+                        + GetMatBytes(_previousGray)
+                        + GetMatBytes(_difference)
+                        + GetMatBytes(_thresholdMask);
                 }
             }
         }
@@ -69,8 +87,18 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (_disposed)
                     return;
-                _previousSmall.Dispose();
-                _previousSmall = new Mat();
+                ReleaseRuntimeBuffersLocked();
+            }
+        }
+
+        /// <summary>录制结束后释放工作 Mat；下一段录制首帧再按需分配。</summary>
+        internal void ReleaseRuntimeBuffers()
+        {
+            lock (_gate)
+            {
+                if (_disposed)
+                    return;
+                ReleaseRuntimeBuffersLocked();
             }
         }
 
@@ -81,13 +109,32 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_disposed)
                     return;
                 _disposed = true;
-                _previousSmall.Dispose();
-                _currentSmall.Dispose();
-                _currentGray.Dispose();
-                _previousGray.Dispose();
-                _difference.Dispose();
-                _thresholdMask.Dispose();
+                DisposeRuntimeBuffersLocked();
             }
         }
+
+        private void ReleaseRuntimeBuffersLocked()
+        {
+            DisposeRuntimeBuffersLocked();
+            _previousSmall = new Mat();
+            _currentSmall = new Mat();
+            _currentGray = new Mat();
+            _previousGray = new Mat();
+            _difference = new Mat();
+            _thresholdMask = new Mat();
+        }
+
+        private void DisposeRuntimeBuffersLocked()
+        {
+            _previousSmall.Dispose();
+            _currentSmall.Dispose();
+            _currentGray.Dispose();
+            _previousGray.Dispose();
+            _difference.Dispose();
+            _thresholdMask.Dispose();
+        }
+
+        private static long GetMatBytes(Mat mat) =>
+            mat.Empty() ? 0 : (long)mat.Total() * mat.ElemSize();
     }
 }

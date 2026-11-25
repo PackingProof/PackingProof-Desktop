@@ -669,6 +669,18 @@ public sealed class CameraChannelConfigurationTests
         Assert.DoesNotContain("new Mat(overlay, cropRect)", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void StoppingOverlayChannelsReleasesIdleComposerCaches()
+    {
+        string source = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.OverlayChannels.cs"));
+        int stopIndex = source.IndexOf("internal void StopOverlayChannels()", StringComparison.Ordinal);
+        Assert.True(stopIndex >= 0);
+        Assert.Contains(
+            "CameraOverlayComposer.ReleaseCaches();",
+            source[stopIndex..(stopIndex + 260)],
+            StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// 设置页用一套模板渲染所有叠加画面：加第三、第四路只是列表多一项，
     /// 不再复制一段卡片 XAML，也不让被冻结的 SettingsWindow.xaml.cs 继续增长。
