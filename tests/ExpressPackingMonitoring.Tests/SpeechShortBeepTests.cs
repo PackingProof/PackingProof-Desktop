@@ -91,7 +91,7 @@ public sealed class SpeechShortBeepTests
             source,
             StringComparison.Ordinal);
         Assert.Contains(
-            "waveOutOpen failed",
+            "WAV playback failed",
             source,
             StringComparison.Ordinal);
     }

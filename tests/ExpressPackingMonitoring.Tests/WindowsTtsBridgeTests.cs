@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Audio;
+using System.Reflection;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -106,5 +107,34 @@ public sealed class WindowsTtsBridgeTests
                 out byte[] secondWav),
             second.LastError);
         Assert.True(secondWav.Length > 44);
+    }
+
+    [Fact]
+    public async Task ExistingSharedBridge_DoesNotBlockOnTheSynthesisLock()
+    {
+        if (!OperatingSystem.IsWindowsVersionAtLeast(6, 2))
+            return;
+
+        WindowsTtsBridge? bridge = WindowsTtsBridge.TryCreate();
+        Assert.NotNull(bridge);
+        FieldInfo? sharedSync = typeof(WindowsTtsBridge).GetField(
+            "SharedSync",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(sharedSync);
+
+        object sync = sharedSync!.GetValue(null)!;
+        Monitor.Enter(sync);
+        try
+        {
+            Task<WindowsTtsBridge?> fastPath = Task.Run(WindowsTtsBridge.TryCreate);
+            WindowsTtsBridge? result = await fastPath.WaitAsync(
+                TimeSpan.FromMilliseconds(500),
+                TestContext.Current.CancellationToken);
+            Assert.Same(bridge, result);
+        }
+        finally
+        {
+            Monitor.Exit(sync);
+        }
     }
 }

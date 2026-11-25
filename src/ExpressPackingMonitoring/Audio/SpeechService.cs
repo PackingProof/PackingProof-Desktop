@@ -8,7 +8,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -1189,76 +1188,53 @@ namespace ExpressPackingMonitoring.Audio
         private bool PlayWavBlocking(byte[] wavData)
         {
             if (wavData.Length < 44) return false;
-            int fmtSize = BitConverter.ToInt32(wavData, 16);
-            int fmtEnd = 20 + fmtSize;
-            int dataOffset = fmtEnd;
-            int dataSize = 0;
-            while (dataOffset + 8 <= wavData.Length)
-            {
-                string chunkId = System.Text.Encoding.ASCII.GetString(wavData, dataOffset, 4);
-                int chunkSize = BitConverter.ToInt32(wavData, dataOffset + 4);
-                if (chunkId == "data")
-                {
-                    dataOffset += 8;
-                    dataSize = Math.Min(chunkSize, wavData.Length - dataOffset);
-                    break;
-                }
-                dataOffset += 8 + (chunkSize % 2 == 0 ? chunkSize : chunkSize + 1);
-            }
-            if (dataSize <= 0) return false;
 
-            byte[] wfx = new byte[Math.Max(fmtSize, 18)];
-            Array.Copy(wavData, 20, wfx, 0, Math.Min(fmtSize, wfx.Length));
-
-            IntPtr hwo = IntPtr.Zero;
-            GCHandle dataHandle = default;
+            MemoryStream? stream = null;
+            WaveFileReader? reader = null;
+            IWavePlayer? waveOut = null;
+            bool played = false;
             try
             {
-                int mmResult = waveOutOpen(out hwo, (uint)WAVE_MAPPER, wfx, null, IntPtr.Zero, CALLBACK_NULL);
-                if (mmResult != 0)
+                stream = new MemoryStream(wavData, writable: false);
+                reader = new WaveFileReader(stream);
+                waveOut = CreatePlaybackDevice();
+                waveOut.Init(reader);
+
+                lock (_filePlaybackLock)
                 {
-                    Logging.RuntimeLog.Warn("Speech", $"waveOutOpen failed: {mmResult}");
-                    return false;
+                    _currentFileWaveOut?.Stop();
+                    _currentFileWaveOut?.Dispose();
+                    _currentFileWaveOut = waveOut;
                 }
 
-                dataHandle = GCHandle.Alloc(wavData, GCHandleType.Pinned);
-                var header = new WaveHeader
-                {
-                    lpData = dataHandle.AddrOfPinnedObject() + dataOffset,
-                    dwBufferLength = (uint)dataSize
-                };
-
-                int prepareResult = waveOutPrepareHeader(hwo, ref header, Marshal.SizeOf<WaveHeader>());
-                if (prepareResult != 0)
-                {
-                    Logging.RuntimeLog.Warn("Speech", $"waveOutPrepareHeader failed: {prepareResult}");
-                    return false;
-                }
-                int writeResult = waveOutWrite(hwo, ref header, Marshal.SizeOf<WaveHeader>());
-                if (writeResult != 0)
-                {
-                    Logging.RuntimeLog.Warn("Speech", $"waveOutWrite failed: {writeResult}");
-                    return false;
-                }
-
-                while ((header.dwFlags & WHDR_DONE) == 0 && !_speechCancelRequested && !_isDisposed)
+                waveOut.Play();
+                while (waveOut.PlaybackState == PlaybackState.Playing
+                       && !_speechCancelRequested
+                       && !_isDisposed)
                 {
                     Thread.Sleep(20);
                 }
 
                 if (_speechCancelRequested || _isDisposed)
-                {
-                    waveOutReset(hwo);
-                }
-
-                waveOutUnprepareHeader(hwo, ref header, Marshal.SizeOf<WaveHeader>());
-                return true;
+                    waveOut.Stop();
+                played = true;
+            }
+            catch (Exception ex)
+            {
+                Logging.RuntimeLog.Warn("Speech", $"WAV playback failed: {ex.Message}");
             }
             finally
             {
-                if (hwo != IntPtr.Zero) waveOutClose(hwo);
-                if (dataHandle.IsAllocated) dataHandle.Free();
+                lock (_filePlaybackLock)
+                {
+                    if (ReferenceEquals(_currentFileWaveOut, waveOut))
+                        _currentFileWaveOut = null;
+                }
+                try { waveOut?.Dispose(); } catch { }
+                try { reader?.Dispose(); } catch { }
+                try { stream?.Dispose(); } catch { }
             }
+            return played;
         }
 
         public void Stop()
@@ -1379,39 +1355,6 @@ namespace ExpressPackingMonitoring.Audio
                 Interlocked.Decrement(ref _criticalWarningCount);
             }
         }
-
-        #region winmm.dll
-        private delegate void WaveOutProc(IntPtr hwo, uint uMsg, IntPtr dwInstance, IntPtr dwParam1, IntPtr dwParam2);
-
-        [DllImport("winmm.dll")]
-        private static extern int waveOutOpen(out IntPtr phwo, uint uDeviceID, byte[] pwfx, WaveOutProc? dwCallback, IntPtr dwInstance, uint fdwOpen);
-        [DllImport("winmm.dll")]
-        private static extern int waveOutPrepareHeader(IntPtr hwo, ref WaveHeader pwh, int cbwh);
-        [DllImport("winmm.dll")]
-        private static extern int waveOutUnprepareHeader(IntPtr hwo, ref WaveHeader pwh, int cbwh);
-        [DllImport("winmm.dll")]
-        private static extern int waveOutWrite(IntPtr hwo, ref WaveHeader pwh, int cbwh);
-        [DllImport("winmm.dll")]
-        private static extern int waveOutReset(IntPtr hwo);
-        [DllImport("winmm.dll")]
-        private static extern int waveOutClose(IntPtr hwo);
-        private const uint WAVE_MAPPER = 0xFFFFFFFF;
-        private const uint CALLBACK_NULL = 0x00000000;
-        private const int WHDR_DONE = 0x00000001;
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct WaveHeader
-        {
-            public IntPtr lpData;
-            public uint dwBufferLength;
-            public uint dwBytesRecorded;
-            public IntPtr dwUser;
-            public uint dwFlags;
-            public uint dwLoops;
-            public IntPtr lpNext;
-            public IntPtr reserved;
-        }
-        #endregion
 
         public void Dispose()
         {

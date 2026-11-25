@@ -38,6 +38,10 @@ namespace ExpressPackingMonitoring.Audio
             if (!OperatingSystem.IsWindowsVersionAtLeast(6, 2))
                 return null;
 
+            WindowsTtsBridge? shared = Volatile.Read(ref _shared);
+            if (shared != null)
+                return shared;
+
             lock (SharedSync)
             {
                 if (_shared != null)
