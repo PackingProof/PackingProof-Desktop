@@ -241,6 +241,7 @@
     <Compile Include="ViewModels\RecordingBufferPolicy.cs" />
     <Compile Include="ViewModels\PreRecordFrameRing.cs" />
     <Compile Include="ViewModels\CameraFrameWaitPolicy.cs" />
+    <Compile Include="ViewModels\CameraMotionDetector.cs" />
     <Compile Include="ViewModels\PreviewFrameRatePolicy.cs" />
     <Compile Include="ViewModels\CameraFrameConverter.cs" />
     <Compile Include="ViewModels\CameraColorMatrixPolicy.cs" />
@@ -249,6 +250,7 @@
     <Compile Include="ViewModels\RecordingStartOrderPolicy.cs" />
     <Compile Include="ViewModels\RecordingTimelinePolicy.cs" />
     <Compile Include="ViewModels\PreviewDownscalePolicy.cs" />
+    <Compile Include="ViewModels\OverlayPreviewBitmapFactory.cs" />
     <Compile Include="ViewModels\CameraOverlayLayout.cs" />
     <Compile Include="ViewModels\CameraOverlayComposer.cs" />
     <Compile Include="ViewModels\WatermarkOverlayRenderer.cs" />

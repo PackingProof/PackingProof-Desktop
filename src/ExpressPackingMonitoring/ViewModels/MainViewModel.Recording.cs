@@ -1108,8 +1108,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _lastMotionTime = DateTime.Now;
                 _autoStopWarned = false;
                 _maxDurationWarned = false;
-                _previousCheckFrame?.Dispose();
-                _previousCheckFrame = new Mat();
+                _motionDetector.Reset();
 
                 // 5. 快速确认首帧是否已经写入 FFmpeg，避免固定等待拖慢开录。
                 var firstFrameTask = _firstRecordingFrameWritten.Task;

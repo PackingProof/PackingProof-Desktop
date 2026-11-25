@@ -129,13 +129,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private double _audioMaxGapMs;
         private long _audioGapPaddingBytes;
 
-        private Mat _previousCheckFrame = new Mat();
-        private readonly Mat _motionCurrentSmall = new Mat();
-        private readonly Mat _motionPreviousSmall = new Mat();
-        private readonly Mat _motionCurrentGray = new Mat();
-        private readonly Mat _motionPreviousGray = new Mat();
-        private readonly Mat _motionDiff = new Mat();
-        private readonly Mat _motionThreshold = new Mat();
+        private readonly CameraMotionDetector _motionDetector = new();
         private BitmapSource _videoFrame;
         private WriteableBitmap _previewWriteableBitmap;
         private static readonly TimeSpan PreviewFreezeWarnThreshold = TimeSpan.FromSeconds(3);
@@ -196,6 +190,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private readonly RecordingFramePipelineDiagnostics _recordingFramePipelineDiagnostics = new();
         private DateTime _lastResourceHealthLogAt = DateTime.MinValue;
         private DateTime _lastPreviewConvertErrorLogAt = DateTime.MinValue;
+        private long _lastOverlayPreviewErrorTicks;
         private DateTime _lastVideoFrameErrorLogAt = DateTime.MinValue;
         private DateTime _lastCameraStateErrorLogAt = DateTime.MinValue;
         private DateTime _lastUiHeartbeatAt = DateTime.Now;
@@ -1092,16 +1087,7 @@ namespace ExpressPackingMonitoring.ViewModels
             ClearPreRecordBuffer();
             try { _videoTask?.Wait(1000); } catch { }
             _cts?.Dispose();
-            lock (_videoLock)
-            {
-                _previousCheckFrame?.Dispose();
-                _motionCurrentSmall?.Dispose();
-                _motionPreviousSmall?.Dispose();
-                _motionCurrentGray?.Dispose();
-                _motionPreviousGray?.Dispose();
-                _motionDiff?.Dispose();
-                _motionThreshold?.Dispose();
-            }
+            _motionDetector.Dispose();
             _alertService?.Dispose();
             _speechService?.Dispose();
             _speechService = null;

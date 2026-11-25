@@ -476,6 +476,43 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void RecognitionRejectsVisionFrameWhileObbWorkerIsBusyAndMotionGateIsClosed()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var detector = new BlockingObbDetector(entered, release);
+        DateTimeOffset now = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        using Mat frame = new(new Size(320, 240), MatType.CV_8UC3, Scalar.White);
+        using var service = new CameraBarcodeRecognitionService(
+            _ => true,
+            utcNowProvider: () => now,
+            guideIntervalProvider: () => TimeSpan.FromMilliseconds(1),
+            visionFollowIntervalProvider: () => TimeSpan.FromMilliseconds(1),
+            visionObbProvider: () => (true, "blocking.onnx"),
+            visionObbDecodingEnabledProvider: () => true,
+            visionObbDetectorFactory: new FixedObbDetectorFactory(detector));
+
+        try
+        {
+            Assert.True(service.TrySubmitFrame(
+                frame,
+                CameraBarcodeFrameIntent.VisionWithMotionGatedBarcode));
+            Assert.True(entered.Wait(
+                TimeSpan.FromSeconds(5),
+                TestContext.Current.CancellationToken));
+
+            now = now.AddSeconds(2);
+            Assert.False(service.TrySubmitFrame(
+                frame,
+                CameraBarcodeFrameIntent.VisionWithMotionGatedBarcode));
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
+    [Fact]
     public void ObbBoxesInterpolateBetweenDetectionsAndFadeWhenLost()
     {
         string code = File.ReadAllText(

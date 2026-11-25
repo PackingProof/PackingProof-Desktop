@@ -1928,7 +1928,8 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 if (currentFrame == null || currentFrame.IsDisposed || currentFrame.Empty()) return;
-                PerformMotionDetection(currentFrame);
+                if (_motionDetector.Detect(currentFrame, Config.MotionDetectThreshold))
+                    _lastMotionTime = DateTime.Now;
             }
             catch (Exception ex) when (ex is ObjectDisposedException || ex is OpenCvSharpException || ex is AccessViolationException)
             {
@@ -1938,21 +1939,6 @@ namespace ExpressPackingMonitoring.ViewModels
                     RuntimeLog.Warn("VideoProcess", $"Motion detection skipped one frame: {ex.GetType().Name}: {ex.Message}");
                 }
             }
-        }
-
-        private void PerformMotionDetection(Mat currentFrame)
-        {
-            if (_previousCheckFrame.Empty()) { currentFrame.CopyTo(_previousCheckFrame); _lastMotionTime = DateTime.Now; return; }
-            var motionSize = new OpenCvSharp.Size(320, 240);
-            Cv2.Resize(currentFrame, _motionCurrentSmall, motionSize);
-            Cv2.Resize(_previousCheckFrame, _motionPreviousSmall, motionSize);
-            Cv2.CvtColor(_motionCurrentSmall, _motionCurrentGray, ColorConversionCodes.BGR2GRAY);
-            Cv2.CvtColor(_motionPreviousSmall, _motionPreviousGray, ColorConversionCodes.BGR2GRAY);
-            Cv2.Absdiff(_motionCurrentGray, _motionPreviousGray, _motionDiff);
-            Cv2.Threshold(_motionDiff, _motionThreshold, Config.MotionDetectThreshold, 255, ThresholdTypes.Binary);
-            double changeRatio = (double)Cv2.CountNonZero(_motionThreshold) / (_motionThreshold.Width * _motionThreshold.Height);
-            if (changeRatio > 0.01) { _lastMotionTime = DateTime.Now; }
-            currentFrame.CopyTo(_previousCheckFrame);
         }
 
         /// <summary>放大裁剪矩形是 WPF 口径的浮点矩形，转成 OpenCV 的整数 ROI（宽高至少 1）</summary>

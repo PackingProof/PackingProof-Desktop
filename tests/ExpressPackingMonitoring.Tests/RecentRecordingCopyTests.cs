@@ -5,7 +5,7 @@ using Xunit;
 namespace ExpressPackingMonitoring.Tests;
 
 /// <summary>
-/// 「本机录制动态」复制单号的接线约束：单击单号和右键菜单两条入口都要有，
+    /// 「本机录制动态」复制单号的接线约束：复制按钮和右键菜单两条入口都要有，
 /// 而且必须走同一个处理器 —— XAML 里少写一处只会表现为"点了没反应"，编译期看不出来。
 /// </summary>
 public sealed class RecentRecordingCopyTests
@@ -16,7 +16,7 @@ public sealed class RecentRecordingCopyTests
             Encoding.UTF8);
 
     [Fact]
-    public void RecentList_OffersBothClickAndContextMenuCopy()
+    public void RecentList_OffersButtonAndContextMenuCopy()
     {
         string xaml = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml"));
 
@@ -27,7 +27,14 @@ public sealed class RecentRecordingCopyTests
             "ContextMenu=\"{StaticResource RecentRecordingContextMenu}\"",
             xaml,
             StringComparison.Ordinal);
-        Assert.Contains("MouseLeftButtonUp=\"CopyRecentOrderId_Click\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CopyRecentOrderButton\"", xaml, StringComparison.Ordinal);
+        int copyMenuIndex = xaml.IndexOf(
+            "x:Name=\"CopyRecentRecordingMenuItem\"",
+            StringComparison.Ordinal);
+        int playMenuIndex = xaml.IndexOf(
+            "x:Name=\"PlayRecentRecordingMenuItem\"",
+            StringComparison.Ordinal);
+        Assert.True(copyMenuIndex >= 0 && playMenuIndex > copyMenuIndex);
     }
 
     [Fact]
@@ -37,11 +44,12 @@ public sealed class RecentRecordingCopyTests
         string xaml = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml"));
 
         Assert.Contains("private void CopyRecentOrderId_Click(", codeBehind, StringComparison.Ordinal);
-        // 单击、悬浮按钮与右键菜单项共用同一个处理器。
+        // 悬浮按钮与右键菜单项共用同一个处理器。
         int handlerReferences = xaml.Split("CopyRecentOrderId_Click").Length - 1;
-        Assert.Equal(3, handlerReferences);
+        Assert.Equal(2, handlerReferences);
         Assert.Contains("ClipboardHelper.TryCopyText", codeBehind, StringComparison.Ordinal);
         Assert.Contains("AppLanguage.Get(\"单号已复制\")", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("CopyRecentOrderNumber(record);", codeBehind, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -91,21 +99,67 @@ public sealed class RecentRecordingCopyTests
     }
 
     [Fact]
-    public void RecentList_OffersHoverPlaybackEntry()
+    public void RecentRecord_ClickActionCopiesWhileActiveAndPlaysAfterStop()
+    {
+        var record = new ScanRecord(
+            "SF-ACTION",
+            "2s",
+            "10:00:00",
+            "发货",
+            isActive: true,
+            videoRecordId: 9);
+        var changed = new List<string>();
+        record.PropertyChanged += (_, args) =>
+            changed.Add(args.PropertyName ?? "");
+
+        Assert.Equal(
+            RecentRecordingClickAction.CopyOrderNumber,
+            record.ClickAction);
+
+        record.IsActive = false;
+        Assert.Equal(RecentRecordingClickAction.Play, record.ClickAction);
+        Assert.Contains(nameof(ScanRecord.ClickAction), changed);
+
+        record.VideoRecordId = 0;
+        Assert.Equal(RecentRecordingClickAction.None, record.ClickAction);
+
+        record.IsActive = true;
+        record.OrderId = "";
+        record.GeneratedName = "";
+        Assert.Equal(RecentRecordingClickAction.None, record.ClickAction);
+    }
+
+    [Fact]
+    public void RecentList_UsesWholeRowPrimaryActionWithoutExtraPlayButton()
     {
         string xaml = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml"));
+        string codeBehind = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml.cs"));
 
-        Assert.Contains("x:Name=\"PlayRecentButton\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"PlayRecentButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CopyRecentOrderButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"RecentRowActions\"", xaml, StringComparison.Ordinal);
         Assert.Contains("<Separator Style=\"{StaticResource AppSeparatorStyle}\"/>", xaml, StringComparison.Ordinal);
-        Assert.Contains("Click=\"PlayRecentRecording_Click\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("MouseLeftButtonUp=\"PlayRecentRecording_Click\"", xaml, StringComparison.Ordinal);
         int playHandlerReferences = xaml.Split("PlayRecentRecording_Click").Length - 1;
         Assert.Equal(2, playHandlerReferences);
         Assert.Contains(
-            "IsEnabled=\"{Binding CanPlay}\"",
+            "record.ClickAction == RecentRecordingClickAction.CopyOrderNumber",
+            codeBehind,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "record.ClickAction != RecentRecordingClickAction.Play",
+            codeBehind,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Visibility=\"{Binding CanPlay, Converter={StaticResource BoolToVisibility}}\"",
             xaml,
             StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            xaml.Split(
+                "Visibility=\"{Binding CanPlay, Converter={StaticResource BoolToVisibility}}\"",
+                StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("IsEnabled=\"{Binding CanPlay}\"", xaml, StringComparison.Ordinal);
         Assert.Contains(
             "IsEnabled=\"{Binding CanCopyOrderNumber}\"",
             xaml,
@@ -127,8 +181,7 @@ public sealed class RecentRecordingCopyTests
             activeDurationTrigger,
             StringComparison.Ordinal);
         Assert.InRange(rightAlignedDuration, activeDurationTrigger, activeDurationTrigger + 250);
-        Assert.Contains("Margin=\"0,0,6,0\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Margin=\"6,0,0,0\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"0,0,0.5,0\"", xaml, StringComparison.Ordinal);
         Assert.Contains(
             "<Setter TargetName=\"BadgeBorder\" Property=\"Visibility\" Value=\"Hidden\"/>",
             xaml,

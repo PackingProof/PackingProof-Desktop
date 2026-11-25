@@ -1299,20 +1299,18 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
             channel.LastPreviewPublishedAt = now;
 
-            int width = frame.Width;
-            int height = frame.Height;
-            byte[] pixels = new byte[width * height * 3];
-            System.Runtime.InteropServices.Marshal.Copy(frame.Data, pixels, 0, pixels.Length);
-            var bitmap = System.Windows.Media.Imaging.BitmapSource.Create(
-                width,
-                height,
-                96,
-                96,
-                System.Windows.Media.PixelFormats.Bgr24,
-                null,
-                pixels,
-                width * 3);
-            bitmap.Freeze();
+            System.Windows.Media.Imaging.BitmapSource bitmap;
+            try
+            {
+                bitmap = OverlayPreviewBitmapFactory.Create(
+                    frame,
+                    Volatile.Read(ref _previewDisplayWidth));
+            }
+            catch (Exception ex)
+            {
+                LogOverlayPreviewErrorIfDue(channel, ex);
+                return;
+            }
 
             // 做这张位图期间界面可能已经退出取景编辑：这一帧就不要再挂上去，
             // 否则退出后还留着上一屏的画面，下次进来会先闪一帧旧的。
@@ -1323,6 +1321,24 @@ namespace ExpressPackingMonitoring.ViewModels
             OnPropertyChanged(nameof(OverlayPreviewFrame));
             OnPropertyChanged(nameof(PreviewImageSource));
             OnPropertyChanged(nameof(CameraFrameSize));
+        }
+
+        private void LogOverlayPreviewErrorIfDue(OverlayChannel channel, Exception exception)
+        {
+            long nowTicks = DateTime.UtcNow.Ticks;
+            long previousTicks = Volatile.Read(ref _lastOverlayPreviewErrorTicks);
+            if (nowTicks - previousTicks < TimeSpan.FromSeconds(30).Ticks
+                || Interlocked.CompareExchange(
+                    ref _lastOverlayPreviewErrorTicks,
+                    nowTicks,
+                    previousTicks) != previousTicks)
+            {
+                return;
+            }
+
+            RuntimeLog.Warn(
+                "OverlayChannel",
+                $"第 {channel.Number} 路取景预览转换失败：{exception.GetType().Name}: {exception.Message}");
         }
 
         /// <summary>

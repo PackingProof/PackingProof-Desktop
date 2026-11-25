@@ -1573,6 +1573,7 @@ internal sealed partial class CameraBarcodeRecognitionService : IDisposable
         Mat? dropped = null;
         bool shouldSignal = false;
         bool accepted = false;
+        bool visionEnqueued = false;
         lock (_pendingLock)
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -1603,6 +1604,7 @@ internal sealed partial class CameraBarcodeRecognitionService : IDisposable
             {
                 _lastVisionUpdateAt = now;
                 accepted = true;
+                visionEnqueued = true;
             }
 
             if (_disposed || now - _lastAcceptedAt < barcodeInterval)
@@ -1618,13 +1620,14 @@ internal sealed partial class CameraBarcodeRecognitionService : IDisposable
             bool decodeDue = _lastBarcodeDecodeAt == default
                 || now - _lastBarcodeDecodeAt >= barcodeInterval;
             bool decodeAllowed = decodeDue && motionAllowsDecode;
-            if (!decodeAllowed && !visionDue)
+            if (!decodeAllowed && !visionEnqueued)
                 return false;
             if (decodeAllowed)
                 _lastBarcodeDecodeAt = now;
 
             if (decodeAllowed)
             {
+                // 原帧随后仍由摄像头处理循环交给预览、录像并释放；解码线程必须拿独立副本。
                 replacement = frame.Clone();
                 dropped = _pendingFrame;
                 _pendingFrame = replacement;

@@ -717,8 +717,7 @@ namespace ExpressPackingMonitoring.UI
         }
 
         /// <summary>
-        /// 本机录制动态：单击单号、或右键菜单里的"复制单号"，都把单号送进剪贴板。
-        /// 两个入口共用这一个处理器，行为不会各写一套。
+        /// 本机录制动态：复制按钮、右键菜单和录制中整行单击共用这一个处理器。
         /// 剪贴板被别的程序（远程桌面/串流客户端的剪贴板同步、输入法等）占着时，
         /// 不在界面线程上死等 —— 那会整页卡住 —— 转后台重试，成功后再提示。
         /// </summary>
@@ -726,7 +725,13 @@ namespace ExpressPackingMonitoring.UI
         {
             if ((sender as FrameworkElement)?.DataContext is not ScanRecord record)
                 return;
+            e.Handled = true;
 
+            CopyRecentOrderNumber(record);
+        }
+
+        private void CopyRecentOrderNumber(ScanRecord record)
+        {
             string copyText = record.CopyOrderNumberText;
             if (copyText.Length == 0)
             {
@@ -752,14 +757,17 @@ namespace ExpressPackingMonitoring.UI
                 return;
             if (DataContext is not MainViewModel viewModel)
                 return;
-            if (record.VideoRecordId <= 0)
+
+            if (record.ClickAction == RecentRecordingClickAction.CopyOrderNumber)
             {
-                ShowRecentCopyToast(
-                    AppLanguage.Get("这条录像暂时无法播放"),
-                    ToastSeverity.Warning);
+                CopyRecentOrderNumber(record);
+                e.Handled = true;
                 return;
             }
+            if (record.ClickAction != RecentRecordingClickAction.Play)
+                return;
 
+            e.Handled = true;
             await viewModel.PlayRecentRecordingAsync(record.VideoRecordId);
         }
 

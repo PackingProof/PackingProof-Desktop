@@ -28,6 +28,13 @@ namespace ExpressPackingMonitoring.Config
             value is Continue or Pause ? value : Ask;
     }
 
+    public enum RecentRecordingClickAction
+    {
+        None,
+        Play,
+        CopyOrderNumber
+    }
+
     public partial class ScanRecord : ObservableObject
     {
         [ObservableProperty] private string _orderId;
@@ -77,12 +84,24 @@ namespace ExpressPackingMonitoring.Config
         public bool CanCopyOrderNumber =>
             !string.IsNullOrWhiteSpace(CopyOrderNumberText);
         public bool HasSaveStatus => !string.IsNullOrWhiteSpace(SaveStatusText);
+        public RecentRecordingClickAction ClickAction =>
+            IsActive && CanCopyOrderNumber
+                ? RecentRecordingClickAction.CopyOrderNumber
+                : CanPlay
+                    ? RecentRecordingClickAction.Play
+                    : RecentRecordingClickAction.None;
 
-        partial void OnIsActiveChanged(bool value) =>
+        partial void OnIsActiveChanged(bool value)
+        {
             OnPropertyChanged(nameof(CanPlay));
+            OnPropertyChanged(nameof(ClickAction));
+        }
 
-        partial void OnVideoRecordIdChanged(long value) =>
+        partial void OnVideoRecordIdChanged(long value)
+        {
             OnPropertyChanged(nameof(CanPlay));
+            OnPropertyChanged(nameof(ClickAction));
+        }
 
         partial void OnOrderIdChanged(string value) =>
             OnCopyOrderNumberChanged();
@@ -97,6 +116,7 @@ namespace ExpressPackingMonitoring.Config
         {
             OnPropertyChanged(nameof(CopyOrderNumberText));
             OnPropertyChanged(nameof(CanCopyOrderNumber));
+            OnPropertyChanged(nameof(ClickAction));
         }
     }
 

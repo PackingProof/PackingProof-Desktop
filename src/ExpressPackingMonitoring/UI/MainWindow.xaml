@@ -35,16 +35,20 @@
             否则首次右键会明显卡顿（与回放列表同一套做法）。
         -->
         <ContextMenu x:Key="RecentRecordingContextMenu" Style="{StaticResource AppContextMenuStyle}">
-            <MenuItem Header="{loc:Localized 播放录像}"
-                      Style="{StaticResource AppMenuItemStyle}"
-                      Click="PlayRecentRecording_Click"
-                      IsEnabled="{Binding CanPlay}"
-                      DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <Separator Style="{StaticResource AppSeparatorStyle}"/>
-            <MenuItem Header="{loc:Localized 复制单号}"
+            <MenuItem x:Name="CopyRecentRecordingMenuItem"
+                      Header="{loc:Localized 复制单号}"
                       Style="{StaticResource AppMenuItemStyle}"
                       Click="CopyRecentOrderId_Click"
                       IsEnabled="{Binding CanCopyOrderNumber}"
+                      DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+            <Separator Style="{StaticResource AppSeparatorStyle}"
+                       Visibility="{Binding CanPlay, Converter={StaticResource BoolToVisibility}}"
+                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+            <MenuItem x:Name="PlayRecentRecordingMenuItem"
+                      Header="{loc:Localized 播放录像}"
+                      Style="{StaticResource AppMenuItemStyle}"
+                      Click="PlayRecentRecording_Click"
+                      Visibility="{Binding CanPlay, Converter={StaticResource BoolToVisibility}}"
                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
         </ContextMenu>
         <Style x:Key="RecentRowActionButtonStyle" TargetType="Button">
@@ -1408,7 +1412,10 @@
                             <DataTemplate>
                                 <!-- 容器 Border -->
                                 <Border x:Name="ItemBorder" CornerRadius="6" Margin="2,2,2,6" Padding="10,8" ClipToBounds="True"
-                                        ContextMenu="{StaticResource RecentRecordingContextMenu}">
+                                        Cursor="Hand"
+                                        ContextMenu="{StaticResource RecentRecordingContextMenu}"
+                                        MouseLeftButtonUp="PlayRecentRecording_Click"
+                                        AutomationProperties.Name="{loc:Localized 播放录像}">
                                     <Border.Style>
                                         <Style TargetType="Border">
                                             <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
@@ -1455,12 +1462,8 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <!-- 单号是现场最常要复制的东西：单击即复制，右键也有同一个菜单项 -->
                                                 <Border Grid.Column="0"
-                                                        Background="{StaticResource TransparentBrush}"
-                                                        Cursor="Hand"
-                                                        ToolTip="单击复制单号"
-                                                        MouseLeftButtonUp="CopyRecentOrderId_Click">
+                                                        Background="{StaticResource TransparentBrush}">
                                                     <TextBlock Text="{Binding OrderId}" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                                                 </Border>
                                                 <Border Grid.Column="1" x:Name="ActiveStatusBorder" Background="{DynamicResource BadgeErrorBg}" CornerRadius="4" Padding="6,2" Margin="8,0" Visibility="Collapsed">
@@ -1528,7 +1531,7 @@
                                                         Orientation="Horizontal"
                                                         HorizontalAlignment="Right"
                                                         VerticalAlignment="Center"
-                                                        Margin="0,0,6,0"
+                                                        Margin="0,0,0.5,0"
                                                         Visibility="Collapsed"
                                                         Panel.ZIndex="3">
                                                 <Button x:Name="CopyRecentOrderButton"
@@ -1539,17 +1542,6 @@
                                                     <Path Data="{StaticResource FluentCopyIcon}"
                                                           Width="15"
                                                           Height="15"
-                                                          Stretch="Uniform"
-                                                          Fill="{DynamicResource TextSecondary}"/>
-                                                </Button>
-                                                <Button x:Name="PlayRecentButton"
-                                                        Margin="6,0,0,0"
-                                                        Style="{StaticResource RecentRowActionButtonStyle}"
-                                                        AutomationProperties.Name="{loc:Localized 播放录像}"
-                                                        Click="PlayRecentRecording_Click">
-                                                    <Path Data="{StaticResource FluentPlayIcon}"
-                                                          Width="16"
-                                                          Height="16"
                                                           Stretch="Uniform"
                                                           Fill="{DynamicResource TextSecondary}"/>
                                                 </Button>

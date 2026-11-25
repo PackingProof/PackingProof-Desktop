@@ -351,6 +351,7 @@ public sealed class UiScreenshotTests
     {
         CaptureRecordingUploadPausedCard(outputDirectory);
         CapturePurposeSwitchWaitingButton(outputDirectory);
+        CaptureRecentRecordingActions(outputDirectory);
         CaptureTransferManagement(outputDirectory);
         CaptureViewerHostSelection(outputDirectory);
         CaptureViewerHostBindingFooter(outputDirectory);
@@ -808,6 +809,155 @@ public sealed class UiScreenshotTests
                 return window;
             });
     }
+
+    private static void CaptureRecentRecordingActions(string outputDirectory)
+    {
+        var window = new MainWindow(enableCloseBehaviorPrompt: false);
+        if (window.DataContext is not ExpressPackingMonitoring.ViewModels.MainViewModel viewModel)
+            return;
+
+        viewModel.CapabilityOverride = SettingsCapabilities.ForPreset(
+            DeploymentPresets.RecordingWorkstation);
+        viewModel.FilteredLogs.Add(new ScanRecord(
+            "7902302208052379023022080523",
+            "6s",
+            "16:01:37",
+            "发货",
+            videoRecordId: 1,
+            generatedName: "MAN_20261123_160137",
+            saveStatusText: "已保存"));
+        Windows.Add(window);
+        AttachToSource(window);
+
+        ListView? list = FindLogicalDescendants<ListView>(window)
+            .FirstOrDefault(item => item.Items.Count > 0);
+        if (list == null)
+            throw new InvalidOperationException("找不到本机录制动态列表");
+        list.UpdateLayout();
+        var row = Assert.IsType<ListViewItem>(
+            list.ItemContainerGenerator.ContainerFromIndex(0));
+        FindNamedDescendant(row, "RecentRowActions").Visibility = Visibility.Visible;
+        FindNamedDescendant(row, "SavedStatusPanel").Visibility = Visibility.Hidden;
+        FindNamedDescendant(row, "BadgeBorder").Visibility = Visibility.Hidden;
+        Pump(window);
+        var itemBorder = Assert.IsType<Border>(
+            FindNamedDescendant(row, "ItemBorder"));
+        var copyButton = Assert.IsType<Button>(
+            FindNamedDescendant(row, "CopyRecentOrderButton"));
+        Assert.Equal(34, copyButton.ActualWidth, 1);
+        Assert.Equal(34, copyButton.ActualHeight, 1);
+        Point copyOrigin = copyButton
+            .TransformToAncestor(itemBorder)
+            .Transform(new Point(0, 0));
+        double topGap = copyOrigin.Y;
+        double bottomGap = itemBorder.ActualHeight
+            - copyOrigin.Y
+            - copyButton.ActualHeight;
+        double rightGap = itemBorder.ActualWidth
+            - copyOrigin.X
+            - copyButton.ActualWidth;
+        double gapSpread = Math.Max(topGap, Math.Max(bottomGap, rightGap))
+            - Math.Min(topGap, Math.Min(bottomGap, rightGap));
+        Assert.True(
+            gapSpread <= 1.1,
+            $"复制按钮间距不一致：top={topGap:F1}, bottom={bottomGap:F1}, right={rightGap:F1}");
+        Save(
+            window,
+            Path.Combine(outputDirectory, "main-window-recording-actions.png"));
+
+        CaptureRecentRecordingMenu(
+            window,
+            outputDirectory,
+            "main-window-recording-menu-active",
+            new ScanRecord(
+                "7902302208052379023022080523",
+                "12s",
+                "16:01:43",
+                "发货",
+                isActive: true,
+                videoRecordId: 1,
+                generatedName: "MAN_20261123_160137"));
+        CaptureRecentRecordingMenu(
+            window,
+            outputDirectory,
+            "main-window-recording-menu-completed",
+            new ScanRecord(
+                "7902302208052379023022080523",
+                "6s",
+                "16:01:37",
+                "发货",
+                videoRecordId: 1,
+                generatedName: "MAN_20261123_160137",
+                saveStatusText: "已保存"));
+    }
+
+    private static void CaptureRecentRecordingMenu(
+        Window owner,
+        string outputDirectory,
+        string fileName,
+        ScanRecord record)
+    {
+        var menu = Assert.IsType<ContextMenu>(
+            owner.FindResource("RecentRecordingContextMenu"));
+        var target = new Border { DataContext = record };
+        menu.PlacementTarget = target;
+        menu.DataContext = record;
+        WpfLocalization.LocalizeTree(menu);
+        menu.Measure(new Size(260, double.PositiveInfinity));
+        menu.Arrange(new Rect(new Point(0, 0), menu.DesiredSize));
+        menu.UpdateLayout();
+
+        MenuItem[] items = menu.Items.OfType<MenuItem>().ToArray();
+        Assert.Equal(2, items.Length);
+        Assert.Equal("CopyRecentRecordingMenuItem", items[0].Name);
+        Assert.Equal("PlayRecentRecordingMenuItem", items[1].Name);
+        Assert.Equal(Visibility.Visible, items[0].Visibility);
+        Assert.Equal(
+            record.CanPlay ? Visibility.Visible : Visibility.Collapsed,
+            items[1].Visibility);
+
+        SaveElement(
+            menu,
+            Path.Combine(outputDirectory, $"{fileName}.png"));
+    }
+
+    private static IEnumerable<T> FindDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        int count = VisualTreeHelper.GetChildrenCount(root);
+        for (int index = 0; index < count; index++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(root, index);
+            if (child is T match)
+                yield return match;
+            foreach (T descendant in FindDescendants<T>(child))
+                yield return descendant;
+        }
+    }
+
+    private static IEnumerable<T> FindLogicalDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        foreach (object child in LogicalTreeHelper.GetChildren(root))
+        {
+            if (child is not DependencyObject dependencyObject)
+                continue;
+            if (dependencyObject is T match)
+                yield return match;
+            foreach (T descendant in FindLogicalDescendants<T>(dependencyObject))
+                yield return descendant;
+        }
+    }
+
+    private static FrameworkElement FindNamedDescendant(
+        DependencyObject root,
+        string name) =>
+        FindDescendants<FrameworkElement>(root)
+            .FirstOrDefault(item => string.Equals(
+                item.Name,
+                name,
+                StringComparison.Ordinal))
+        ?? throw new InvalidOperationException($"找不到模板元素：{name}");
 
     private static void CaptureTransferManagement(string outputDirectory)
     {
@@ -1379,6 +1529,22 @@ public sealed class UiScreenshotTests
 
         var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(content);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using FileStream stream = File.Create(path);
+        encoder.Save(stream);
+    }
+
+    private static void SaveElement(FrameworkElement element, string path)
+    {
+        element.UpdateLayout();
+        int width = (int)Math.Ceiling(element.ActualWidth);
+        int height = (int)Math.Ceiling(element.ActualHeight);
+        if (width <= 0 || height <= 0)
+            throw new InvalidOperationException($"元素没有可渲染尺寸：{element.GetType().Name}");
+
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(element);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using FileStream stream = File.Create(path);

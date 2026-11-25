@@ -6,8 +6,7 @@ namespace ExpressPackingMonitoring.Services;
 
 /// <summary>
 /// OBB 视觉刷新队列。OBB 推理可能持续数百毫秒，必须和 ZXing 解码线程分开，
-/// 否则一次推理就会把条码识别拖到 3-4 FPS。这里只保留最新一帧，推理期间到达的
-/// 新帧会替换旧帧，不排队。
+/// 否则一次推理就会把条码识别拖到 3-4 FPS。推理期间不积压，新帧直接丢弃。
 /// </summary>
 internal sealed class CameraBarcodeVisionWorker : IDisposable
 {
@@ -23,7 +22,7 @@ internal sealed class CameraBarcodeVisionWorker : IDisposable
     private CameraBarcodeGuideGeometry _pendingGeometry;
     private int _pendingGeneration;
     private bool _processing;
-    private bool _disposed;
+    private int _disposed;
 
     internal Task Task => _task;
 
@@ -47,16 +46,19 @@ internal sealed class CameraBarcodeVisionWorker : IDisposable
         CameraBarcodeGuideGeometry geometry,
         int generation)
     {
-        if (_disposed || _cancellationToken.IsCancellationRequested)
+        if (Volatile.Read(ref _disposed) != 0 || _cancellationToken.IsCancellationRequested)
             return false;
 
         bool signal;
         lock (_gate)
         {
-            // 实时档不再人为限频，但硬件跟不上时只允许一个在跑、一个待跑；
-            // 更早的帧直接丢掉，避免 30 FPS 的 Mat.Clone 把内存和 CPU 拖满。
+            // 推理期间不再积压：没有待跑槽，上一帧没处理完时直接丢掉新帧。
+            // 必须与 Dispose 的最终检查共用锁，避免关闭瞬间克隆出无人消费的 Mat。
+            if (Volatile.Read(ref _disposed) != 0 || _cancellationToken.IsCancellationRequested)
+                return false;
             if (_processing || _pendingFrame != null)
                 return false;
+            // 调用方会继续把原帧交给预览和录像并释放，这里必须持有独立副本。
             _pendingFrame = frame.Clone();
             _pendingGeometry = geometry;
             _pendingGeneration = generation;
@@ -146,10 +148,16 @@ internal sealed class CameraBarcodeVisionWorker : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
-        ClearPending();
+        Mat? dropped;
+        lock (_gate)
+        {
+            if (Volatile.Read(ref _disposed) != 0)
+                return;
+            Interlocked.Exchange(ref _disposed, 1);
+            dropped = _pendingFrame;
+            _pendingFrame = null;
+        }
+        dropped?.Dispose();
         try { _signal.Release(); }
         catch (SemaphoreFullException) { }
         catch (ObjectDisposedException) { }
