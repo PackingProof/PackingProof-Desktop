@@ -168,6 +168,14 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("if \"%~1\"==\"\"", incrementalScript, StringComparison.Ordinal);
         Assert.Contains("set \"TEST_ARGS=-SkipFullTest\"", incrementalScript, StringComparison.Ordinal);
         Assert.Contains("%TEST_ARGS%", incrementalScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "set \"BASELINE_APP_DIR=package\\PackingProof+%BASELINE_TAG%\\PackingProof+%BASELINE_TAG%\\app\"",
+            incrementalScript,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command",
+            incrementalScript,
+            StringComparison.Ordinal);
         Assert.Contains("if \"%~1\"==\"\"", baselineScript, StringComparison.Ordinal);
         Assert.Contains("set \"TEST_ARGS=-SkipFullTest\"", baselineScript, StringComparison.Ordinal);
         Assert.Contains("%TEST_ARGS%", baselineScript, StringComparison.Ordinal);

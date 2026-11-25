@@ -1359,6 +1359,11 @@ function New-AppPatchPackage {
     $patchManifest["brand"] = [ordered]@{
         profile_id = $brand.ProfileId
         product_name = $brand.ProductName
+        legacy_product_names = @(
+            if ($brand.ProfileId -eq "packingproof") {
+                "ExpressPackingMonitoring"
+            }
+        )
         display_name = $brand.DisplayName
         artifact_prefix = $brand.ArtifactPrefix
         compatibility_id = $brand.CompatibilityId

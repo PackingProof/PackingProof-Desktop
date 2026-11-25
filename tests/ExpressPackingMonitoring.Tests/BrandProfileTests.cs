@@ -205,14 +205,18 @@ public sealed class BrandProfileTests
         Assert.Contains("IsLegacy = $true", appPatch, StringComparison.Ordinal);
         Assert.Contains("$patchBrand.DataDirectoryName", appPatch, StringComparison.Ordinal);
         Assert.Contains("Test-TargetBrandProduct", appPatch, StringComparison.Ordinal);
+        Assert.Contains("LegacyProductNames", appPatch, StringComparison.Ordinal);
         Assert.Contains("Get-PatchBrandContract", launcherPatch, StringComparison.Ordinal);
         Assert.Contains("IsLegacy = $true", launcherPatch, StringComparison.Ordinal);
         Assert.Contains("Test-TargetBrandProduct", launcherPatch, StringComparison.Ordinal);
+        Assert.Contains("LegacyProductNames", launcherPatch, StringComparison.Ordinal);
         Assert.Contains("$patchManifest[\"brand\"]", publisher, StringComparison.Ordinal);
+        Assert.Contains("legacy_product_names = @(", publisher, StringComparison.Ordinal);
         Assert.Contains("AllowPlaceholderBrandSecrets", publisher, StringComparison.Ordinal);
         Assert.Contains("ExtensionMarketPublicKeyIsPlaceholder", publisher, StringComparison.Ordinal);
         Assert.Contains("$cachedBaselineRoot", publisher, StringComparison.Ordinal);
         Assert.Contains("brand = [ordered]@{", launcherPublisher, StringComparison.Ordinal);
+        Assert.Contains("legacy_product_names = @(", launcherPublisher, StringComparison.Ordinal);
         Assert.Contains("$brand.ArtifactPrefix", noRuntimePublisher, StringComparison.Ordinal);
         Assert.Contains("BrandAppIconRelativePath", macHost, StringComparison.Ordinal);
         Assert.Contains("Get-LauncherBaselineTag", launcherCommon, StringComparison.Ordinal);

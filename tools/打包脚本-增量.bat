@@ -7,18 +7,7 @@ cd /d "%~dp0.."
 set "BASELINE_VERSION=0.0.100"
 if not "%~2"=="" set "BASELINE_VERSION=%~2"
 set "BASELINE_TAG=v%BASELINE_VERSION%"
-if not defined BRAND_ARTIFACT_PREFIX (
-    for /f "usebackq delims=" %%I in (`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ". '.\tools\Branding.Common.ps1'; (Get-BrandProfile -RepoRoot (Get-Location).Path).ArtifactPrefix"`) do set "BRAND_ARTIFACT_PREFIX=%%I"
-)
-if not defined BRAND_ARTIFACT_PREFIX set "BRAND_ARTIFACT_PREFIX=PackingProof"
-set "BASELINE_PACKAGE_DIR=package\%BRAND_ARTIFACT_PREFIX%+%BASELINE_TAG%"
-set "BASELINE_FULL_DIR=%BASELINE_PACKAGE_DIR%\%BRAND_ARTIFACT_PREFIX%+%BASELINE_TAG%"
-set "BASELINE_APP_DIR=%BASELINE_FULL_DIR%\app"
-if not exist "%BASELINE_APP_DIR%\ExpressPackingMonitoring.exe" (
-    set "BASELINE_PACKAGE_DIR=package\ExpressPackingMonitoring+%BASELINE_TAG%"
-    set "BASELINE_FULL_DIR=package\ExpressPackingMonitoring+%BASELINE_TAG%\ExpressPackingMonitoring+%BASELINE_TAG%"
-    set "BASELINE_APP_DIR=package\ExpressPackingMonitoring+%BASELINE_TAG%\ExpressPackingMonitoring+%BASELINE_TAG%\app"
-)
+set "BASELINE_APP_DIR=package\PackingProof+%BASELINE_TAG%\PackingProof+%BASELINE_TAG%\app"
 
 set "VERSION_ARG="
 if not "%~1"=="" set "VERSION_ARG=-Version %~1"

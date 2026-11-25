@@ -181,6 +181,7 @@ function Get-PatchBrandContract {
         return (New-Object PSObject -Property @{
             ProfileId = "packingproof"
             ProductName = "PackingProof"
+            LegacyProductNames = @()
             DisplayName = "PackingProof 快递打包监控"
             ArtifactPrefix = "PackingProof"
             CompatibilityId = "PackingProof"
@@ -193,6 +194,9 @@ function Get-PatchBrandContract {
     return (New-Object PSObject -Property @{
         ProfileId = Get-RequiredJsonProperty $brand "profile_id"
         ProductName = Get-RequiredJsonProperty $brand "product_name"
+        LegacyProductNames = @((Get-JsonProperty $brand "legacy_product_names") |
+            Where-Object { -not (Test-IsNullOrWhiteSpace ([string]$_)) } |
+            ForEach-Object { ([string]$_).Trim() })
         DisplayName = Get-RequiredJsonProperty $brand "display_name"
         ArtifactPrefix = Get-RequiredJsonProperty $brand "artifact_prefix"
         CompatibilityId = Get-RequiredJsonProperty $brand "compatibility_id"
@@ -456,15 +460,27 @@ function Get-InstalledVersion {
 }
 
 function Test-TargetBrandProduct {
-    param([string]$DllPath, [string]$ExpectedProductName)
+    param(
+        [string]$DllPath,
+        [string]$ExpectedProductName,
+        [string[]]$LegacyProductNames = @()
+    )
     $actualProductName = [string]([Diagnostics.FileVersionInfo]::GetVersionInfo($DllPath).ProductName)
     if ($null -eq $actualProductName) {
         $actualProductName = ""
     }
     $actualProductName = $actualProductName.Trim()
     # 合成夹具没有真实文件版本；真实安装目录里的主程序一定带 ProductName。
-    return (Test-IsNullOrWhiteSpace $actualProductName) -or
-        [string]::Equals($actualProductName, $ExpectedProductName.Trim(), [System.StringComparison]::OrdinalIgnoreCase)
+    if (Test-IsNullOrWhiteSpace $actualProductName) {
+        return $true
+    }
+    foreach ($expectedName in @($ExpectedProductName) + @($LegacyProductNames)) {
+        if (-not (Test-IsNullOrWhiteSpace $expectedName) -and
+            [string]::Equals($actualProductName, $expectedName.Trim(), [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+    return $false
 }
 
 function Get-FileSha256 {
@@ -615,7 +631,10 @@ try {
         throw "不支持的增量更新包类型"
     }
 
-    if (-not (Test-TargetBrandProduct -DllPath $targetDllPath -ExpectedProductName $patchBrand.ProductName)) {
+    if (-not (Test-TargetBrandProduct `
+            -DllPath $targetDllPath `
+            -ExpectedProductName $patchBrand.ProductName `
+            -LegacyProductNames @($patchBrand.LegacyProductNames))) {
         throw "补丁属于 $($patchBrand.DisplayName)，与所选安装目录的软件配置不匹配；请确认没有把独立软件配置补丁装到其他版本上"
     }
 
