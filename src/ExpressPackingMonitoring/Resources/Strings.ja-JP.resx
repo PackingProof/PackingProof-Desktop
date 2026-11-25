@@ -2123,4 +2123,13 @@
   <data name="当前录像无法导出" xml:space="preserve"><value>この録画はエクスポートできません</value></data>
   <data name="已生成导出压缩版本：{0}" xml:space="preserve"><value>圧縮版をエクスポートしました: {0}</value></data>
   <data name="无法导出" xml:space="preserve"><value>エクスポートできません</value></data>
+  <data name="面单识别" xml:space="preserve"><value>送り状認識</value></data>
+  <data name="扫码枪" xml:space="preserve"><value>バーコードスキャナー</value></data>
+  <data name="启用{0}" xml:space="preserve"><value>{0}を有効化</value></data>
+  <data name="可配置 NAS／网络共享备份" xml:space="preserve"><value>NAS／ネットワーク共有へのバックアップ</value></data>
+  <data name="可接收手机录像" xml:space="preserve"><value>スマートフォン動画を受信</value></data>
+  <data name="可接收其他电脑上传的录像" xml:space="preserve"><value>他のパソコンからのアップロードを受信</value></data>
+  <data name="这台电脑负责长期保存录像，{0}" xml:space="preserve"><value>この PC が録画を長期保存します: {0}</value></data>
+  <data name="本机录像并长期保存" xml:space="preserve"><value>この PC で録画して長期保存</value></data>
+  <data name="接收并长期保存手机或其他电脑的录像" xml:space="preserve"><value>スマートフォンや他のパソコンの録画を受信して長期保存</value></data>
 </root>

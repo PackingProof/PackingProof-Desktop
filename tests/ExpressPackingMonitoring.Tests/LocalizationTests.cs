@@ -719,6 +719,32 @@ public sealed class LocalizationTests
         }
     }
 
+    [Fact]
+    public void RecordingCacheUnavailable_UsesNumericPlaceholderInEveryLanguage()
+    {
+        CultureInfo original = CultureInfo.CurrentUICulture;
+        try
+        {
+            foreach (string language in new[]
+                     {
+                         AppLanguage.Chinese,
+                         AppLanguage.English,
+                         AppLanguage.Japanese
+                     })
+            {
+                CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(language);
+                Assert.Contains(
+                    "disk offline",
+                    AppLanguage.Format("本地缓存不可用：{error}", "disk offline"),
+                    StringComparison.Ordinal);
+            }
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = original;
+        }
+    }
+
     /// <summary>
     /// 代码直接给 Text/Content/Header/ToolTip 赋的中文也要有资源。
     /// XAML 静态文案守卫看不到这些状态文案，分页、检查更新等运行时文字过去就是这样漏掉的。

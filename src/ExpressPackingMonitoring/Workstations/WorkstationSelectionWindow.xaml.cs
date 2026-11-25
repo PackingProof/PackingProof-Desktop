@@ -112,48 +112,51 @@ public partial class WorkstationSelectionWindow : Window
     {
         var recordingInputs = new List<string>();
         if (_productFeatures.Inputs.Camera)
-            recordingInputs.Add("摄像头");
+            recordingInputs.Add(AppLanguage.Get("摄像头"));
         if (_productFeatures.Inputs.Microphone)
-            recordingInputs.Add("麦克风");
+            recordingInputs.Add(AppLanguage.Get("麦克风"));
         if (_productFeatures.Inputs.VisionObb)
-            recordingInputs.Add("面单识别");
+            recordingInputs.Add(AppLanguage.Get("面单识别"));
         if (_productFeatures.Inputs.Scanner)
-            recordingInputs.Add("扫码枪");
+            recordingInputs.Add(AppLanguage.Get("扫码枪"));
         if (_productFeatures.Inputs.CameraBarcode)
-            recordingInputs.Add("摄像头扫码");
+            recordingInputs.Add(AppLanguage.Get("摄像头扫码"));
         if (_productFeatures.OrderReceiver)
-            recordingInputs.Add("订单联动");
+            recordingInputs.Add(AppLanguage.Get("订单联动"));
         if (_productFeatures.Tts)
-            recordingInputs.Add("语音提醒");
+            recordingInputs.Add(AppLanguage.Get("语音提醒"));
         RecordYesDescriptionText.Text = _productFeatures.PhotoCapture
             && !_productFeatures.VideoRecording
-            ? "拍照并保存到本机资料库"
+            ? AppLanguage.Get("拍照并保存到本机资料库")
             : recordingInputs.Count > 0
-                ? "启用" + string.Join("、", recordingInputs)
-                : "当前软件未开放本机录像";
+                ? AppLanguage.Format(
+                    "启用{0}",
+                    string.Join(AppLanguage.Get("、"), recordingInputs))
+                : AppLanguage.Get("当前软件未开放本机录像");
 
         RecordNoDescriptionText.Text = _productFeatures.MediaLibrary
-            ? "不初始化本机录像设备，仍可保存其他设备录像或只连接主机查看"
-            : "当前软件未开放不录像模式";
+            ? AppLanguage.Get("不初始化本机录像设备，仍可保存其他设备录像或只连接主机查看")
+            : AppLanguage.Get("当前软件未开放不录像模式");
 
         StorageYesTitleText.Text = _productFeatures.NasArchive
-            ? "要，作为备份主机（支持 NAS）"
-            : "要，长期保存在这台电脑";
+            ? AppLanguage.Get("要，作为备份主机（支持 NAS）")
+            : AppLanguage.Get("要，长期保存在这台电脑");
         var storageFeatures = new List<string>();
         if (_productFeatures.NasArchive)
-            storageFeatures.Add("可配置 NAS／网络共享备份");
+            storageFeatures.Add(AppLanguage.Get("可配置 NAS／网络共享备份"));
         if (_productFeatures.MobileBackupReceive)
-            storageFeatures.Add("可接收手机录像");
+            storageFeatures.Add(AppLanguage.Get("可接收手机录像"));
         if (_productFeatures.ComputerBackupReceive)
-            storageFeatures.Add("可接收其他电脑上传的录像");
-        StorageYesDescriptionText.Text = "这台电脑负责长期保存录像"
-            + (storageFeatures.Count > 0
-                ? "，" + string.Join("，", storageFeatures)
-                : "");
+            storageFeatures.Add(AppLanguage.Get("可接收其他电脑上传的录像"));
+        StorageYesDescriptionText.Text = storageFeatures.Count > 0
+            ? AppLanguage.Format(
+                "这台电脑负责长期保存录像，{0}",
+                string.Join(AppLanguage.Get("、"), storageFeatures))
+            : AppLanguage.Get("这台电脑负责长期保存录像");
 
         StorageNoDescriptionText.Text = _productFeatures.LanCollaboration
-            ? "本机录像时作为“录像从机”，录像先保存在本机，再上传给备份主机；不录像时作为“查看端”，连接主机查看录像"
-            : "当前软件未开放录像从机或查看端";
+            ? AppLanguage.Get("本机录像时作为“录像从机”，录像先保存在本机，再上传给备份主机；不录像时作为“查看端”，连接主机查看录像")
+            : AppLanguage.Get("当前软件未开放录像从机或查看端");
     }
 
     private void RestoreCurrentAnswers()
@@ -343,60 +346,62 @@ public partial class WorkstationSelectionWindow : Window
         {
             DeploymentPresets.RecordingHost => new(
                 DeploymentPresets.RecordingHost,
-                localPhotoOnly ? "本地拍照取证" : "录像主机",
                 localPhotoOnly
-                    ? "拍照并保存到本机资料库"
+                    ? AppLanguage.Get("本地拍照取证")
+                    : AppLanguage.Get("录像主机"),
+                localPhotoOnly
+                    ? AppLanguage.Get("拍照并保存到本机资料库")
                     : features.NasArchive
-                        ? "本机录像并长期保存，支持备份到 NAS／网络共享文件夹"
-                        : "本机录像并长期保存",
+                        ? AppLanguage.Get("本机录像并长期保存，支持备份到 NAS／网络共享文件夹")
+                        : AppLanguage.Get("本机录像并长期保存"),
                 BuildCapabilityList(
-                    features.VideoRecording ? "使用完整电脑录像能力" : null,
-                    features.PhotoCapture ? "可使用摄像头拍照" : null,
+                    features.VideoRecording ? AppLanguage.Get("使用完整电脑录像能力") : null,
+                    features.PhotoCapture ? AppLanguage.Get("可使用摄像头拍照") : null,
                     features.MediaLibrary
                         ? localPhotoOnly
-                            ? "照片与录像统一按单号检索"
-                            : "录像长期保存在本机"
+                            ? AppLanguage.Get("照片与录像统一按单号检索")
+                            : AppLanguage.Get("录像长期保存在本机")
                         : null,
-                    features.NasArchive ? "支持备份到 NAS／网络共享文件夹" : null,
-                    features.MobileBackupReceive ? "可接收并备份手机录像" : null,
+                    features.NasArchive ? AppLanguage.Get("支持备份到 NAS／网络共享文件夹") : null,
+                    features.MobileBackupReceive ? AppLanguage.Get("可接收并备份手机录像") : null,
                     features.ComputerBackupReceive
-                        ? "可接收并备份其他录制电脑上传的录像"
+                        ? AppLanguage.Get("可接收并备份其他录制电脑上传的录像")
                         : null,
-                    features.RemoteMediaAccess ? "提供局域网录像回放" : null)),
+                    features.RemoteMediaAccess ? AppLanguage.Get("提供局域网录像回放") : null)),
             DeploymentPresets.RecordingWorkstation => new(
                 DeploymentPresets.RecordingWorkstation,
-                "录像从机",
-                "本机录像，自动上传到备份主机",
+                AppLanguage.Get("录像从机"),
+                AppLanguage.Get("本机录像，自动上传到备份主机"),
                 BuildCapabilityList(
-                    features.VideoRecording ? "使用完整电脑录像能力" : null,
-                    "录像先安全保存在本地缓存",
+                    features.VideoRecording ? AppLanguage.Get("使用完整电脑录像能力") : null,
+                    AppLanguage.Get("录像先安全保存在本地缓存"),
                     features.LanCollaboration
-                        ? "上传到绑定的保存电脑并等待完整性确认"
+                        ? AppLanguage.Get("上传到绑定的保存电脑并等待完整性确认")
                         : null,
-                    "不接收或备份其他设备录像")),
+                    AppLanguage.Get("不接收或备份其他设备录像"))),
             DeploymentPresets.MobileBackupHost => new(
                 DeploymentPresets.MobileBackupHost,
-                "备份主机",
+                AppLanguage.Get("备份主机"),
                 features.NasArchive
-                    ? "接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹"
-                    : "接收并长期保存手机或其他电脑的录像",
+                    ? AppLanguage.Get("接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹")
+                    : AppLanguage.Get("接收并长期保存手机或其他电脑的录像"),
                 BuildCapabilityList(
-                    "本机不使用摄像头录像",
-                    features.NasArchive ? "支持备份到 NAS／网络共享文件夹" : null,
-                    features.MobileBackupReceive ? "接收并长期保存手机录像" : null,
+                    AppLanguage.Get("本机不使用摄像头录像"),
+                    features.NasArchive ? AppLanguage.Get("支持备份到 NAS／网络共享文件夹") : null,
+                    features.MobileBackupReceive ? AppLanguage.Get("接收并长期保存手机录像") : null,
                     features.ComputerBackupReceive
-                        ? "接收并长期保存其他录制电脑上传的录像"
+                        ? AppLanguage.Get("接收并长期保存其他录制电脑上传的录像")
                         : null,
-                    features.RemoteMediaAccess ? "提供局域网录像回放" : null)),
+                    features.RemoteMediaAccess ? AppLanguage.Get("提供局域网录像回放") : null)),
             _ => new(
                 DeploymentPresets.ViewerClient,
-                "录像查看端",
-                "连接备份主机，查看和回放录像",
+                AppLanguage.Get("录像查看端"),
+                AppLanguage.Get("连接备份主机，查看和回放录像"),
                 BuildCapabilityList(
-                    "本机不录像、不长期保存录像",
-                    "连接现有主机查看录像",
-                    features.OrderReceiver ? "保留订单联动和测试订单能力" : null,
-                    "不接收其他设备录像"))
+                    AppLanguage.Get("本机不录像、不长期保存录像"),
+                    AppLanguage.Get("连接现有主机查看录像"),
+                    features.OrderReceiver ? AppLanguage.Get("保留订单联动和测试订单能力") : null,
+                    AppLanguage.Get("不接收其他设备录像")))
         };
     }
 

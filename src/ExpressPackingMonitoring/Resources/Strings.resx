@@ -2123,4 +2123,13 @@ Local audio</value></data>
   <data name="当前录像无法导出" xml:space="preserve"><value>This recording cannot be exported</value></data>
   <data name="已生成导出压缩版本：{0}" xml:space="preserve"><value>Exported compressed version created: {0}</value></data>
   <data name="无法导出" xml:space="preserve"><value>Cannot export</value></data>
+  <data name="面单识别" xml:space="preserve"><value>Waybill recognition</value></data>
+  <data name="扫码枪" xml:space="preserve"><value>Barcode scanner</value></data>
+  <data name="启用{0}" xml:space="preserve"><value>Enable {0}</value></data>
+  <data name="可配置 NAS／网络共享备份" xml:space="preserve"><value>NAS or network-share backup</value></data>
+  <data name="可接收手机录像" xml:space="preserve"><value>Receive phone recordings</value></data>
+  <data name="可接收其他电脑上传的录像" xml:space="preserve"><value>Receive uploads from other computers</value></data>
+  <data name="这台电脑负责长期保存录像，{0}" xml:space="preserve"><value>This PC stores recordings long term: {0}</value></data>
+  <data name="本机录像并长期保存" xml:space="preserve"><value>Record on this PC and store recordings long term</value></data>
+  <data name="接收并长期保存手机或其他电脑的录像" xml:space="preserve"><value>Receive and retain recordings from phones or other computers</value></data>
 </root>

@@ -1376,7 +1376,7 @@
   <data name="按时间清理本地录像" xml:space="preserve"><value>按时间清理本地录像</value></data>
   <data name="备份主机返回的网页访问链接无效，请更新备份主机后重试" xml:space="preserve"><value>备份主机返回的网页访问链接无效，请更新备份主机后重试</value></data>
   <data name="备份主机未返回网页访问链接，请更新备份主机后重试" xml:space="preserve"><value>备份主机未返回网页访问链接，请更新备份主机后重试</value></data>
-  <data name="本地缓存不可用：{error}" xml:space="preserve"><value>本地缓存不可用：{error}</value></data>
+  <data name="本地缓存不可用：{error}" xml:space="preserve"><value>本地缓存不可用：{0}</value></data>
   <data name="本地缓存会在接近上限时自动清理" xml:space="preserve"><value>本地缓存会在接近上限时自动清理</value></data>
   <data name="本地缓存位置不可用" xml:space="preserve"><value>本地缓存位置不可用</value></data>
   <data name="编码器 {EncodingHelper.GetEncoderLabel(encoder)}" xml:space="preserve"><value>编码器 {EncodingHelper.GetEncoderLabel(encoder)}</value></data>
@@ -2125,4 +2125,13 @@
   <data name="已生成导出压缩版本：{0}" xml:space="preserve"><value>已生成导出压缩版本：{0}</value></data>
   <data name="无法导出" xml:space="preserve"><value>无法导出</value></data>
   <data name="PackingProof 主机离线或无法访问" xml:space="preserve"><value>备份主机离线或无法访问</value></data>
+  <data name="面单识别" xml:space="preserve"><value>面单识别</value></data>
+  <data name="扫码枪" xml:space="preserve"><value>扫码枪</value></data>
+  <data name="启用{0}" xml:space="preserve"><value>启用{0}</value></data>
+  <data name="可配置 NAS／网络共享备份" xml:space="preserve"><value>可配置 NAS／网络共享备份</value></data>
+  <data name="可接收手机录像" xml:space="preserve"><value>可接收手机录像</value></data>
+  <data name="可接收其他电脑上传的录像" xml:space="preserve"><value>可接收其他电脑上传的录像</value></data>
+  <data name="这台电脑负责长期保存录像，{0}" xml:space="preserve"><value>这台电脑负责长期保存录像，{0}</value></data>
+  <data name="本机录像并长期保存" xml:space="preserve"><value>本机录像并长期保存</value></data>
+  <data name="接收并长期保存手机或其他电脑的录像" xml:space="preserve"><value>接收并长期保存手机或其他电脑的录像</value></data>
 </root>

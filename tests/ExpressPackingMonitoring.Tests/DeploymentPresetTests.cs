@@ -1,5 +1,7 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.UI;
+using System.Globalization;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -293,6 +295,34 @@ public sealed class DeploymentPresetTests
 
         Assert.Equal(expectedName, summary.DisplayName);
         Assert.Contains(expectedCapability, summary.Capabilities);
+    }
+
+    [Fact]
+    public void PurposeResultLocalizesForEnglishAndJapanese()
+    {
+        CultureInfo original = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(AppLanguage.English);
+            WorkstationPurposeSummary english =
+                WorkstationSelectionWindow.GetPurposeSummary(true, true);
+            Assert.Equal("Recording host", english.DisplayName);
+            Assert.Contains("Receive and back up phone recordings", english.Capabilities);
+            Assert.DoesNotContain(
+                english.Capabilities,
+                value => value.Any(character =>
+                    character is >= '\u4e00' and <= '\u9fff'));
+
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(AppLanguage.Japanese);
+            WorkstationPurposeSummary japanese =
+                WorkstationSelectionWindow.GetPurposeSummary(false, false);
+            Assert.Equal("録画ビューアー", japanese.DisplayName);
+            Assert.Contains("既存のホストに接続して録画を閲覧", japanese.Capabilities);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = original;
+        }
     }
 
     [Fact]
