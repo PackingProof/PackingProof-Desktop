@@ -189,7 +189,23 @@ public partial class MainViewModel
         }
         if (completion == null || frame.Empty())
             return;
-        completion.TrySetResult(frame.Clone());
+        TryCompletePhotoFrameRequest(completion, frame);
+    }
+
+    internal static bool TryCompletePhotoFrameRequest(
+        TaskCompletionSource<Mat?>? completion,
+        Mat frame)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        if (completion == null || completion.Task.IsCompleted || frame.Empty())
+            return false;
+
+        Mat clone = frame.Clone();
+        if (completion.TrySetResult(clone))
+            return true;
+
+        clone.Dispose();
+        return false;
     }
 
     private static string ResolvePhotoRoot()

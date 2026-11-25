@@ -2,6 +2,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.ViewModels;
 using Microsoft.Data.Sqlite;
 using OpenCvSharp;
 using Xunit;
@@ -178,6 +179,33 @@ public sealed class PhotoEvidenceTests
             BitmapCacheOption.OnLoad);
         Assert.Equal(1920, decoder.Frames[0].PixelWidth);
         Assert.Equal(1080, decoder.Frames[0].PixelHeight);
+    }
+
+    [Fact]
+    public void LatePhotoFrameIsDisposedWhenRequestAlreadyCompleted()
+    {
+        using var frame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.All(64));
+        var completion = new TaskCompletionSource<Mat?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        completion.SetResult(null);
+
+        Assert.False(MainViewModel.TryCompletePhotoFrameRequest(completion, frame));
+        Assert.False(frame.IsDisposed);
+    }
+
+    [Fact]
+    public async Task PendingPhotoFrameIsClonedAndOwnedByRequester()
+    {
+        using var frame = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.All(64));
+        var completion = new TaskCompletionSource<Mat?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Assert.True(MainViewModel.TryCompletePhotoFrameRequest(completion, frame));
+        using Mat delivered = Assert.IsType<Mat>(await completion.Task);
+
+        Assert.NotSame(frame, delivered);
+        Assert.Equal(1920, delivered.Width);
+        Assert.Equal(1080, delivered.Height);
     }
 
     [Fact]
