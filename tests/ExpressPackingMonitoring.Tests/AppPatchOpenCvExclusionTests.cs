@@ -54,6 +54,28 @@ public sealed class AppPatchOpenCvExclusionTests
         Assert.Contains("managed or native OpenCV is missing", result.Output + result.Error, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AppPatchIncludesMatchingNativeOpenCvWhenExclusionIsDisabled()
+    {
+        using var fixture = new Fixture();
+
+        ProcessResult result = fixture.CreatePatch(excludeNativeOpenCv: false);
+
+        Assert.True(result.ExitCode == 0, $"{result.Output}\n{result.Error}");
+        using ZipArchive archive = ZipFile.OpenRead(fixture.PatchPath);
+        Assert.Contains(
+            archive.Entries,
+            entry => entry.FullName.Equals(
+                "files/OpenCvSharpExtern.dll",
+                StringComparison.OrdinalIgnoreCase));
+
+        string manifest = ReadEntry(archive, "patch_manifest.json");
+        using JsonDocument document = JsonDocument.Parse(manifest);
+        Assert.Contains(
+            document.RootElement.GetProperty("files").EnumerateArray(),
+            entry => entry.GetProperty("path").GetString() == "OpenCvSharpExtern.dll");
+    }
+
     private static void AssertNoOpenCv(JsonElement entries)
     {
         Assert.DoesNotContain(
@@ -98,7 +120,7 @@ public sealed class AppPatchOpenCvExclusionTests
         public string CurrentDir { get; }
         public string PatchPath { get; }
 
-        public ProcessResult CreatePatch()
+        public ProcessResult CreatePatch(bool excludeNativeOpenCv = true)
         {
             string packagingScript = Path.Combine(RepositoryRoot, "tools", "Publish-CleanPackage.ps1");
             string compatibilityScript = Path.Combine(
@@ -116,6 +138,9 @@ public sealed class AppPatchOpenCvExclusionTests
             string installerCmd = Path.Combine(RepositoryRoot, "tools", "Install-AppPatch.cmd");
             string installerScript = Path.Combine(RepositoryRoot, "tools", "Apply-AppPatch.ps1");
             string retireList = Path.Combine(Root, "retire.json");
+            string nativeExclusion = excludeNativeOpenCv
+                ? "@('OpenCvSharpExtern.dll')"
+                : "@()";
             string command = $$"""
                 $ErrorActionPreference = 'Stop'
                 . '{{Escape(compatibilityScript)}}'
@@ -146,7 +171,7 @@ public sealed class AppPatchOpenCvExclusionTests
                     -InstallerCmdPath '{{Escape(installerCmd)}}' `
                     -InstallerScriptPath '{{Escape(installerScript)}}' `
                     -ExcludeCompatibleRuntimes `
-                    -ExcludeRelativePaths @('OpenCvSharpExtern.dll') `
+                    -ExcludeRelativePaths {{nativeExclusion}} `
                     -RetireListPath '{{Escape(retireList)}}'
                 """;
             return RunPowerShell(command, Root);

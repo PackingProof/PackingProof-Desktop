@@ -25,7 +25,8 @@ function Read-OpenCvBaselineManifest {
         $modules[1] -ne "imgproc" -or
         [long]$baseline.native.size -le 0 -or
         [string]$baseline.native.sha256 -notmatch '^[0-9a-fA-F]{64}$' -or
-        -not [bool]$baseline.app_patch_excluded -or
+        $null -eq $baseline.PSObject.Properties['app_patch_excluded'] -or
+        $baseline.app_patch_excluded -isnot [bool] -or
         [string]::IsNullOrWhiteSpace([string]$baseline.toolchain.msvc_version) -or
         [string]::IsNullOrWhiteSpace([string]$baseline.toolchain.windows_sdk_version) -or
         @($baseline.toolchain.linker_flags) -notcontains "/Brepro" -or

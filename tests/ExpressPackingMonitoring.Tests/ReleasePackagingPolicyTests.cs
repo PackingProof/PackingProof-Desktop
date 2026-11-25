@@ -478,6 +478,14 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("[switch]$AllowExperimentalOpenCvStore", publishScript, StringComparison.Ordinal);
         Assert.Contains("当前 OpenCV 精简库尚未完成现场验证", publishScript, StringComparison.Ordinal);
         Assert.Contains("Assert-OpenCvNativeDll", commonScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "$baseline.app_patch_excluded -isnot [bool]",
+            commonScript,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "-not [bool]$baseline.app_patch_excluded",
+            commonScript,
+            StringComparison.Ordinal);
         Assert.Contains("opencv_win_x64-$($baseline.opencvsharp.files_tag)", builderScript, StringComparison.Ordinal);
         Assert.Contains("/p:VCToolsVersion=", builderScript, StringComparison.Ordinal);
         Assert.Contains("/p:WindowsTargetPlatformVersion=", builderScript, StringComparison.Ordinal);

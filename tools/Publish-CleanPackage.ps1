@@ -1148,12 +1148,6 @@ function New-AppPatchPackage {
     }
     Get-ChildItem -LiteralPath $CurrentAppDir -File -Recurse | ForEach-Object {
         $relativePath = Get-RelativePath -BaseDir $CurrentAppDir -Path $_.FullName
-        if ([string]::Equals(
-                [IO.Path]::GetFileName($relativePath),
-                $protectedOpenCvName,
-                [StringComparison]::OrdinalIgnoreCase)) {
-            return
-        }
         if ($excludedPaths.Contains($relativePath)) {
             return
         }
@@ -1207,12 +1201,6 @@ function New-AppPatchPackage {
     }
     foreach ($baselineFile in Get-ChildItem -LiteralPath $BaselineDir -File -Recurse) {
         $relativePath = Get-RelativePath -BaseDir $BaselineDir -Path $baselineFile.FullName
-        if ([string]::Equals(
-                [IO.Path]::GetFileName($relativePath),
-                $protectedOpenCvName,
-                [StringComparison]::OrdinalIgnoreCase)) {
-            continue
-        }
         if ($currentRelativePaths.ContainsKey($relativePath)) { continue }
         if ($relativePath.StartsWith("tts_cache\", [System.StringComparison]::OrdinalIgnoreCase)) { continue }
         if ($excludedPaths.Contains($relativePath)) { continue }
@@ -1386,6 +1374,12 @@ function New-AppPatchPackage {
         -ArtifactPrefix $brand.ArtifactPrefix
     Copy-Item -LiteralPath $InstallerScriptPath -Destination (Join-Path $patchWorkDir $appPatchInstallerScriptName) -Force
 
+    $openCvNoticeLine = if ($excludedPaths.Contains($protectedOpenCvName)) {
+        "本补丁不会替换 OpenCV 原生运行库，老用户继续使用现有兼容版本。"
+    }
+    else {
+        "本补丁会同步替换匹配的 OpenCV 原生运行库。"
+    }
     $appPatchNotice = @(
         "$($brand.DisplayName) 主程序增量更新"
         ""
@@ -1396,7 +1390,7 @@ function New-AppPatchPackage {
         "Microsoft Store 版请使用 Microsoft Store 的「库」页面更新，不要运行本脚本。"
         ""
         "脚本会校验补丁文件、识别原安装位置并在失败时恢复原文件。"
-        "本补丁不会替换 OpenCV 原生运行库，老用户继续使用现有兼容版本。"
+        $openCvNoticeLine
         "不要直接在压缩软件中运行，也不要单独移动 CMD、$appPatchInstallerScriptName、patch_manifest.json 或 files 文件夹。"
     ) -join [Environment]::NewLine
     Set-Content -LiteralPath (Join-Path $patchWorkDir $appPatchNoticeName) -Value $appPatchNotice -Encoding UTF8
@@ -1405,7 +1399,8 @@ function New-AppPatchPackage {
         -SourceDir $patchWorkDir `
         -DestinationZip $PatchZipPath `
         -CompressionLevel $ZipCompressionLevel
-    if (Test-ZipContainsEntry -ZipFile $PatchZipPath -EntryName "files/$protectedOpenCvName") {
+    if ($excludedPaths.Contains($protectedOpenCvName) -and
+        (Test-ZipContainsEntry -ZipFile $PatchZipPath -EntryName "files/$protectedOpenCvName")) {
         throw "AppPatch package validation failed: OpenCV native DLL must not be included"
     }
     Remove-Item -LiteralPath $patchWorkDir -Recurse -Force
@@ -2077,7 +2072,7 @@ else {
             }
         }
         foreach ($runtimeFile in $requiredAppRuntimeFiles) {
-            if ([string]::Equals($runtimeFile, "OpenCvSharpExtern.dll", [StringComparison]::OrdinalIgnoreCase)) {
+            if ($openCvAppPatchExcludeRelativePaths -contains $runtimeFile) {
                 continue
             }
             $baselineRuntimeFile = Join-Path $baselineAppFullPath $runtimeFile
@@ -2095,7 +2090,8 @@ else {
         if (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName 'files/tools/ffmpeg.exe') {
             throw 'AppPatch package validation failed: compatible FFmpeg was included'
         }
-        if (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName 'files/OpenCvSharpExtern.dll') {
+        if ($openCvAppPatchExcludeRelativePaths -contains "OpenCvSharpExtern.dll" -and
+            (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName 'files/OpenCvSharpExtern.dll')) {
             throw 'AppPatch package validation failed: OpenCV native DLL must not be included'
         }
         $drawablePluginEntry =
