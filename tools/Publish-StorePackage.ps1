@@ -37,6 +37,7 @@ $manifestTemplate = Join-Path $storeRoot "AppxManifest.xml"
 $iconPath = $brand.AppIconPath
 $appProject = Join-Path $repoRoot "src\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj"
 $winttsProject = Join-Path $repoRoot "src\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj"
+$ttsCacheBuilderProject = Join-Path $repoRoot "tools\ExpressPackingMonitoring.TtsCacheBuilder\ExpressPackingMonitoring.TtsCacheBuilder.csproj"
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $propsPath = Join-Path $repoRoot "Directory.Build.props"
@@ -169,6 +170,145 @@ function Copy-SymbolFiles {
         }
     }
     return $symbolFiles
+}
+
+function Ensure-StoreTtsPayload {
+    param(
+        [Parameter(Mandatory = $true)][string]$PayloadDirectory,
+        [Parameter(Mandatory = $true)][bool]$UsingExistingPayload
+    )
+
+    if (-not [bool]$brand.Features.capabilities.tts) {
+        Remove-Item -LiteralPath (Join-Path $PayloadDirectory "ExpressPackingMonitoring.WinTts.dll") -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -LiteralPath $PayloadDirectory -Filter "EdgeTTS*.dll" -File -ErrorAction SilentlyContinue |
+            Remove-Item -Force
+        Remove-Item -LiteralPath (Join-Path $PayloadDirectory "tts_cache") -Recurse -Force -ErrorAction SilentlyContinue
+        if ((Test-Path -LiteralPath (Join-Path $PayloadDirectory "ExpressPackingMonitoring.WinTts.dll")) -or
+            @(Get-ChildItem -LiteralPath $PayloadDirectory -Filter "EdgeTTS*.dll" -File -ErrorAction SilentlyContinue).Count -gt 0 -or
+            (Test-Path -LiteralPath (Join-Path $PayloadDirectory "tts_cache"))) {
+            throw "Store payload 关闭了 TTS，但 TTS 资源仍未裁剪干净"
+        }
+        return
+    }
+
+    foreach ($file in @(
+            "ExpressPackingMonitoring.WinTts.dll",
+            "Microsoft.Windows.SDK.NET.dll",
+            "WinRT.Runtime.dll")) {
+        if (-not (Test-Path -LiteralPath (Join-Path $PayloadDirectory $file) -PathType Leaf)) {
+            throw "Store payload 启用了 TTS，但缺少运行时文件：$file"
+        }
+    }
+    if (@(Get-ChildItem -LiteralPath $PayloadDirectory -Filter "EdgeTTS*.dll" -File -ErrorAction SilentlyContinue).Count -eq 0) {
+        throw "Store payload 启用了 TTS，但缺少 EdgeTTS 运行时"
+    }
+
+    $cacheDirectory = Join-Path $PayloadDirectory "tts_cache"
+    $cacheFiles = @(Get-ChildItem -LiteralPath $cacheDirectory -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -in ".mp3", ".wav" })
+    if ($cacheFiles.Count -gt 0) {
+        try {
+            Assert-DefaultTtsCacheManifest -CacheDirectory $cacheDirectory
+            return
+        }
+        catch {
+            if ($UsingExistingPayload) {
+                throw
+            }
+            Remove-Item -LiteralPath $cacheDirectory -Recurse -Force
+        }
+    }
+
+    if ($UsingExistingPayload) {
+        throw "复用 Store 应用负载时缺少默认 TTS 缓存，请先用 Publish-CleanPackage.ps1 生成完整负载"
+    }
+
+    if (-not (Test-Path -LiteralPath $ttsCacheBuilderProject -PathType Leaf)) {
+        throw "TTS 缓存生成项目不存在：$ttsCacheBuilderProject"
+    }
+    if (Test-Path -LiteralPath $cacheDirectory) {
+        Remove-Item -LiteralPath $cacheDirectory -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $cacheDirectory -Force | Out-Null
+
+    Write-Host "Generating default TTS cache for Store payload..."
+    & dotnet run --project $ttsCacheBuilderProject -c Release -- $cacheDirectory
+    if ($LASTEXITCODE -ne 0) {
+        throw "Store 默认 TTS 缓存生成失败，退出码 $LASTEXITCODE"
+    }
+    $cacheFiles = @(Get-ChildItem -LiteralPath $cacheDirectory -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -in ".mp3", ".wav" })
+    if ($cacheFiles.Count -eq 0) {
+        throw "Store 默认 TTS 缓存生成后仍为空"
+    }
+    Assert-DefaultTtsCacheManifest -CacheDirectory $cacheDirectory
+}
+
+function Ensure-SharedStoreRuntimeProjection {
+    param(
+        [Parameter(Mandatory = $true)][string]$PayloadDirectory,
+        [Parameter(Mandatory = $true)][bool]$UsingExistingPayload
+    )
+
+    $sharedFiles = @("Microsoft.Windows.SDK.NET.dll", "WinRT.Runtime.dll")
+    $missingSharedFiles = @($sharedFiles | Where-Object {
+                -not (Test-Path -LiteralPath (Join-Path $PayloadDirectory $_) -PathType Leaf)
+            })
+    if ($missingSharedFiles.Count -eq 0) {
+        return
+    }
+    if ($UsingExistingPayload) {
+        throw "复用的 Store 应用负载缺少共享 WinRT projection：$($missingSharedFiles -join ', ')。请先用 Publish-CleanPackage.ps1 重新生成完整负载"
+    }
+
+    $temporaryDirectory = Join-Path $productDir ".shared-winrt"
+    try {
+        & dotnet publish $winttsProject -c Release --nologo -p:Version=$Version -o $temporaryDirectory
+        if ($LASTEXITCODE -ne 0) {
+            throw "共享 WinRT projection 发布失败，退出码 $LASTEXITCODE"
+        }
+        foreach ($file in $sharedFiles) {
+            $source = Join-Path $temporaryDirectory $file
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+                throw "共享 WinRT projection 发布产物缺少 $file"
+            }
+            Copy-Item -LiteralPath $source -Destination (Join-Path $PayloadDirectory $file) -Force
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $temporaryDirectory -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Assert-DefaultTtsCacheManifest {
+    param([Parameter(Mandatory = $true)][string]$CacheDirectory)
+
+    $manifestPath = Join-Path $CacheDirectory "tts-cache-manifest.json"
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw "Store 默认 TTS 缓存缺少清单，请重新生成默认语音缓存"
+    }
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $files = @($manifest.files | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    if ([int]$manifest.schemaVersion -ne 1 -or
+        [int]$manifest.expectedPromptCount -le 0 -or
+        $files.Count -ne [int]$manifest.expectedPromptCount) {
+        throw "Store 默认 TTS 缓存清单内容不完整"
+    }
+    $missing = @($files | Where-Object {
+            -not (Test-Path -LiteralPath (Join-Path $CacheDirectory ([string]$_)) -PathType Leaf)
+        })
+    if ($missing.Count -gt 0) {
+        throw "Store 默认 TTS 缓存清单引用了缺失文件：$($missing -join ', ')"
+    }
+    $actualFiles = @(Get-ChildItem -LiteralPath $CacheDirectory -File |
+        Where-Object { $_.Extension -in ".mp3", ".wav" } |
+        ForEach-Object { $_.Name } |
+        Sort-Object)
+    $listedFiles = @($files | ForEach-Object { [string]$_ } | Sort-Object)
+    if ($actualFiles.Count -ne $listedFiles.Count -or
+        @(Compare-Object -ReferenceObject $actualFiles -DifferenceObject $listedFiles).Count -gt 0) {
+        throw "Store 默认 TTS 缓存清单与实际音频文件不一致"
+    }
 }
 
 function Assert-RequiredStoreSymbols {
@@ -346,6 +486,7 @@ else {
     [void](Copy-SymbolFiles -SourceDirectory $payloadDir -DestinationDirectory $symbolStagingDir -RemoveSource)
 
     # 主程序工程不会把 WinTts 的运行时复制进 publish 输出，按发布脚本的方式单独补三份。
+    $ttsEnabled = [bool]$brand.Features.capabilities.tts
     $winttsTemp = Join-Path $productDir ".wintts"
     & dotnet publish $winttsProject -c Release --nologo -p:Version=$Version -o $winttsTemp
     if ($LASTEXITCODE -ne 0) { throw "WinTts publish 失败，退出码 $LASTEXITCODE" }
@@ -355,10 +496,12 @@ else {
             if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
                 throw "WinTts 发布产物缺少 $file"
             }
-            Copy-Item -LiteralPath $source -Destination (Join-Path $payloadDir $file) -Force
+            if ($ttsEnabled -or $file -in @("Microsoft.Windows.SDK.NET.dll", "WinRT.Runtime.dll")) {
+                Copy-Item -LiteralPath $source -Destination (Join-Path $payloadDir $file) -Force
+            }
         }
         $winttsPdb = Join-Path $winttsTemp "ExpressPackingMonitoring.WinTts.pdb"
-        if (Test-Path -LiteralPath $winttsPdb -PathType Leaf) {
+        if ($ttsEnabled -and (Test-Path -LiteralPath $winttsPdb -PathType Leaf)) {
             Copy-Item -LiteralPath $winttsPdb -Destination (Join-Path $symbolStagingDir "ExpressPackingMonitoring.WinTts.pdb") -Force
         }
     }
@@ -367,6 +510,15 @@ else {
     }
     $env:Version = $previousVersionEnvironment
 }
+
+if (-not [bool]$brand.Features.capabilities.tts) {
+    Ensure-SharedStoreRuntimeProjection `
+        -PayloadDirectory $payloadDir `
+        -UsingExistingPayload $useExistingPayload
+}
+Ensure-StoreTtsPayload `
+    -PayloadDirectory $payloadDir `
+    -UsingExistingPayload $useExistingPayload
 
 [System.IO.Directory]::CreateDirectory($symbolStagingDir) | Out-Null
 if (-not [string]::IsNullOrWhiteSpace($SymbolsDir)) {

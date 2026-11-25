@@ -3240,7 +3240,7 @@
                                         <TextBox x:Name="TtsPreviewTextBox" Grid.Row="1" Height="60"
                                                  AcceptsReturn="True" TextWrapping="Wrap"
                                                  VerticalScrollBarVisibility="Auto"
-                                                 Text="打包监控程序官方开源软件适用中小电商"/>
+                                                 Text="{loc:Localized 这是一段语音播报测试}"/>
                                         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0">
                                             <Button Content="播放" x:Name="BtnTtsPreview" Click="BtnTtsPreview_Click"
                                                     Style="{StaticResource PrimaryButtonStyle}"

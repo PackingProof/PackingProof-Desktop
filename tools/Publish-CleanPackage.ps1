@@ -1575,6 +1575,40 @@ if (-not (Test-LauncherBaselineSourceUnchanged `
 
 $includeTtsCache = $resourcePolicy.Tts
 if ($includeTtsCache) {
+    if ($SkipTtsCacheGeneration -and -not $SkipStorePackage) {
+        $defaultTtsCacheDir = Join-Path $repoRoot "package\tts_cache"
+        $defaultTtsCacheFiles = @(Get-ChildItem -LiteralPath $defaultTtsCacheDir -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -in ".mp3", ".wav" })
+        $defaultTtsManifestPath = Join-Path $defaultTtsCacheDir "tts-cache-manifest.json"
+        $defaultTtsManifestValid = $false
+        if ($defaultTtsCacheFiles.Count -gt 0 -and
+            (Test-Path -LiteralPath $defaultTtsManifestPath -PathType Leaf)) {
+            try {
+                $defaultTtsManifest = Get-Content -LiteralPath $defaultTtsManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+                $defaultTtsManifestFiles = @($defaultTtsManifest.files |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+                $defaultTtsManifestFiles = @($defaultTtsManifestFiles | ForEach-Object { [string]$_ })
+                $defaultTtsAudioFiles = @($defaultTtsCacheFiles | ForEach-Object { $_.Name })
+                $defaultTtsManifestValid =
+                    [int]$defaultTtsManifest.schemaVersion -eq 1 -and
+                    [int]$defaultTtsManifest.expectedPromptCount -gt 0 -and
+                    [int]$defaultTtsManifest.expectedPromptCount -eq $defaultTtsManifestFiles.Count -and
+                    @($defaultTtsManifestFiles | Where-Object {
+                            -not (Test-Path -LiteralPath (Join-Path $defaultTtsCacheDir ([string]$_)) -PathType Leaf)
+                        }).Count -eq 0 -and
+                    $defaultTtsManifestFiles.Count -eq $defaultTtsAudioFiles.Count -and
+                    @(Compare-Object `
+                        -ReferenceObject @($defaultTtsAudioFiles | Sort-Object) `
+                        -DifferenceObject @($defaultTtsManifestFiles | Sort-Object)).Count -eq 0
+            }
+            catch {
+                $defaultTtsManifestValid = $false
+            }
+        }
+        if (-not $defaultTtsManifestValid) {
+            throw "已跳过默认 TTS 缓存生成，但 Store 打包要求完整且带清单的现有缓存；请移除 -SkipTtsCacheGeneration 或重新生成缓存"
+        }
+    }
     New-DefaultTtsCache
 }
 
@@ -1661,9 +1695,8 @@ Remove-DebugOnlyRuntimeFiles -AppDir $appPublishDir
 # ONNX Runtime 依赖 MSVCP/VCRUNTIME；带上 app-local 副本，用户不需要另外装 VC++。
 Copy-VcRuntimeFiles -AppDir $appPublishDir
 
-# Win10/11 标准包附带 Windows 系统语音（WinRT）辅助程序集；
-# Win7 兼容变体在下方产物生成后剔除这些文件。
-if ($includeTtsCache) {
+# Win10/11 标准包附带 Windows 系统语音（WinRT）辅助程序集。
+# 共享 WinRT projection 还用于商店版摄像头/麦克风权限恢复，不能随 tts=false 删除。
 $winttsProject = Join-Path $repoRoot "src\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj"
 $winttsPublishDir = Join-Path $repoRoot "package\.wintts-publish-tmp"
 Invoke-DotNetPublish -Arguments @(
@@ -1677,14 +1710,17 @@ foreach ($winttsFile in @("ExpressPackingMonitoring.WinTts.dll", "Microsoft.Wind
     if (-not (Test-Path -LiteralPath $winttsSource -PathType Leaf)) {
         throw "WinTts publish output missing: $winttsSource"
     }
-    Copy-Item -LiteralPath $winttsSource -Destination (Join-Path $appPublishDir $winttsFile) -Force
+    if ($includeTtsCache -or $winttsFile -in @(
+            "Microsoft.Windows.SDK.NET.dll",
+            "WinRT.Runtime.dll")) {
+        Copy-Item -LiteralPath $winttsSource -Destination (Join-Path $appPublishDir $winttsFile) -Force
+    }
 }
 $winttsPdb = Join-Path $winttsPublishDir "ExpressPackingMonitoring.WinTts.pdb"
-if (Test-Path -LiteralPath $winttsPdb -PathType Leaf) {
+if ($includeTtsCache -and (Test-Path -LiteralPath $winttsPdb -PathType Leaf)) {
     Copy-Item -LiteralPath $winttsPdb -Destination (Join-Path $storeSymbolsDir "ExpressPackingMonitoring.WinTts.pdb") -Force
 }
 Remove-Item -LiteralPath $winttsPublishDir -Recurse -Force
-}
 
 $ffmpegBaseline = Read-FFmpegBaselineManifest -ManifestPath $ffmpegBaselineManifestPath
 $ffmpegCacheDirectory = Join-Path $repoRoot "package\dependency-cache\ffmpeg\$($ffmpegBaseline.version)"
@@ -1750,20 +1786,10 @@ if ($includeTtsCache) {
     Copy-PackageTtsCache -AppDir $appPublishDir
 }
 else {
-    foreach ($ttsFile in @(
-            "ExpressPackingMonitoring.WinTts.dll",
-            "Microsoft.Windows.SDK.NET.dll",
-            "WinRT.Runtime.dll")) {
-        Remove-Item -LiteralPath (Join-Path $appPublishDir $ttsFile) -Force -ErrorAction SilentlyContinue
-    }
+    Remove-Item -LiteralPath (Join-Path $appPublishDir "ExpressPackingMonitoring.WinTts.dll") -Force -ErrorAction SilentlyContinue
     Get-ChildItem -LiteralPath $appPublishDir -Filter "EdgeTTS*.dll" -File -ErrorAction SilentlyContinue |
         Remove-Item -Force
-    $remainingTtsFiles = @(
-        "ExpressPackingMonitoring.WinTts.dll",
-        "Microsoft.Windows.SDK.NET.dll",
-        "WinRT.Runtime.dll"
-    ) | Where-Object { Test-Path -LiteralPath (Join-Path $appPublishDir $_) }
-    if ($remainingTtsFiles.Count -gt 0 -or
+    if ((Test-Path -LiteralPath (Join-Path $appPublishDir "ExpressPackingMonitoring.WinTts.dll")) -or
         @(Get-ChildItem -LiteralPath $appPublishDir -Filter "EdgeTTS*.dll" -File -ErrorAction SilentlyContinue).Count -gt 0) {
         throw "Clean package validation failed: TTS capability is disabled but TTS runtime files remain"
     }

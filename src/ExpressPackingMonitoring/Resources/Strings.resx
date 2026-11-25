@@ -202,7 +202,7 @@
   <data name="播报商品信息" xml:space="preserve"><value>Announce product info</value></data>
   <data name="程序在此位置最多用于存放录像或备份的容量，不会提前占用空间；其他软件占用磁盘后，实际可用容量可能减少" xml:space="preserve"><value>The maximum capacity used for recordings or backups at this location. Space is not preallocated, and actual available capacity may decrease when other software uses the disk.</value></data>
   <data name="暂不可计算" xml:space="preserve"><value>Unavailable</value></data>
-  <data name="打包监控程序官方开源软件适用中小电商" xml:space="preserve"><value>Official open-source packing monitor for small and medium online stores</value></data>
+  <data name="这是一段语音播报测试" xml:space="preserve"><value>This is a voice announcement test</value></data>
   <data name="打包结束后画面不动，就自动停止录像" xml:space="preserve"><value>After the packaging is completed, if the screen does not move, the recording will be automatically stopped.</value></data>
   <data name="打包时自动播报买家留言和卖家备注，避免漏看特殊要求" xml:space="preserve"><value>Automatically broadcast buyer messages and seller notes when packaging to avoid missing special requirements</value></data>
   <data name="打开 GitHub 仓库，查看源码、发布记录和问题反馈" xml:space="preserve"><value>Open the GitHub repository to view source code, release records and problem feedback</value></data>

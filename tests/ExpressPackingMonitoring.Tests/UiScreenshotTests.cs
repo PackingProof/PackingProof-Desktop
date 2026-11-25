@@ -98,6 +98,16 @@ public sealed class UiScreenshotTests
             "settings",
             window,
             tabs);
+        try
+        {
+            CaptureSettingsTtsPreview(outputDirectory);
+        }
+        catch (Exception ex)
+        {
+            File.WriteAllText(
+                Path.Combine(outputDirectory, "settings-tts-preview.error.txt"),
+                ex.ToString());
+        }
 
         var workstationWindow = CreateSettingsWindow(
             out _,
@@ -166,11 +176,13 @@ public sealed class UiScreenshotTests
         out TabControl? tabs,
         string preset = DeploymentPresets.RecordingHost,
         SettingsCapabilities? capabilities = null,
-        IReadOnlyList<string>? availablePresets = null)
+        IReadOnlyList<string>? availablePresets = null,
+        bool showAdvancedSettings = false)
     {
         config = new AppConfig
         {
             DeploymentPreset = preset,
+            ShowAdvancedSettings = showAdvancedSettings,
             StorageLocations =
             [
                 new StorageLocation { Path = Path.Combine(Path.GetTempPath(), "PackingProofVideos"), Priority = 0 }
@@ -197,6 +209,34 @@ public sealed class UiScreenshotTests
         Windows.Add(window);
         tabs = window.FindName("SettingsTabControl") as TabControl;
         return window;
+    }
+
+    private static void CaptureSettingsTtsPreview(string outputDirectory)
+    {
+        var window = CreateSettingsWindow(
+            out _,
+            out TabControl? tabs,
+            showAdvancedSettings: true);
+        if (tabs == null)
+            return;
+
+        TabItem? soundTab = tabs.Items.OfType<TabItem>()
+            .FirstOrDefault(item => string.Equals(
+                item.Header?.ToString(),
+                "声音与播报",
+                StringComparison.Ordinal));
+        if (soundTab == null)
+            throw new InvalidOperationException("找不到声音与播报设置页");
+
+        tabs.SelectedItem = soundTab;
+        AttachToSource(window);
+        var preview = Assert.IsType<TextBox>(window.FindName("TtsPreviewTextBox"));
+        Assert.Equal(
+            AppLanguage.Get("这是一段语音播报测试"),
+            preview.Text);
+        preview.BringIntoView();
+        Pump(window);
+        Save(window, Path.Combine(outputDirectory, "settings-tts-preview.png"));
     }
 
     private static SettingsCapabilities CreateLocalCaptureSettingsCapabilities()

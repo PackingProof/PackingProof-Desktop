@@ -2,6 +2,7 @@ using ExpressPackingMonitoring.Audio;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
+using System.Text.Json;
 
 if (args.Length != 1 || string.IsNullOrWhiteSpace(args[0]))
 {
@@ -89,6 +90,25 @@ if (failures.Count > 0)
     Console.Error.WriteLine($"TTS cache generation failed for {failures.Count} prompt(s).");
     return 1;
 }
+
+string[] manifestFiles = expectedCachePaths
+    .Where(File.Exists)
+    .Select(Path.GetFileName)
+    .Where(name => !string.IsNullOrWhiteSpace(name))
+    .Cast<string>()
+    .OrderBy(name => name, StringComparer.Ordinal)
+    .ToArray();
+File.WriteAllText(
+    Path.Combine(outputDirectory, "tts-cache-manifest.json"),
+    JsonSerializer.Serialize(
+        new
+        {
+            schemaVersion = 1,
+            expectedPromptCount,
+            files = manifestFiles
+        },
+        new JsonSerializerOptions { WriteIndented = true }),
+    new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
 int cacheFileCount = Directory.GetFiles(outputDirectory, "*.*", SearchOption.TopDirectoryOnly)
     .Count(path => string.Equals(Path.GetExtension(path), ".mp3", StringComparison.OrdinalIgnoreCase) ||

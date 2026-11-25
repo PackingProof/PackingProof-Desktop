@@ -34,6 +34,18 @@ public sealed class StoreEditionPackagingGuardTests
         Assert.Contains("New-StoreUploadArchive", script, StringComparison.Ordinal);
         Assert.Contains("Assert-StoreUploadArchive", script, StringComparison.Ordinal);
         Assert.Contains("PackingProofCollectStoreSymbols=true", script, StringComparison.Ordinal);
+        Assert.Contains("Ensure-StoreTtsPayload", script, StringComparison.Ordinal);
+        Assert.Contains("Store payload 启用了 TTS，但缺少", script, StringComparison.Ordinal);
+        Assert.Contains("Generating default TTS cache for Store payload", script, StringComparison.Ordinal);
+        Assert.Contains("Assert-DefaultTtsCacheManifest", script, StringComparison.Ordinal);
+        Assert.Contains("Ensure-SharedStoreRuntimeProjection", script, StringComparison.Ordinal);
+        Assert.Contains("Store 默认 TTS 缓存清单与实际音频文件不一致", script, StringComparison.Ordinal);
+        Assert.Contains("Store payload 关闭了 TTS，但 TTS 资源仍未裁剪干净", script, StringComparison.Ordinal);
+        Assert.Contains("共享 WinRT projection", cleanPackageScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "已跳过默认 TTS 缓存生成，但 Store 打包要求完整且带清单的现有缓存",
+            cleanPackageScript,
+            StringComparison.Ordinal);
         Assert.Contains("-p:DebugType=portable", script, StringComparison.Ordinal);
         Assert.Contains("-p:DebugSymbols=true", script, StringComparison.Ordinal);
         Assert.Contains("-p:DebugType=portable", cleanPackageScript, StringComparison.Ordinal);
