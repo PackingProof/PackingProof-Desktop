@@ -2134,4 +2134,5 @@
   <data name="这台电脑负责长期保存录像，{0}" xml:space="preserve"><value>这台电脑负责长期保存录像，{0}</value></data>
   <data name="本机录像并长期保存" xml:space="preserve"><value>本机录像并长期保存</value></data>
   <data name="接收并长期保存手机或其他电脑的录像" xml:space="preserve"><value>接收并长期保存手机或其他电脑的录像</value></data>
+  <data name="保存失败" xml:space="preserve"><value>保存失败</value></data>
 </root>

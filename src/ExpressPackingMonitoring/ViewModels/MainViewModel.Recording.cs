@@ -397,6 +397,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     WriteAudioDiagnostic($"Finalize exception: {ex.Message}", audioLogPath);
                     WriteAudioDiagnostic($"Finalize 异常: {ex.Message}");
+                    _ = Application.Current?.Dispatcher.InvokeAsync(() =>
+                    {
+                        if (_isDisposed)
+                            return;
+                        ApplyFinalizeFailureState(scanRecord);
+                        RefreshTodayStats();
+                    });
                 }
                 finally
                 {
@@ -422,6 +429,15 @@ namespace ExpressPackingMonitoring.ViewModels
                 await RestartCameraAsync();
                 ShowToast("摄像头配置已生效");
             }
+        }
+
+        internal static void ApplyFinalizeFailureState(ScanRecord? scanRecord)
+        {
+            if (scanRecord == null)
+                return;
+
+            scanRecord.SaveStatusText = AppLanguage.Get("保存失败");
+            scanRecord.IsActive = false;
         }
 
         private string ResolveBestStoragePath() =>

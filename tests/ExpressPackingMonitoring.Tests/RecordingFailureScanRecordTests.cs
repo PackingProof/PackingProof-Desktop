@@ -1,3 +1,6 @@
+using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Localization;
+using ExpressPackingMonitoring.ViewModels;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -45,6 +48,56 @@ public sealed class RecordingFailureScanRecordTests
         Assert.Contains("_currentScanRecord.IsActive = false", before);
         Assert.Contains("_currentScanRecord.SaveStatusText =", before);
         Assert.Contains("AppLanguage.Get(\"失败\")", before);
+    }
+
+    [Fact]
+    public void FinalizeFailure_ReleasesActiveScanRecord()
+    {
+        var record = new ScanRecord(
+            "SF-FINALIZE",
+            "8s",
+            "09:20:00",
+            "发货",
+            isActive: true,
+            videoRecordId: 18);
+
+        MainViewModel.ApplyFinalizeFailureState(record);
+
+        Assert.False(record.IsActive);
+        Assert.Equal(
+            AppLanguage.Get("保存失败"),
+            record.SaveStatusText);
+    }
+
+    [Fact]
+    public void FinalizeExceptionPath_PublishesFailureStateOnUiDispatcher()
+    {
+        string code = LoadRecordingSource();
+
+        int catchIndex = code.IndexOf(
+            "WriteAudioDiagnostic($\"Finalize exception: {ex.Message}\"",
+            StringComparison.Ordinal);
+        Assert.True(catchIndex >= 0, "找不到录像定稿异常分支");
+
+        string failureBranch = code[catchIndex..];
+        int finallyIndex = failureBranch.IndexOf(
+            "finally",
+            StringComparison.Ordinal);
+        Assert.True(finallyIndex >= 0);
+        failureBranch = failureBranch[..finallyIndex];
+
+        Assert.Contains(
+            "Application.Current?.Dispatcher.InvokeAsync",
+            failureBranch,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ApplyFinalizeFailureState(scanRecord)",
+            failureBranch,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "RefreshTodayStats()",
+            failureBranch,
+            StringComparison.Ordinal);
     }
 
     private static string LoadRecordingSource()
