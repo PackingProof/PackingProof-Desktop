@@ -80,9 +80,7 @@ internal sealed class WatermarkOverlayRenderer
                 continue;
             }
 
-            Entry? entry = GetOrRender(text, fontScale, thickness, frame.Width);
-            if (entry != null)
-                DrawEntry(frame, entry, lineIndex, lineHeight);
+            DrawCachedLine(frame, text, fontScale, thickness, lineIndex, lineHeight);
             lineIndex++;
         }
     }
@@ -173,9 +171,15 @@ internal sealed class WatermarkOverlayRenderer
         blended.CopyTo(region);
     }
 
-    private Entry? GetOrRender(string text, double fontScale, int thickness, int frameWidth)
+    private void DrawCachedLine(
+        Mat frame,
+        string text,
+        double fontScale,
+        int thickness,
+        int lineIndex,
+        int lineHeight)
     {
-        if (text.Length == 0) return null;
+        if (text.Length == 0) return;
 
         string key = BuildKey(text, fontScale, thickness);
         lock (_sync)
@@ -184,12 +188,13 @@ internal sealed class WatermarkOverlayRenderer
             {
                 _usage.Remove(node);
                 _usage.AddFirst(node);
-                return node.Value;
+                DrawEntry(frame, node.Value, lineIndex, lineHeight);
+                return;
             }
         }
 
-        Entry? created = Render(text, fontScale, thickness, frameWidth);
-        if (created == null) return null;
+        Entry? created = Render(text, fontScale, thickness, frame.Width);
+        if (created == null) return;
         lock (_sync)
         {
             if (_entries.TryGetValue(key, out LinkedListNode<Entry>? existing))
@@ -197,7 +202,8 @@ internal sealed class WatermarkOverlayRenderer
                 created.Dispose();
                 _usage.Remove(existing);
                 _usage.AddFirst(existing);
-                return existing.Value;
+                DrawEntry(frame, existing.Value, lineIndex, lineHeight);
+                return;
             }
 
             var node = new LinkedListNode<Entry>(created);
@@ -205,9 +211,8 @@ internal sealed class WatermarkOverlayRenderer
             _entries[key] = node;
             _cachedBytes += created.Bytes;
             Trim();
+            DrawEntry(frame, created, lineIndex, lineHeight);
         }
-
-        return created;
     }
 
     private static string BuildKey(string text, double fontScale, int thickness) =>

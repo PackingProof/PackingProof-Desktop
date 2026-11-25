@@ -207,18 +207,23 @@ public sealed class WatermarkRendererTests
         var workers = new Thread[2];
         for (int i = 0; i < workers.Length; i++)
         {
+            int workerIndex = i;
             workers[i] = new Thread(() =>
             {
                 try
                 {
-                    for (int frame = 0; frame < 12; frame++)
+                    for (int frame = 0; frame < 96; frame++)
                     {
                         using var canvas = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.Black);
                         MainViewModel.ApplyWatermarkToFrame(
                             canvas,
-                            Timestamp.AddSeconds(frame),
+                            Timestamp.AddSeconds(frame + workerIndex * 1000),
                             "435384812936683",
-                            new[] { "scale.example.weight: 1.25 kg" });
+                            new[]
+                            {
+                                "scale.example.weight: 1.25 kg",
+                                $"scale.example.sequence: {frame:D3}"
+                            });
                     }
                 }
                 catch (Exception ex)
