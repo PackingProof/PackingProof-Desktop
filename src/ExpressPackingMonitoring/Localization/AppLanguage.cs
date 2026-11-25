@@ -231,7 +231,12 @@ public static class AppLanguage
             if (!match.Success) continue;
             var arguments = new object[match.Groups.Count - 1];
             for (int index = 1; index < match.Groups.Count; index++)
-                arguments[index - 1] = match.Groups[index].Value;
+            {
+                string argument = match.Groups[index].Value;
+                // 模式名、编码器名等参数本身也可能是资源词条；模板翻译后仍要让这些
+                // 已知界面词跟随当前语言，普通单号、设备名等用户数据则保持原样。
+                arguments[index - 1] = Resources.GetString(argument, culture) ?? argument;
+            }
             return string.Format(culture, template, arguments);
         }
         return value;

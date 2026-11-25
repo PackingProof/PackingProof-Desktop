@@ -695,6 +695,30 @@ public sealed class LocalizationTests
         Assert.True(missing.Length == 0, "Missing English toast resources: " + string.Join(" | ", missing));
     }
 
+    [Theory]
+    [InlineData("en-US", "已切换为: 退货", "Switched to: Return")]
+    [InlineData("en-US", "已切换为: 发货", "Switched to: Shipping")]
+    [InlineData("ja-JP", "已切换为: 退货", "切り替えました: 返品")]
+    [InlineData("ja-JP", "已切换为: 发货", "切り替えました: 出荷")]
+    [InlineData("en-US", "编码器 CPU 软编码", "Encoder CPU software encoding")]
+    [InlineData("ja-JP", "编码器 CPU 软编码", "エンコーダー CPU ソフトウェア エンコード")]
+    public void Translate_TemplateArgumentsAlsoFollowLanguage(
+        string cultureName,
+        string source,
+        string expected)
+    {
+        CultureInfo original = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(cultureName);
+            Assert.Equal(expected, AppLanguage.Translate(source));
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = original;
+        }
+    }
+
     /// <summary>
     /// 代码直接给 Text/Content/Header/ToolTip 赋的中文也要有资源。
     /// XAML 静态文案守卫看不到这些状态文案，分页、检查更新等运行时文字过去就是这样漏掉的。

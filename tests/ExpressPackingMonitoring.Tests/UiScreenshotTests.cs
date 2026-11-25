@@ -352,6 +352,7 @@ public sealed class UiScreenshotTests
         CaptureRecordingUploadPausedCard(outputDirectory);
         CapturePurposeSwitchWaitingButton(outputDirectory);
         CaptureRecentRecordingActions(outputDirectory);
+        CaptureFloatingPreviewLocalizedModeNotice(outputDirectory);
         CaptureTransferManagement(outputDirectory);
         CaptureViewerHostSelection(outputDirectory);
         CaptureViewerHostBindingFooter(outputDirectory);
@@ -919,6 +920,26 @@ public sealed class UiScreenshotTests
         SaveElement(
             menu,
             Path.Combine(outputDirectory, $"{fileName}.png"));
+    }
+
+    private static void CaptureFloatingPreviewLocalizedModeNotice(string outputDirectory)
+    {
+        var viewModel = new ExpressPackingMonitoring.ViewModels.MainViewModel
+        {
+            IsFloatingPreviewActive = true
+        };
+        var window = new FloatingPreviewWindow(viewModel, () => { });
+        Windows.Add(window);
+        AttachToSource(window);
+
+        viewModel.ShowToast("已切换为: 退货");
+        PumpAnimations(window, TimeSpan.FromMilliseconds(120));
+
+        var notice = Assert.IsType<TextBlock>(window.FindName("InlineNoticeText"));
+        Assert.Equal("Switched to: Return", notice.Text);
+        Save(
+            window,
+            Path.Combine(outputDirectory, "floating-preview-mode-switch-en.png"));
     }
 
     private static IEnumerable<T> FindDescendants<T>(DependencyObject root)
