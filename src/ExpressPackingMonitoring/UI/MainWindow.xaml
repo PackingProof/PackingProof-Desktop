@@ -1415,7 +1415,8 @@
                                         Cursor="Hand"
                                         ContextMenu="{StaticResource RecentRecordingContextMenu}"
                                         MouseLeftButtonUp="PlayRecentRecording_Click"
-                                        AutomationProperties.Name="{loc:Localized 播放录像}">
+                                        AutomationProperties.Name="{Binding ClickActionDescription}"
+                                        ToolTip="{Binding ClickActionDescription}">
                                     <Border.Style>
                                         <Style TargetType="Border">
                                             <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
@@ -1538,6 +1539,7 @@
                                                         Style="{StaticResource RecentRowActionButtonStyle}"
                                                         IsEnabled="{Binding CanCopyOrderNumber}"
                                                         AutomationProperties.Name="{loc:Localized 复制单号}"
+                                                        ToolTip="{loc:Localized 复制单号}"
                                                         Click="CopyRecentOrderId_Click">
                                                     <Path Data="{StaticResource FluentCopyIcon}"
                                                           Width="15"

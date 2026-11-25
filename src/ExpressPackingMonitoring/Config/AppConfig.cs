@@ -90,17 +90,28 @@ namespace ExpressPackingMonitoring.Config
                 : CanPlay
                     ? RecentRecordingClickAction.Play
                     : RecentRecordingClickAction.None;
+        public string ClickActionDescription =>
+            ClickAction switch
+            {
+                RecentRecordingClickAction.CopyOrderNumber =>
+                    AppLanguage.Get("单击复制单号"),
+                RecentRecordingClickAction.Play =>
+                    AppLanguage.Get("播放录像"),
+                _ => AppLanguage.Get("这条录像暂时无法播放")
+            };
 
         partial void OnIsActiveChanged(bool value)
         {
             OnPropertyChanged(nameof(CanPlay));
             OnPropertyChanged(nameof(ClickAction));
+            OnPropertyChanged(nameof(ClickActionDescription));
         }
 
         partial void OnVideoRecordIdChanged(long value)
         {
             OnPropertyChanged(nameof(CanPlay));
             OnPropertyChanged(nameof(ClickAction));
+            OnPropertyChanged(nameof(ClickActionDescription));
         }
 
         partial void OnOrderIdChanged(string value) =>
@@ -117,6 +128,7 @@ namespace ExpressPackingMonitoring.Config
             OnPropertyChanged(nameof(CopyOrderNumberText));
             OnPropertyChanged(nameof(CanCopyOrderNumber));
             OnPropertyChanged(nameof(ClickAction));
+            OnPropertyChanged(nameof(ClickActionDescription));
         }
     }
 

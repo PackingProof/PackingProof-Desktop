@@ -765,7 +765,13 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
             if (record.ClickAction != RecentRecordingClickAction.Play)
+            {
+                e.Handled = true;
+                ShowRecentCopyToast(
+                    AppLanguage.Get("这条录像暂时无法播放"),
+                    ToastSeverity.Warning);
                 return;
+            }
 
             e.Handled = true;
             await viewModel.PlayRecentRecordingAsync(record.VideoRecordId);

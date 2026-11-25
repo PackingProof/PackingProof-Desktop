@@ -819,14 +819,15 @@ public sealed class UiScreenshotTests
 
         viewModel.CapabilityOverride = SettingsCapabilities.ForPreset(
             DeploymentPresets.RecordingWorkstation);
-        viewModel.FilteredLogs.Add(new ScanRecord(
+        var completedRecord = new ScanRecord(
             "7902302208052379023022080523",
             "6s",
             "16:01:37",
             "发货",
             videoRecordId: 1,
             generatedName: "MAN_20261123_160137",
-            saveStatusText: "已保存"));
+            saveStatusText: "已保存");
+        viewModel.FilteredLogs.Add(completedRecord);
         Windows.Add(window);
         AttachToSource(window);
 
@@ -843,6 +844,7 @@ public sealed class UiScreenshotTests
         Pump(window);
         var itemBorder = Assert.IsType<Border>(
             FindNamedDescendant(row, "ItemBorder"));
+        Assert.Equal(completedRecord.ClickActionDescription, itemBorder.ToolTip);
         var copyButton = Assert.IsType<Button>(
             FindNamedDescendant(row, "CopyRecentOrderButton"));
         Assert.Equal(34, copyButton.ActualWidth, 1);
@@ -890,6 +892,16 @@ public sealed class UiScreenshotTests
                 videoRecordId: 1,
                 generatedName: "MAN_20261123_160137",
                 saveStatusText: "已保存"));
+
+        viewModel.ShowToast(
+            AppLanguage.Get("这条录像暂时无法播放"),
+            ToastSeverity.Warning);
+        PumpAnimations(window, TimeSpan.FromMilliseconds(160));
+        Save(
+            window,
+            Path.Combine(
+                outputDirectory,
+                "main-window-recording-unavailable-toast.png"));
     }
 
     private static void CaptureRecentRecordingMenu(

@@ -1,5 +1,6 @@
 using System.Text;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Localization;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -130,6 +131,36 @@ public sealed class RecentRecordingCopyTests
     }
 
     [Fact]
+    public void RecentRecord_ClickActionDescriptionTracksAvailableAction()
+    {
+        var record = new ScanRecord(
+            "SF-DESCRIPTION",
+            "2s",
+            "10:00:00",
+            "发货",
+            isActive: true,
+            videoRecordId: 9);
+        var changed = new List<string>();
+        record.PropertyChanged += (_, args) =>
+            changed.Add(args.PropertyName ?? "");
+
+        Assert.Equal(
+            AppLanguage.Get("单击复制单号"),
+            record.ClickActionDescription);
+
+        record.IsActive = false;
+        Assert.Equal(
+            AppLanguage.Get("播放录像"),
+            record.ClickActionDescription);
+
+        record.VideoRecordId = 0;
+        Assert.Equal(
+            AppLanguage.Get("这条录像暂时无法播放"),
+            record.ClickActionDescription);
+        Assert.Contains(nameof(ScanRecord.ClickActionDescription), changed);
+    }
+
+    [Fact]
     public void RecentList_UsesWholeRowPrimaryActionWithoutExtraPlayButton()
     {
         string xaml = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml"));
@@ -149,6 +180,22 @@ public sealed class RecentRecordingCopyTests
         Assert.Contains(
             "record.ClickAction != RecentRecordingClickAction.Play",
             codeBehind,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "AppLanguage.Get(\"这条录像暂时无法播放\")",
+            codeBehind,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "AutomationProperties.Name=\"{Binding ClickActionDescription}\"",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ToolTip=\"{Binding ClickActionDescription}\"",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ToolTip=\"{loc:Localized 复制单号}\"",
+            xaml,
             StringComparison.Ordinal);
         Assert.Contains(
             "Visibility=\"{Binding CanPlay, Converter={StaticResource BoolToVisibility}}\"",
