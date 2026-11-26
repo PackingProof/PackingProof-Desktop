@@ -148,6 +148,26 @@ namespace ExpressPackingMonitoring
                 return;
             }
 
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    int prepared = AppPaths.PreparePackagedTtsCache();
+                    if (prepared > 0)
+                    {
+                        RuntimeLog.Info(
+                            "Speech",
+                            $"Bundled TTS cache prepared files={prepared}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn(
+                        "Speech",
+                        $"Preparing bundled TTS cache failed: {ex.Message}");
+                }
+            });
+
             bool forceChoose = e.Args.Any(a =>
                 string.Equals(a, "--choose-workstation", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(a, "--choose-deployment", StringComparison.OrdinalIgnoreCase));

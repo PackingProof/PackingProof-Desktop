@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
 
 namespace ExpressPackingMonitoring.Config
@@ -192,6 +193,112 @@ namespace ExpressPackingMonitoring.Config
                 MoveLegacyTtsCacheDirectory(Path.Combine(legacyRoot, "tts_cache"));
                 MoveLegacyTtsCacheDirectory(Path.Combine(legacyRoot, "tts"));
             }
+        }
+
+        internal static int PreparePackagedTtsCache()
+            => CopyBundledTtsCacheForPackagedInstall(
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tts_cache"),
+                TtsCacheDir,
+                PackagingIdentity.IsPackaged);
+
+        internal static int CopyBundledTtsCacheForPackagedInstall(
+            string sourceDir,
+            string destinationDir,
+            bool isPackaged)
+        {
+            if (!isPackaged || !Directory.Exists(sourceDir))
+                return 0;
+
+            try
+            {
+                if (string.Equals(
+                        Path.GetFullPath(sourceDir),
+                        Path.GetFullPath(destinationDir),
+                        StringComparison.OrdinalIgnoreCase))
+                    return 0;
+
+                Directory.CreateDirectory(destinationDir);
+                DeleteStaleTtsCopyTemps(destinationDir);
+                int copied = 0;
+                foreach (string sourcePath in Directory.EnumerateFiles(
+                             sourceDir,
+                             "*",
+                             SearchOption.AllDirectories))
+                {
+                    string relativePath = Path.GetRelativePath(sourceDir, sourcePath);
+                    string destinationPath = Path.Combine(destinationDir, relativePath);
+                    string temporaryPath = destinationPath
+                        + ".copy-"
+                        + DateTime.UtcNow.Ticks.ToString()
+                        + "-"
+                        + Guid.NewGuid().ToString("N")
+                        + ".tmp";
+                    try
+                    {
+                        if (File.Exists(destinationPath)
+                            && new FileInfo(destinationPath).Length
+                                == new FileInfo(sourcePath).Length
+                            && string.Equals(
+                                ComputeFileSha256(sourcePath),
+                                ComputeFileSha256(destinationPath),
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+                        File.Copy(sourcePath, temporaryPath, overwrite: false);
+                        File.Move(temporaryPath, destinationPath, overwrite: true);
+                        copied++;
+                    }
+                    catch
+                    {
+                        // 语音缓存可重新生成，单个文件复制失败不能影响启动。
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            if (File.Exists(temporaryPath))
+                                File.Delete(temporaryPath);
+                        }
+                        catch { }
+                    }
+                }
+
+                return copied;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private static void DeleteStaleTtsCopyTemps(string destinationDir)
+        {
+            try
+            {
+                DateTime cutoff = DateTime.UtcNow.AddHours(-1);
+                foreach (string path in Directory.EnumerateFiles(
+                             destinationDir,
+                             "*.copy-*.tmp",
+                             SearchOption.AllDirectories))
+                {
+                    try
+                    {
+                        if (File.GetLastWriteTimeUtc(path) < cutoff)
+                            File.Delete(path);
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        private static string ComputeFileSha256(string path)
+        {
+            using FileStream stream = File.OpenRead(path);
+            return Convert.ToHexString(SHA256.HashData(stream));
         }
 
         internal static void MigrateFeedbackCache(string legacyDirectory, string destinationDirectory)
@@ -460,21 +567,39 @@ namespace ExpressPackingMonitoring.Config
             catch { }
         }
 
-        private static void MoveLegacyTtsCacheDirectory(string sourceDir)
+        private static void MoveLegacyTtsCacheDirectory(string sourceDir) =>
+            MoveLegacyTtsCacheDirectory(
+                sourceDir,
+                TtsCacheDir,
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tts_cache"),
+                PackagingIdentity.IsPackaged);
+
+        internal static void MoveLegacyTtsCacheDirectory(
+            string sourceDir,
+            string destinationDir,
+            string bundledTtsCacheDir,
+            bool isPackaged)
         {
+            bool preserveSource = IsPackagedBundledTtsCacheSource(
+                sourceDir,
+                bundledTtsCacheDir,
+                isPackaged);
+            if (preserveSource)
+                return;
+
             try
             {
                 if (!Directory.Exists(sourceDir)) return;
-                if (string.Equals(Path.GetFullPath(sourceDir), Path.GetFullPath(TtsCacheDir), StringComparison.OrdinalIgnoreCase)) return;
+                if (string.Equals(Path.GetFullPath(sourceDir), Path.GetFullPath(destinationDir), StringComparison.OrdinalIgnoreCase)) return;
 
-                Directory.CreateDirectory(TtsCacheDir);
+                Directory.CreateDirectory(destinationDir);
 
                 foreach (string sourcePath in Directory.EnumerateFileSystemEntries(sourceDir, "*", SearchOption.AllDirectories).ToList())
                 {
                     if (Directory.Exists(sourcePath)) continue;
 
                     string relativePath = Path.GetRelativePath(sourceDir, sourcePath);
-                    string destinationPath = Path.Combine(TtsCacheDir, relativePath);
+                    string destinationPath = Path.Combine(destinationDir, relativePath);
                     if (File.Exists(destinationPath)) continue;
 
                     try
@@ -491,16 +616,28 @@ namespace ExpressPackingMonitoring.Config
             catch { }
             finally
             {
-                DeleteLegacyTtsCacheDirectory(sourceDir);
+                DeleteLegacyTtsCacheDirectory(sourceDir, destinationDir);
             }
         }
 
-        private static void DeleteLegacyTtsCacheDirectory(string sourceDir)
+        internal static bool IsPackagedBundledTtsCacheSource(
+            string sourceDir,
+            string bundledTtsCacheDir,
+            bool isPackaged) =>
+            isPackaged
+            && string.Equals(
+                Path.GetFullPath(sourceDir),
+                Path.GetFullPath(bundledTtsCacheDir),
+                StringComparison.OrdinalIgnoreCase);
+
+        private static void DeleteLegacyTtsCacheDirectory(
+            string sourceDir,
+            string destinationDir)
         {
             try
             {
                 if (!Directory.Exists(sourceDir)) return;
-                if (string.Equals(Path.GetFullPath(sourceDir), Path.GetFullPath(TtsCacheDir), StringComparison.OrdinalIgnoreCase)) return;
+                if (string.Equals(Path.GetFullPath(sourceDir), Path.GetFullPath(destinationDir), StringComparison.OrdinalIgnoreCase)) return;
                 Directory.Delete(sourceDir, recursive: true);
             }
             catch { }
