@@ -319,7 +319,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     AppDialog.Error(
                         null,
-                        $"安装包能力校验失败，程序无法安全启动：{ex.Message}",
+                        AppLanguage.Format(
+                            "安装包能力校验失败，程序无法安全启动：{0}",
+                            AppLanguage.Translate(ex.Message)),
                         "启动失败");
                     Application.Current?.Shutdown(1);
                 });

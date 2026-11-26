@@ -565,10 +565,17 @@ public partial class ExtensionMarketWindow : Window
         }
         catch (Exception ex)
         {
-            SourceStatusText.Text = AppLanguage.Format("安装扩展失败：{0}", ex.Message);
+            string detail = AppLanguage.TranslateForDisplay(
+                ex.Message,
+                "扩展安装失败，请查看日志了解详情");
+            SourceStatusText.Text = AppLanguage.Format(
+                "安装扩展失败：{0}",
+                detail);
             AppDialog.Error(
                 this,
-                AppLanguage.Format("安装扩展失败：{0}", ex.Message),
+                AppLanguage.Format(
+                    "安装扩展失败：{0}",
+                    detail),
                 "安装失败");
         }
         finally

@@ -454,6 +454,167 @@ public sealed class LocalizationTests
     }
 
     [Fact]
+    public void CodeAppLanguageLiterals_AllHaveDefaultResources()
+    {
+        string projectPath = Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring");
+        string resourcesPath = Path.Combine(projectPath, "Resources", "Strings.resx");
+        HashSet<string> resourceKeys = ReadKeys(resourcesPath)
+            .ToHashSet(StringComparer.Ordinal);
+        string[] literalKeys = Directory.GetFiles(
+                projectPath,
+                "*.cs",
+                SearchOption.AllDirectories)
+            .SelectMany(path => Regex.Matches(
+                    File.ReadAllText(path),
+                    "AppLanguage\\.(?:Get|Format)\\(\"([^\"\\r\\n]+)\"")
+                .Select(match => Regex.Unescape(match.Groups[1].Value)))
+            .Where(key => !key.EndsWith(".", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        string[] missing = literalKeys
+            .Except(resourceKeys, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(
+            missing.Length == 0,
+            "Missing resources for AppLanguage literals: "
+            + string.Join(" | ", missing));
+    }
+
+    [Fact]
+    public void ViewerConnectionErrors_UseLocalizedText()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "ViewerClientWindow.xaml.cs"));
+
+        Assert.Contains(
+            "AppLanguage.Get(\"这台电脑暂时不能作为备份主机\")",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "AppLanguage.Get(\"该主机未启用录像接收能力\")",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "ShowConnectionError(\"该主机未启用录像接收能力\")",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PhotoCaptureErrors_TranslateKnownServiceMessages()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Photo.cs"));
+
+        Assert.Contains(
+            "AppLanguage.Translate(ex.Message)",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void KnownExceptionMessages_HaveEnglishAndJapaneseResources()
+    {
+        string[] keys =
+        [
+            "照片记录写入后无法读取",
+            "安装包缺少 ProductCapabilities.json",
+            "ProductCapabilities.json 与程序内置软件能力不一致",
+            "ProductCapabilities.json 的 SHA256 与内置软件能力不一致",
+            "软件配置声明启用面单识别，但当前安装缺少 OBB/ONNX/DirectML 资源",
+            "软件配置声明启用 TTS，但当前安装缺少 WinTts/EdgeTTS 运行时",
+            "等待在途 Web 请求结束超时",
+            "等待备份、上传、剪辑或文件收尾超时",
+            "切换用途前仍有未完成任务：{0}",
+            "切换用途前仍有备份或剪辑任务未完成",
+            "切换用途失败：{0}",
+            "安装前 PPEXT SHA-256 校验失败",
+            "扩展安装目录越界",
+            "扩展安装目录删除失败",
+            "扩展 ID 不能用作数据目录名：{0}",
+            "PPEXT 扩展 ID 与市场记录不一致",
+            "PPEXT 版本与市场记录不一致",
+            "PPEXT 类型与市场记录不一致",
+            "此扩展需要 PackingProof {0} 或更高版本",
+            "PPEXT payload 路径无效",
+            "扩展安装失败，请查看日志了解详情"
+        ];
+        CultureInfo english = CultureInfo.GetCultureInfo("en-US");
+        CultureInfo japanese = CultureInfo.GetCultureInfo("ja-JP");
+        string projectPath = Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring");
+
+        foreach (string key in keys)
+        {
+            Assert.DoesNotMatch(
+                "[\\p{IsCJKUnifiedIdeographs}]",
+                AppLanguage.Get(key, english));
+            Assert.NotEqual(key, AppLanguage.Get(key, japanese));
+        }
+
+        Assert.Contains(
+            "AppLanguage.TranslateForDisplay(",
+            File.ReadAllText(Path.Combine(
+                projectPath,
+                "ViewModels",
+                "MainViewModel.Integration.cs")),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "AppLanguage.TranslateForDisplay(",
+            File.ReadAllText(Path.Combine(
+                projectPath,
+                "Workstations",
+                "PrintWorkstationWindow.xaml.cs")),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TranslateForDisplay_FallsBackForUnknownChineseErrors()
+    {
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-US");
+            Assert.Equal(
+                "The extension could not be installed. Check the log for details",
+                AppLanguage.TranslateForDisplay(
+                    "未知的扩展安装错误",
+                    "扩展安装失败，请查看日志了解详情"));
+            Assert.Equal(
+                "PPEXT SHA-256 validation failed before installation",
+                AppLanguage.TranslateForDisplay(
+                    "安装前 PPEXT SHA-256 校验失败",
+                    "扩展安装失败，请查看日志了解详情"));
+
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("ja-JP");
+            Assert.Equal(
+                "インストール前の PPEXT SHA-256 検証に失敗しました",
+                AppLanguage.TranslateForDisplay(
+                    "安装前 PPEXT SHA-256 校验失败",
+                    "扩展安装失败，请查看日志了解详情"));
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+    }
+
+    [Fact]
     public void WpfViews_StaticVisibleTextDoesNotEndWithChineseFullStop()
     {
         string projectPath = Path.Combine(FindRepositoryRoot(), "src", "ExpressPackingMonitoring");

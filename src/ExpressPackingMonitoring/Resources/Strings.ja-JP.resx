@@ -2133,4 +2133,47 @@
   <data name="本机录像并长期保存" xml:space="preserve"><value>この PC で録画して長期保存</value></data>
   <data name="接收并长期保存手机或其他电脑的录像" xml:space="preserve"><value>スマートフォンや他のパソコンの録画を受信して長期保存</value></data>
   <data name="保存失败" xml:space="preserve"><value>保存に失敗しました</value></data>
+  <data name="设置保存失败" xml:space="preserve"><value>設定を保存できませんでした</value></data>
+  <data name="断句: {0}" xml:space="preserve"><value>区切り: {0}</value></data>
+  <data name="试听失败：{0}" xml:space="preserve"><value>試聴に失敗しました: {0}</value></data>
+  <data name="合并出错：{0}" xml:space="preserve"><value>統合エラー: {0}</value></data>
+  <data name="无法定位支持更新的根目录启动器。补丁已经保留，可完全退出后手动从软件根目录启动" xml:space="preserve"><value>更新をサポートするルート起動ツールが見つかりません。パッチは保持されています。完全に終了してからソフトのルートフォルダーで起動してください</value></data>
+  <data name="无法立即重启" xml:space="preserve"><value>今すぐ再起動できません</value></data>
+  <data name="{0:F0}%" xml:space="preserve"><value>{0:F0}%</value></data>
+  <data name="失败" xml:space="preserve"><value>失敗</value></data>
+  <data name="该地址不是有效的 PackingProof 主机" xml:space="preserve"><value>このアドレスは有効な PackingProof ホストではありません</value></data>
+  <data name="备份主机版本过旧，请先更新电脑端" xml:space="preserve"><value>バックアップホストのバージョンが古すぎます。先にパソコン側を更新してください</value></data>
+  <data name="这台电脑当前不是录像文件备份主机" xml:space="preserve"><value>このパソコンは現在、録画ファイルのバックアップホストではありません</value></data>
+  <data name="当前录制工位版本过低，请更新电脑端后重新连接" xml:space="preserve"><value>現在の録画ワークステーションのバージョンが古すぎます。パソコン側を更新して再接続してください</value></data>
+  <data name="这台电脑暂时不能作为备份主机" xml:space="preserve"><value>このパソコンは現在バックアップホストとして使用できません</value></data>
+  <data name="该主机未启用录像接收能力" xml:space="preserve"><value>このホストは録画の受信機能を有効にしていません</value></data>
+  <data name="安装包能力校验失败，程序无法安全启动：{0}" xml:space="preserve"><value>インストールパッケージの機能検証に失敗したため、安全に起動できません: {0}</value></data>
+  <data name="未配置 NAS 备份位置" xml:space="preserve"><value>NAS バックアップ先が設定されていません</value></data>
+  <data name="照片不存在或不需要重试归档" xml:space="preserve"><value>写真が存在しないか、アーカイブの再試行は不要です</value></data>
+  <data name="照片记录不存在" xml:space="preserve"><value>写真レコードが見つかりません</value></data>
+  <data name="照片记录状态更新失败" xml:space="preserve"><value>写真レコードの状態を更新できませんでした</value></data>
+  <data name="摄像头帧格式不可用于拍照" xml:space="preserve"><value>カメラのフレーム形式は写真撮影に使用できません</value></data>
+  <data name="录像会异步备份到此位置；可输入网络共享路径（如 \\192.168.1.100\共享目录\PackingProofVideos），也可选择网盘挂载成的本地磁盘（如 Z:\PackingProofVideos）" xml:space="preserve"><value>録画はこの場所へ非同期でバックアップされます。ネットワーク共有パス（例: \\192.168.1.100\share\PackingProofVideos）を入力するか、クラウドストレージをマウントしたローカルドライブ（例: Z:\PackingProofVideos）を選択してください</value></data>
+  <data name="备份位置必须是网络共享路径或网盘挂载盘，例如 \\192.168.1.100\共享目录\PackingProofVideos；本地磁盘请添加到录像保存位置" xml:space="preserve"><value>バックアップ先にはネットワーク共有またはマウントしたクラウドドライブを指定してください（例: \\192.168.1.100\share\PackingProofVideos）。ローカルディスクは録画保存先に追加してください</value></data>
+  <data name="照片记录写入后无法读取" xml:space="preserve"><value>写真レコードを書き込んだ後に読み込めませんでした</value></data>
+  <data name="安装包缺少 ProductCapabilities.json" xml:space="preserve"><value>インストールパッケージに ProductCapabilities.json がありません</value></data>
+  <data name="ProductCapabilities.json 与程序内置软件能力不一致" xml:space="preserve"><value>ProductCapabilities.json がプログラムに組み込まれたソフトウェア機能と一致しません</value></data>
+  <data name="ProductCapabilities.json 的 SHA256 与内置软件能力不一致" xml:space="preserve"><value>ProductCapabilities.json の SHA256 が組み込みソフトウェア機能と一致しません</value></data>
+  <data name="软件配置声明启用面单识别，但当前安装缺少 OBB/ONNX/DirectML 资源" xml:space="preserve"><value>ソフトウェア設定で送り状認識が有効ですが、OBB/ONNX/DirectML リソースが不足しています</value></data>
+  <data name="软件配置声明启用 TTS，但当前安装缺少 WinTts/EdgeTTS 运行时" xml:space="preserve"><value>ソフトウェア設定で TTS が有効ですが、WinTts/EdgeTTS ランタイムが不足しています</value></data>
+  <data name="等待在途 Web 请求结束超时" xml:space="preserve"><value>処理中の Web リクエストの終了待ちがタイムアウトしました</value></data>
+  <data name="等待备份、上传、剪辑或文件收尾超时" xml:space="preserve"><value>バックアップ、アップロード、編集、ファイル終了処理の待機がタイムアウトしました</value></data>
+  <data name="切换用途前仍有未完成任务：{0}" xml:space="preserve"><value>用途を切り替える前に未完了のタスクがあります: {0}</value></data>
+  <data name="切换用途前仍有备份或剪辑任务未完成" xml:space="preserve"><value>用途を切り替える前にバックアップまたは編集タスクが完了していません</value></data>
+  <data name="切换用途失败：{0}" xml:space="preserve"><value>用途の切り替えに失敗しました: {0}</value></data>
+  <data name="安装前 PPEXT SHA-256 校验失败" xml:space="preserve"><value>インストール前の PPEXT SHA-256 検証に失敗しました</value></data>
+  <data name="扩展安装目录越界" xml:space="preserve"><value>拡張機能のインストール先が許可されたルート外です</value></data>
+  <data name="扩展安装目录删除失败" xml:space="preserve"><value>拡張機能のインストール先を削除できませんでした</value></data>
+  <data name="扩展 ID 不能用作数据目录名：{0}" xml:space="preserve"><value>拡張 ID はデータディレクトリ名として使用できません: {0}</value></data>
+  <data name="PPEXT 扩展 ID 与市场记录不一致" xml:space="preserve"><value>PPEXT の拡張 ID がマーケットの記録と一致しません</value></data>
+  <data name="PPEXT 版本与市场记录不一致" xml:space="preserve"><value>PPEXT のバージョンがマーケットの記録と一致しません</value></data>
+  <data name="PPEXT 类型与市场记录不一致" xml:space="preserve"><value>PPEXT の種類がマーケットの記録と一致しません</value></data>
+  <data name="此扩展需要 PackingProof {0} 或更高版本" xml:space="preserve"><value>この拡張機能には PackingProof {0} 以降が必要です</value></data>
+  <data name="PPEXT payload 路径无效" xml:space="preserve"><value>PPEXT payload のパスが無効です</value></data>
+  <data name="扩展安装失败，请查看日志了解详情" xml:space="preserve"><value>拡張機能をインストールできませんでした。詳細はログを確認してください</value></data>
 </root>

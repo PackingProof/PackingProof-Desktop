@@ -59,12 +59,13 @@ public partial class ViewerClientWindow : Window
         if (_bindingOnly)
         {
             Title = AppLanguage.Format("PackingProof 备份主机 {0}", AppVersion.Current);
-            WindowHeadingText.Text = "备份主机";
-            WindowDescriptionText.Text = "选择一台电脑保存录像；暂时不设置也可以先录像";
+            WindowHeadingText.Text = AppLanguage.Get("备份主机");
+            WindowDescriptionText.Text =
+                AppLanguage.Get("选择一台电脑保存录像；暂时不设置也可以先录像");
             SwitchPurposeButton.Visibility = Visibility.Collapsed;
             ViewerActionPanel.Visibility = Visibility.Collapsed;
             UserscriptStatusText.Visibility = Visibility.Collapsed;
-            DiscoveryHeadingText.Text = "选择备份主机";
+            DiscoveryHeadingText.Text = AppLanguage.Get("选择备份主机");
             SearchStatusText.Text = ViewerConnectionStatusText.SearchingBindingHost;
             DeferBindingButton.Visibility = Visibility.Visible;
             ScanPhonePairingButton.Visibility = Visibility.Visible;
@@ -446,13 +447,13 @@ public partial class ViewerClientWindow : Window
         if (!node.IsValidHost)
         {
             ShowConnectionError(_bindingOnly
-                ? "这台电脑暂时不能作为备份主机"
+                ? AppLanguage.Get("这台电脑暂时不能作为备份主机")
                 : AppLanguage.Get("该地址不是有效的 PackingProof 主机"));
             return;
         }
         if (_bindingOnly && !IsRecordingReceiverHost(node))
         {
-            ShowConnectionError("该主机未启用录像接收能力");
+            ShowConnectionError(AppLanguage.Get("该主机未启用录像接收能力"));
             return;
         }
         bool hostProtocolCompatible =
@@ -472,7 +473,7 @@ public partial class ViewerClientWindow : Window
                 node.BackupCompatibility,
                 AppVersion.Current))
         {
-            ShowConnectionError("当前电脑版本过低，请更新后再备份");
+            ShowConnectionError(AppLanguage.Get("当前电脑版本过低，请更新后再备份"));
             return;
         }
 

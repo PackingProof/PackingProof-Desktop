@@ -2135,4 +2135,47 @@
   <data name="本机录像并长期保存" xml:space="preserve"><value>本机录像并长期保存</value></data>
   <data name="接收并长期保存手机或其他电脑的录像" xml:space="preserve"><value>接收并长期保存手机或其他电脑的录像</value></data>
   <data name="保存失败" xml:space="preserve"><value>保存失败</value></data>
+  <data name="设置保存失败" xml:space="preserve"><value>设置保存失败</value></data>
+  <data name="断句: {0}" xml:space="preserve"><value>断句: {0}</value></data>
+  <data name="试听失败：{0}" xml:space="preserve"><value>试听失败：{0}</value></data>
+  <data name="合并出错：{0}" xml:space="preserve"><value>合并出错：{0}</value></data>
+  <data name="无法定位支持更新的根目录启动器。补丁已经保留，可完全退出后手动从软件根目录启动" xml:space="preserve"><value>无法定位支持更新的根目录启动器。补丁已经保留，可完全退出后手动从软件根目录启动</value></data>
+  <data name="无法立即重启" xml:space="preserve"><value>无法立即重启</value></data>
+  <data name="{0:F0}%" xml:space="preserve"><value>{0:F0}%</value></data>
+  <data name="失败" xml:space="preserve"><value>失败</value></data>
+  <data name="该地址不是有效的 PackingProof 主机" xml:space="preserve"><value>该地址不是有效的 PackingProof 主机</value></data>
+  <data name="备份主机版本过旧，请先更新电脑端" xml:space="preserve"><value>备份主机版本过旧，请先更新电脑端</value></data>
+  <data name="这台电脑当前不是录像文件备份主机" xml:space="preserve"><value>这台电脑当前不是录像文件备份主机</value></data>
+  <data name="当前录制工位版本过低，请更新电脑端后重新连接" xml:space="preserve"><value>当前录制工位版本过低，请更新电脑端后重新连接</value></data>
+  <data name="这台电脑暂时不能作为备份主机" xml:space="preserve"><value>这台电脑暂时不能作为备份主机</value></data>
+  <data name="该主机未启用录像接收能力" xml:space="preserve"><value>该主机未启用录像接收能力</value></data>
+  <data name="安装包能力校验失败，程序无法安全启动：{0}" xml:space="preserve"><value>安装包能力校验失败，程序无法安全启动：{0}</value></data>
+  <data name="未配置 NAS 备份位置" xml:space="preserve"><value>未配置 NAS 备份位置</value></data>
+  <data name="照片不存在或不需要重试归档" xml:space="preserve"><value>照片不存在或不需要重试归档</value></data>
+  <data name="照片记录不存在" xml:space="preserve"><value>照片记录不存在</value></data>
+  <data name="照片记录状态更新失败" xml:space="preserve"><value>照片记录状态更新失败</value></data>
+  <data name="摄像头帧格式不可用于拍照" xml:space="preserve"><value>摄像头帧格式不可用于拍照</value></data>
+  <data name="录像会异步备份到此位置；可输入网络共享路径（如 \\192.168.1.100\共享目录\PackingProofVideos），也可选择网盘挂载成的本地磁盘（如 Z:\PackingProofVideos）" xml:space="preserve"><value>录像会异步备份到此位置；可输入网络共享路径（如 \\192.168.1.100\共享目录\PackingProofVideos），也可选择网盘挂载成的本地磁盘（如 Z:\PackingProofVideos）</value></data>
+  <data name="备份位置必须是网络共享路径或网盘挂载盘，例如 \\192.168.1.100\共享目录\PackingProofVideos；本地磁盘请添加到录像保存位置" xml:space="preserve"><value>备份位置必须是网络共享路径或网盘挂载盘，例如 \\192.168.1.100\共享目录\PackingProofVideos；本地磁盘请添加到录像保存位置</value></data>
+  <data name="照片记录写入后无法读取" xml:space="preserve"><value>照片记录写入后无法读取</value></data>
+  <data name="安装包缺少 ProductCapabilities.json" xml:space="preserve"><value>安装包缺少 ProductCapabilities.json</value></data>
+  <data name="ProductCapabilities.json 与程序内置软件能力不一致" xml:space="preserve"><value>ProductCapabilities.json 与程序内置软件能力不一致</value></data>
+  <data name="ProductCapabilities.json 的 SHA256 与内置软件能力不一致" xml:space="preserve"><value>ProductCapabilities.json 的 SHA256 与内置软件能力不一致</value></data>
+  <data name="软件配置声明启用面单识别，但当前安装缺少 OBB/ONNX/DirectML 资源" xml:space="preserve"><value>软件配置声明启用面单识别，但当前安装缺少 OBB/ONNX/DirectML 资源</value></data>
+  <data name="软件配置声明启用 TTS，但当前安装缺少 WinTts/EdgeTTS 运行时" xml:space="preserve"><value>软件配置声明启用 TTS，但当前安装缺少 WinTts/EdgeTTS 运行时</value></data>
+  <data name="等待在途 Web 请求结束超时" xml:space="preserve"><value>等待在途 Web 请求结束超时</value></data>
+  <data name="等待备份、上传、剪辑或文件收尾超时" xml:space="preserve"><value>等待备份、上传、剪辑或文件收尾超时</value></data>
+  <data name="切换用途前仍有未完成任务：{0}" xml:space="preserve"><value>切换用途前仍有未完成任务：{0}</value></data>
+  <data name="切换用途前仍有备份或剪辑任务未完成" xml:space="preserve"><value>切换用途前仍有备份或剪辑任务未完成</value></data>
+  <data name="切换用途失败：{0}" xml:space="preserve"><value>切换用途失败：{0}</value></data>
+  <data name="安装前 PPEXT SHA-256 校验失败" xml:space="preserve"><value>安装前 PPEXT SHA-256 校验失败</value></data>
+  <data name="扩展安装目录越界" xml:space="preserve"><value>扩展安装目录越界</value></data>
+  <data name="扩展安装目录删除失败" xml:space="preserve"><value>扩展安装目录删除失败</value></data>
+  <data name="扩展 ID 不能用作数据目录名：{0}" xml:space="preserve"><value>扩展 ID 不能用作数据目录名：{0}</value></data>
+  <data name="PPEXT 扩展 ID 与市场记录不一致" xml:space="preserve"><value>PPEXT 扩展 ID 与市场记录不一致</value></data>
+  <data name="PPEXT 版本与市场记录不一致" xml:space="preserve"><value>PPEXT 版本与市场记录不一致</value></data>
+  <data name="PPEXT 类型与市场记录不一致" xml:space="preserve"><value>PPEXT 类型与市场记录不一致</value></data>
+  <data name="此扩展需要 PackingProof {0} 或更高版本" xml:space="preserve"><value>此扩展需要 PackingProof {0} 或更高版本</value></data>
+  <data name="PPEXT payload 路径无效" xml:space="preserve"><value>PPEXT payload 路径无效</value></data>
+  <data name="扩展安装失败，请查看日志了解详情" xml:space="preserve"><value>扩展安装失败，请查看日志了解详情</value></data>
 </root>

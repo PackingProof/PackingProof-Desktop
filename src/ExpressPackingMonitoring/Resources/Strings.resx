@@ -2133,4 +2133,47 @@ Local audio</value></data>
   <data name="本机录像并长期保存" xml:space="preserve"><value>Record on this PC and store recordings long term</value></data>
   <data name="接收并长期保存手机或其他电脑的录像" xml:space="preserve"><value>Receive and retain recordings from phones or other computers</value></data>
   <data name="保存失败" xml:space="preserve"><value>Save failed</value></data>
+  <data name="设置保存失败" xml:space="preserve"><value>Could not save settings</value></data>
+  <data name="断句: {0}" xml:space="preserve"><value>Speech breaks: {0}</value></data>
+  <data name="试听失败：{0}" xml:space="preserve"><value>Preview failed: {0}</value></data>
+  <data name="合并出错：{0}" xml:space="preserve"><value>Merge failed: {0}</value></data>
+  <data name="无法定位支持更新的根目录启动器。补丁已经保留，可完全退出后手动从软件根目录启动" xml:space="preserve"><value>Could not locate the root launcher that supports updates. The patch has been kept; exit fully and start from the software root folder</value></data>
+  <data name="无法立即重启" xml:space="preserve"><value>Cannot restart now</value></data>
+  <data name="{0:F0}%" xml:space="preserve"><value>{0:F0}%</value></data>
+  <data name="失败" xml:space="preserve"><value>Failed</value></data>
+  <data name="该地址不是有效的 PackingProof 主机" xml:space="preserve"><value>This address is not a valid PackingProof host</value></data>
+  <data name="备份主机版本过旧，请先更新电脑端" xml:space="preserve"><value>The backup host version is too old. Update the PC version first</value></data>
+  <data name="这台电脑当前不是录像文件备份主机" xml:space="preserve"><value>This PC is not currently a recording backup host</value></data>
+  <data name="当前录制工位版本过低，请更新电脑端后重新连接" xml:space="preserve"><value>The recording workstation version is too old. Update the PC version before reconnecting</value></data>
+  <data name="这台电脑暂时不能作为备份主机" xml:space="preserve"><value>This PC cannot be used as a backup host right now</value></data>
+  <data name="该主机未启用录像接收能力" xml:space="preserve"><value>This host has not enabled recording uploads</value></data>
+  <data name="安装包能力校验失败，程序无法安全启动：{0}" xml:space="preserve"><value>Package capability validation failed, so the app cannot start safely: {0}</value></data>
+  <data name="未配置 NAS 备份位置" xml:space="preserve"><value>NAS backup location is not configured</value></data>
+  <data name="照片不存在或不需要重试归档" xml:space="preserve"><value>The photo does not exist or does not need archive retry</value></data>
+  <data name="照片记录不存在" xml:space="preserve"><value>Photo record not found</value></data>
+  <data name="照片记录状态更新失败" xml:space="preserve"><value>Failed to update photo record status</value></data>
+  <data name="摄像头帧格式不可用于拍照" xml:space="preserve"><value>Camera frame format cannot be used for photos</value></data>
+  <data name="录像会异步备份到此位置；可输入网络共享路径（如 \\192.168.1.100\共享目录\PackingProofVideos），也可选择网盘挂载成的本地磁盘（如 Z:\PackingProofVideos）" xml:space="preserve"><value>Recordings are backed up here asynchronously; enter a network share path (for example \\192.168.1.100\share\PackingProofVideos), or choose a local drive mounted from cloud storage (for example Z:\PackingProofVideos)</value></data>
+  <data name="备份位置必须是网络共享路径或网盘挂载盘，例如 \\192.168.1.100\共享目录\PackingProofVideos；本地磁盘请添加到录像保存位置" xml:space="preserve"><value>The backup location must be a network share or a mounted cloud drive, for example \\192.168.1.100\share\PackingProofVideos; add local disks to recording storage</value></data>
+  <data name="照片记录写入后无法读取" xml:space="preserve"><value>The photo record could not be read after writing</value></data>
+  <data name="安装包缺少 ProductCapabilities.json" xml:space="preserve"><value>The package is missing ProductCapabilities.json</value></data>
+  <data name="ProductCapabilities.json 与程序内置软件能力不一致" xml:space="preserve"><value>ProductCapabilities.json does not match the software capabilities embedded in the app</value></data>
+  <data name="ProductCapabilities.json 的 SHA256 与内置软件能力不一致" xml:space="preserve"><value>The SHA256 of ProductCapabilities.json does not match the embedded software capabilities</value></data>
+  <data name="软件配置声明启用面单识别，但当前安装缺少 OBB/ONNX/DirectML 资源" xml:space="preserve"><value>The software configuration enables waybill recognition, but this installation is missing OBB/ONNX/DirectML resources</value></data>
+  <data name="软件配置声明启用 TTS，但当前安装缺少 WinTts/EdgeTTS 运行时" xml:space="preserve"><value>The software configuration enables TTS, but this installation is missing the WinTts/EdgeTTS runtime</value></data>
+  <data name="等待在途 Web 请求结束超时" xml:space="preserve"><value>Timed out waiting for active web requests to finish</value></data>
+  <data name="等待备份、上传、剪辑或文件收尾超时" xml:space="preserve"><value>Timed out waiting for backup, upload, clipping, or file finalization</value></data>
+  <data name="切换用途前仍有未完成任务：{0}" xml:space="preserve"><value>Tasks are still running before switching purpose: {0}</value></data>
+  <data name="切换用途前仍有备份或剪辑任务未完成" xml:space="preserve"><value>Backup or clipping tasks are still running before switching purpose</value></data>
+  <data name="切换用途失败：{0}" xml:space="preserve"><value>Purpose switch failed: {0}</value></data>
+  <data name="安装前 PPEXT SHA-256 校验失败" xml:space="preserve"><value>PPEXT SHA-256 validation failed before installation</value></data>
+  <data name="扩展安装目录越界" xml:space="preserve"><value>The extension installation directory escaped its allowed root</value></data>
+  <data name="扩展安装目录删除失败" xml:space="preserve"><value>Could not delete the extension installation directory</value></data>
+  <data name="扩展 ID 不能用作数据目录名：{0}" xml:space="preserve"><value>Extension ID cannot be used as a data directory name: {0}</value></data>
+  <data name="PPEXT 扩展 ID 与市场记录不一致" xml:space="preserve"><value>The PPEXT extension ID does not match the marketplace record</value></data>
+  <data name="PPEXT 版本与市场记录不一致" xml:space="preserve"><value>The PPEXT version does not match the marketplace record</value></data>
+  <data name="PPEXT 类型与市场记录不一致" xml:space="preserve"><value>The PPEXT type does not match the marketplace record</value></data>
+  <data name="此扩展需要 PackingProof {0} 或更高版本" xml:space="preserve"><value>This extension requires PackingProof {0} or later</value></data>
+  <data name="PPEXT payload 路径无效" xml:space="preserve"><value>The PPEXT payload path is invalid</value></data>
+  <data name="扩展安装失败，请查看日志了解详情" xml:space="preserve"><value>The extension could not be installed. Check the log for details</value></data>
 </root>

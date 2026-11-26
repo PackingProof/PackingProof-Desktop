@@ -112,6 +112,22 @@ public static class AppLanguage
         return BrandText.Apply(TranslateTemplate(value, GetPhraseTable(culture), culture));
     }
 
+    /// <summary>
+    /// 用户可见的错误详情：已知异常走资源映射；未知中文异常在非中文界面
+    /// 回退到通用说明，避免中英混排。原始异常仍由调用方写入日志。
+    /// </summary>
+    public static string TranslateForDisplay(string value, string fallbackKey)
+    {
+        string translated = Translate(value);
+        if (!IsChinese
+            && string.Equals(translated, value, StringComparison.Ordinal)
+            && ContainsCjk(translated))
+        {
+            return Get(fallbackKey);
+        }
+        return translated;
+    }
+
     private sealed record PhraseTable(
         IReadOnlyDictionary<string, string> Labels,
         IReadOnlyList<(string Prefix, System.Text.RegularExpressions.Regex Pattern, string Template)> Templates);

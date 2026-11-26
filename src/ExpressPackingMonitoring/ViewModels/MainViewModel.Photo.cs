@@ -131,7 +131,9 @@ public partial class MainViewModel
             RuntimeLog.Error("Photo", "Capture failed", ex);
             AppDialog.Error(
                 owner,
-                AppLanguage.Format("拍照失败：{0}", ex.Message),
+                AppLanguage.Format(
+                    "拍照失败：{0}",
+                    AppLanguage.Translate(ex.Message)),
                 AppLanguage.Get("照片取证"));
         }
         finally

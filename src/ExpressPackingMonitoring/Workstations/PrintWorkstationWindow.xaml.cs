@@ -959,7 +959,11 @@ public partial class PrintWorkstationWindow : Window
             RuntimeLog.Warn("Extensions", $"工位安装向导自动准备脚本失败：{ex.Message}");
             AppDialog.Error(
                 this,
-                AppLanguage.Format("安装扩展失败：{0}", ex.Message),
+                AppLanguage.Format(
+                    "安装扩展失败：{0}",
+                    AppLanguage.TranslateForDisplay(
+                        ex.Message,
+                        "扩展安装失败，请查看日志了解详情")),
                 AppLanguage.Get("安装扩展失败"));
         }
         finally
@@ -1213,7 +1217,9 @@ public partial class PrintWorkstationWindow : Window
             if (admissionPaused)
                 _host.ResumeRequestAdmission();
             RuntimeLog.Error("ModeTransition", "Backup host purpose transition failed", ex);
-            ShowToast($"切换用途失败：{ex.Message}");
+            ShowToast(AppLanguage.Format(
+                "切换用途失败：{0}",
+                AppLanguage.Translate(ex.Message)));
             return false;
         }
         finally
